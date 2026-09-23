@@ -6,14 +6,15 @@ A Pi extension that enables fast mode for supported models with one command and 
 - **`F3`**: toggles fast mode on/off.
 - No arguments. `/fast` always toggles.
 
-The current model determines what gets injected:
+The current model's API and ID determine what gets injected. Any provider that speaks the model's API is supported, including proxies such as LiteLLM that prefix IDs with `anthropic/` or `openai/`.
 
-- **Claude Opus 4.6 / 4.7 / 4.8**
+- **Claude Opus 4.6 / 4.7 / 4.8 / 5 / 5.5** (`anthropic-messages`)
   - Adds `speed: "fast"`
   - Adds required header `anthropic-beta: fast-mode-2026-02-01`
-- **OpenAI Codex GPT-5.4 / GPT-5.5 / GPT-5.6 Luna, Sol, and Terra**
+- **GPT-5.4 / GPT-5.5 / GPT-5.6 Luna, Sol, and Terra / GPT-6 Astra, Sol, and Luna**
   - Adds `service_tier: "priority"`
-  - Requires ChatGPT/OAuth auth (API-key models are skipped)
+  - `openai-codex-responses` requires ChatGPT/OAuth auth (API-key models are skipped)
+  - `openai-responses` works with API-key auth
 
 ## Install
 
