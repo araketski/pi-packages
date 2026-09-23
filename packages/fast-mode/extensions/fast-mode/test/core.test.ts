@@ -294,3 +294,15 @@ test.each(['openai/gpt-6-luna', 'openai/gpt-5.6-terra'])(
     });
   },
 );
+
+test('Claude Opus 4.7 stays unsupported because the API rejects fast mode', () => {
+  const ctx = context({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-4-7' });
+  const state = createFastModeState(true);
+  const modelStatus = syncFeatureState(ctx, state);
+  const headers: Record<string, string | null> = {};
+  applyFastModeHeaders(headers, ctx, state, modelStatus);
+
+  expect(modelStatus.isSupported).toBe(false);
+  expect(getFastPayload({ model: 'claude-opus-4-7' }, ctx, state, modelStatus)).toBe(undefined);
+  expect(headers).toEqual({});
+});

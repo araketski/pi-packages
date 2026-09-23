@@ -22,7 +22,6 @@ const OPENAI_RESPONSES_API = 'openai-responses';
 
 const CLAUDE_FAST_MODELS = new Set([
   'claude-opus-4-6',
-  'claude-opus-4-7',
   'claude-opus-4-8',
   'claude-opus-5',
   'claude-opus-5-5',
@@ -38,7 +37,7 @@ const OPENAI_FAST_MODELS = new Set([
   'gpt-6-luna',
 ]);
 const CLAUDE_UNSUPPORTED_MESSAGE =
-  'Fast mode is only available for Claude Opus 4.6-4.8, 5, and 5.5';
+  'Fast mode is only available for Claude Opus 4.6, 4.8, 5, and 5.5';
 const OPENAI_UNSUPPORTED_MESSAGE =
   'Fast mode is only available for GPT-5.4, GPT-5.5, GPT-5.6 Luna/Sol/Terra, and GPT-6 Astra/Sol/Luna';
 
