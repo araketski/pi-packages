@@ -1,3 +1,13 @@
+## 0.3.20 (2026-09-26)
+
+### 🩹 Fixes
+
+- **publish:** align package repository metadata ([f07d550](https://github.com/araketski/pi-packages/commit/f07d550))
+
+### ❤️ Thank You
+
+- Aliaksei Raketski @araketski
+
 ## 0.3.19 (2026-09-26)
 
 ### 🚀 Features

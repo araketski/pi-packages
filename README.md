@@ -1,116 +1,208 @@
-# Pi Packages
+# Nx TypeScript Repository
 
-Nx monorepo for public npm-distributed [Pi](https://pi.dev) packages.
+<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
-## Packages
+✨ A repository showcasing key [Nx](https://nx.dev) features for TypeScript monorepos ✨
 
-| Workspace                              | npm package                                         | Description                                                                         | Install                                                            |
-| -------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `packages/angular-developer`           | `@aliaksei-raketski/pi-angular-developer`           | Angular developer skill with local documentation helper scripts.                    | `pi install npm:@aliaksei-raketski/pi-angular-developer`           |
-| `packages/continuation-gate-inspector` | `@aliaksei-raketski/pi-continuation-gate-inspector` | Read-only local inspector for continuation-gate diagnostics.                        | `pi install npm:@aliaksei-raketski/pi-continuation-gate-inspector` |
-| `packages/continuation-gate-protocol`  | `@aliaksei-raketski/pi-continuation-gate-protocol`  | Shared continuation-gate protocol for cooperating Pi extensions.                    | `pi install npm:@aliaksei-raketski/pi-continuation-gate-protocol`  |
-| `packages/caffeinate`                  | `@aliaksei-raketski/pi-caffeinate`                  | Keeps the computer awake while Pi or continuation work is active.                   | `pi install npm:@aliaksei-raketski/pi-caffeinate`                  |
-| `packages/fast-mode`                   | `@aliaksei-raketski/pi-fast-mode`                   | Extension that enables fast-mode payload tuning for supported Claude/OpenAI models. | `pi install npm:@aliaksei-raketski/pi-fast-mode`                   |
-| `packages/goal`                        | `@aliaksei-raketski/pi-goal`                        | Persistent, evidence-gated thread goals and continuation support.                   | `pi install npm:@aliaksei-raketski/pi-goal`                        |
-| `packages/nx-developer`                | `@aliaksei-raketski/pi-nx-developer`                | Nx workspace development and documentation skills.                                  | `pi install npm:@aliaksei-raketski/pi-nx-developer`                |
-| `packages/statusline`                  | `@aliaksei-raketski/pi-statusline`                  | Extension for a customizable, ANSI-aware statusline footer.                         | `pi install npm:@aliaksei-raketski/pi-statusline`                  |
-| `packages/statusline-protocol`         | `@aliaksei-raketski/pi-statusline-protocol`         | Shared source-aware structured status protocol.                                     | `pi install npm:@aliaksei-raketski/pi-statusline-protocol`         |
-| `packages/taiga-ui-docs`               | `@aliaksei-raketski/pi-taiga-ui-docs`               | Taiga UI docs skill backed by a bundled helper script.                              | `pi install npm:@aliaksei-raketski/pi-taiga-ui-docs`               |
-| `packages/tmux-bash`                   | `@aliaksei-raketski/pi-tmux-bash`                   | Tmux-backed command execution with bounded output and continuation gates.           | `pi install npm:@aliaksei-raketski/pi-tmux-bash`                   |
-| `packages/tmux-bash-core`              | `@aliaksei-raketski/pi-tmux-bash-core`              | Compiled read-only scope, manifest, metadata, discovery, and attach helpers.        | `npm install @aliaksei-raketski/pi-tmux-bash-core`                 |
+🚀 If you haven't connected to Nx Cloud yet, [complete your setup here](https://cloud.nx.app/get-started). Get faster builds with remote caching, distributed task execution, and self-healing CI. [See how your workspace can benefit](#nx-cloud).
 
-## Development
+## 📦 Project Overview
 
-Install dependencies:
+This repository demonstrates a production-ready TypeScript monorepo with:
+
+- **3 Publishable Packages** - Ready for NPM publishing
+
+  - `@org/strings` - String manipulation utilities
+  - `@org/async` - Async utility functions with retry logic
+  - `@org/colors` - Color conversion and manipulation utilities
+
+- **1 Internal Library**
+  - `@org/utils` - Shared utilities (private, not published)
+
+## 🚀 Quick Start
 
 ```bash
-pnpm install
+# Clone the repository
+git clone <your-fork-url>
+cd typescript-template
+
+# Install dependencies
+npm install
+
+# Build all packages
+npx nx run-many -t build
+
+# Run tests
+npx nx run-many -t test
+
+# Lint all projects
+npx nx run-many -t lint
+
+# Run everything in parallel
+npx nx run-many -t lint test build --parallel=3
+
+# Visualize the project graph
+npx nx graph
 ```
 
-List Nx projects:
+## ⭐ Featured Nx Capabilities
+
+This repository showcases several powerful Nx features:
+
+### 1. 🔒 Module Boundaries
+
+Enforces architectural constraints using tags. Each package has specific dependencies it can use:
+
+- `scope:shared` (utils) - Can be used by all packages
+- `scope:strings` - Can only depend on shared utilities
+- `scope:async` - Can only depend on shared utilities
+- `scope:colors` - Can only depend on shared utilities
+
+**Try it out:**
 
 ```bash
-pnpm nx show projects
+# See the current project graph and boundaries
+npx nx graph
+
+# View a specific project's details
+npx nx show project @org/strings --web
 ```
 
-Inspect a project:
+[Learn more about module boundaries →](https://nx.dev/docs/features/enforce-module-boundaries)
+
+### 2. 🛠️ Custom Run Commands
+
+Packages can define custom commands beyond standard build/test/lint:
 
 ```bash
-pnpm nx show project @aliaksei-raketski/pi-fast-mode --json
+# Run the custom build-base command for strings package
+npx nx run @org/strings:build-base
+
+# See all available targets for a project
+npx nx show project @org/strings
 ```
 
-Run checks for all Pi packages:
+### 3. 🔧 Self-Healing CI
+
+The CI pipeline includes `nx fix-ci` which automatically identifies and suggests fixes for common issues. To test it, you can make a change to `async-retry.spec.ts` so that it fails, and create a PR.
 
 ```bash
-pnpm nx run-many --projects='packages/*' -t lint,typecheck
+# Run tests and see the failure
+npx nx run @org/async:test
+
+# In CI, this command provides automated fixes
+npx nx fix-ci
 ```
 
-Run all configured test targets:
+[Learn more about self-healing CI →](https://nx.dev/docs/features/ci-features/self-healing-ci)
+
+### 4. 📦 Package Publishing
+
+Manage releases and publishing with Nx Release:
 
 ```bash
-pnpm nx run-many -t test --parallel=3
+# Dry run to see what would be published
+npx nx release --dry-run
+
+# Version and release packages
+npx nx release
+
+# Publish only specific packages
+npx nx release publish --projects=@org/strings,@org/colors
 ```
 
-Explore the workspace graph:
+[Learn more about Nx Release →](https://nx.dev/docs/features/manage-releases)
+
+## 📁 Project Structure
+
+```
+├── packages/
+│   ├── strings/     [scope:strings] - String utilities (publishable)
+│   ├── async/       [scope:async]   - Async utilities (publishable)
+│   ├── colors/      [scope:colors]  - Color utilities (publishable)
+│   └── utils/       [scope:shared]  - Shared utilities (private)
+├── nx.json          - Nx configuration
+├── tsconfig.json    - TypeScript configuration
+└── eslint.config.mjs - ESLint with module boundary rules
+```
+
+## 🏷️ Understanding Tags
+
+This repository uses tags to enforce module boundaries:
+
+| Package        | Tag             | Can Import From        |
+| -------------- | --------------- | ---------------------- |
+| `@org/utils`   | `scope:shared`  | Nothing (base library) |
+| `@org/strings` | `scope:strings` | `scope:shared`         |
+| `@org/async`   | `scope:async`   | `scope:shared`         |
+| `@org/colors`  | `scope:colors`  | `scope:shared`         |
+
+The ESLint configuration enforces these boundaries, preventing circular dependencies and maintaining clean architecture.
+
+## 🧪 Testing Module Boundaries
+
+To see module boundary enforcement in action:
+
+1. Try importing `@org/colors` into `@org/strings`
+2. Run `npx nx run @org/strings:lint`
+3. You'll see an error about violating module boundaries
+
+## 📚 Useful Commands
 
 ```bash
-pnpm nx graph
+# Project exploration
+npx nx graph                                    # Interactive dependency graph
+npx nx list                                     # List installed plugins
+npx nx show project @org/strings --web              # View project details
+
+# Development
+npx nx run @org/strings:build                           # Build a specific package
+npx nx run @org/async:test                              # Test a specific package
+npx nx run @org/colors:lint                             # Lint a specific package
+
+# Running multiple tasks
+npx nx run-many -t build                       # Build all projects
+npx nx run-many -t test --parallel=3          # Test in parallel
+npx nx run-many -t lint test build            # Run multiple targets
+
+# Affected commands (great for CI)
+npx nx affected -t build                       # Build only affected projects
+npx nx affected -t test                        # Test only affected projects
+
+# Release management
+npx nx release --dry-run                       # Preview release changes
+npx nx release                                 # Create a new release
 ```
 
-## Generating Pi packages and components
+## Nx Cloud
 
-Use the local Nx generators instead of hand-rolling package metadata or Pi component folders.
+Nx Cloud ensures a [fast and scalable CI](https://nx.dev/nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
 
-Create a package container:
+- [Remote caching](https://nx.dev/docs/features/ci-features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Task distribution across multiple machines](https://nx.dev/docs/features/ci-features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Automated e2e test splitting](https://nx.dev/docs/features/ci-features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Task flakiness detection and rerunning](https://nx.dev/docs/features/ci-features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
-```bash
-pnpm nx g @aliaksei-raketski/nx-pi:package my-package --dry-run --no-interactive
-pnpm nx g @aliaksei-raketski/nx-pi:package my-package --no-interactive
-```
+## Install Nx Console
 
-Add components to an existing Pi package:
+Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
 
-```bash
-pnpm nx g @aliaksei-raketski/nx-pi:skill my-skill \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+[Install Nx Console &raquo;](https://nx.dev/docs/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
-pnpm nx g @aliaksei-raketski/nx-pi:prompt my-prompt \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+## 🔗 Learn More
 
-pnpm nx g @aliaksei-raketski/nx-pi:theme my-theme \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+- [Nx Documentation](https://nx.dev/docs)
+- [Crafting Your Workspace Tutorial](https://nx.dev/docs/getting-started/tutorials/crafting-your-workspace)
+- [Module Boundaries](https://nx.dev/docs/features/enforce-module-boundaries)
+- [Releasing Packages](https://nx.dev/docs/features/manage-releases)
+- [Nx Cloud](https://nx.dev/nx-cloud)
 
-pnpm nx g @aliaksei-raketski/nx-pi:extension my-extension \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
-```
+## 💬 Community
 
-Check available options before applying changes:
+Join the Nx community:
 
-```bash
-pnpm nx g @aliaksei-raketski/nx-pi:package --help
-pnpm nx g @aliaksei-raketski/nx-pi:skill --help
-pnpm nx g @aliaksei-raketski/nx-pi:extension --help
-```
-
-## Trying extensions locally
-
-```bash
-pi -e ./packages/fast-mode
-pi -e ./packages/statusline
-```
-
-## Syncing vendored skills
-
-Some skill packages include their own maintenance scripts. For example:
-
-```bash
-pnpm --filter @aliaksei-raketski/pi-angular-developer sync
-```
-
-## Publishing
-
-Packages are intended to be published to the public npm registry. Use Nx project metadata and package-level `package.json` versions as the source of truth during release automation.
+- [Discord](https://go.nx.dev/community)
+- [X (Twitter)](https://twitter.com/nxdevtools)
+- [LinkedIn](https://www.linkedin.com/company/nrwl)
+- [YouTube](https://www.youtube.com/@nxdevtools)
+- [Blog](https://nx.dev/blog)
