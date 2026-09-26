@@ -14,10 +14,32 @@ const FAST_BETA = 'fast-mode-2026-02-01';
 const CLAUDE_CODE_OAUTH_BETAS = ['claude-code-20250219', 'oauth-2025-04-20'];
 const FAST_SERVICE_TIER = 'priority';
 
-const CLAUDE_PROVIDER = 'anthropic';
+// Features match on the model's wire API, so proxies such as LiteLLM that speak
+// the same API (with `anthropic/` or `openai/` model-id prefixes) are covered.
 const CLAUDE_API = 'anthropic-messages';
-const OPENAI_PROVIDER = 'openai-codex';
-const OPENAI_API = 'openai-codex-responses';
+const OPENAI_CODEX_API = 'openai-codex-responses';
+const OPENAI_RESPONSES_API = 'openai-responses';
+
+const CLAUDE_FAST_MODELS = new Set([
+  'claude-opus-4-6',
+  'claude-opus-4-8',
+  'claude-opus-5',
+  'claude-opus-5-5',
+]);
+const OPENAI_FAST_MODELS = new Set([
+  'gpt-5.4',
+  'gpt-5.5',
+  'gpt-5.6-luna',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-6-astra',
+  'gpt-6-sol',
+  'gpt-6-luna',
+]);
+const CLAUDE_UNSUPPORTED_MESSAGE =
+  'Fast mode is only available for Claude Opus 4.6, 4.8, 5, and 5.5';
+const OPENAI_UNSUPPORTED_MESSAGE =
+  'Fast mode is only available for GPT-5.4, GPT-5.5, GPT-5.6 Luna/Sol/Terra, and GPT-6 Astra/Sol/Luna';
 
 export type FastModel = {
   provider: string;
@@ -34,7 +56,6 @@ export type FastContext = {
 };
 
 export type FastFeature = {
-  provider: string;
   api: string;
   supportedModels: Set<string>;
   injectionKey: string;
@@ -160,9 +181,7 @@ export function getCurrentModelStatus(ctx: FastContext): CurrentModelStatus {
   }
 
   const modelKey = `${model.provider}/${model.id}`;
-  const featuresForBackend = FEATURES.filter(
-    (feature) => feature.provider === model.provider && feature.api === model.api,
-  );
+  const featuresForBackend = FEATURES.filter((feature) => feature.api === model.api);
 
   if (featuresForBackend.length === 0) {
     return {
@@ -172,7 +191,7 @@ export function getCurrentModelStatus(ctx: FastContext): CurrentModelStatus {
   }
 
   const matchingFeature = featuresForBackend.find((feature) =>
-    feature.supportedModels.has(model.id),
+    feature.supportedModels.has(model.id.replace(/^(?:anthropic|openai)\//u, '')),
   );
   if (!matchingFeature) {
     return {
@@ -214,11 +233,10 @@ export function applyFastModeHeaders(
 ): void {
   const model = ctx.model;
   const shouldEnable =
-    model?.provider === CLAUDE_PROVIDER &&
-    model.api === CLAUDE_API &&
+    model?.api === CLAUDE_API &&
     state.enabled &&
     modelStatus.isSupported &&
-    modelStatus.feature?.provider === CLAUDE_PROVIDER;
+    modelStatus.feature?.api === CLAUDE_API;
   if (!shouldEnable || !model) return;
 
   const headerKey =
@@ -249,27 +267,25 @@ export function getFastPayload(
 
 const FAST_FEATURES: readonly FastFeature[] = [
   {
-    provider: CLAUDE_PROVIDER,
     api: CLAUDE_API,
-    supportedModels: new Set(['claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8']),
+    supportedModels: CLAUDE_FAST_MODELS,
     injectionKey: 'speed',
     injectionValue: FAST_SPEED,
-    unsupportedModelMessage: 'Fast mode is only available for Claude Opus 4.6, 4.7, and 4.8',
+    unsupportedModelMessage: CLAUDE_UNSUPPORTED_MESSAGE,
   },
   {
-    provider: OPENAI_PROVIDER,
-    api: OPENAI_API,
-    supportedModels: new Set([
-      'gpt-5.4',
-      'gpt-5.5',
-      'gpt-5.6-luna',
-      'gpt-5.6-sol',
-      'gpt-5.6-terra',
-    ]),
+    api: OPENAI_RESPONSES_API,
+    supportedModels: OPENAI_FAST_MODELS,
     injectionKey: 'service_tier',
     injectionValue: FAST_SERVICE_TIER,
-    unsupportedModelMessage:
-      'Fast mode is only available for GPT-5.4, GPT-5.5, GPT-5.6 Luna, GPT-5.6 Sol, and GPT-5.6 Terra',
+    unsupportedModelMessage: OPENAI_UNSUPPORTED_MESSAGE,
+  },
+  {
+    api: OPENAI_CODEX_API,
+    supportedModels: OPENAI_FAST_MODELS,
+    injectionKey: 'service_tier',
+    injectionValue: FAST_SERVICE_TIER,
+    unsupportedModelMessage: OPENAI_UNSUPPORTED_MESSAGE,
     isEligible: (ctx) =>
       ctx.model && ctx.modelRegistry.isUsingOAuth(ctx.model)
         ? undefined

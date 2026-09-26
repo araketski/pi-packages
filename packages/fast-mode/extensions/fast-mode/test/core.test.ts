@@ -226,3 +226,83 @@ test('OpenAI fast mode preserves existing service tier', () => {
     getFastPayload({ model: 'gpt-5.5', service_tier: 'default' }, ctx, state, modelStatus),
   ).toBe(undefined);
 });
+
+test.each([
+  ['anthropic', 'claude-opus-5-5'],
+  ['anthropic', 'claude-opus-5'],
+  ['litellm', 'anthropic/claude-opus-5-5'],
+])('Claude fast mode supports %s/%s with speed and beta header', (provider, modelId) => {
+  const ctx = context({ provider, api: 'anthropic-messages', id: modelId });
+  const state = createFastModeState(true);
+  const modelStatus = syncFeatureState(ctx, state);
+  const headers: Record<string, string | null> = {};
+  applyFastModeHeaders(headers, ctx, state, modelStatus);
+
+  expect(modelStatus.isSupported).toBe(true);
+  expect(getFastPayload({ model: modelId }, ctx, state, modelStatus)).toEqual({
+    model: modelId,
+    speed: 'fast',
+  });
+  expect(headers).toEqual({ 'anthropic-beta': 'fast-mode-2026-02-01' });
+});
+
+test('LiteLLM Claude model without upstream fast mode stays unsupported', () => {
+  const ctx = context({
+    provider: 'litellm',
+    api: 'anthropic-messages',
+    id: 'anthropic/claude-sonnet-5',
+  });
+  const state = createFastModeState(true);
+  const modelStatus = syncFeatureState(ctx, state);
+  const headers: Record<string, string | null> = {};
+  applyFastModeHeaders(headers, ctx, state, modelStatus);
+
+  expect(modelStatus.isSupported).toBe(false);
+  expect(headers).toEqual({});
+});
+
+test.each(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna'])(
+  'OpenAI Codex fast mode supports %s with OAuth',
+  (modelId) => {
+    const ctx = context(
+      { provider: 'openai-codex', api: 'openai-codex-responses', id: modelId },
+      true,
+    );
+    const state = createFastModeState(true);
+    const modelStatus = syncFeatureState(ctx, state);
+
+    expect(getFastPayload({ model: modelId }, ctx, state, modelStatus)).toEqual({
+      model: modelId,
+      service_tier: 'priority',
+    });
+  },
+);
+
+test.each(['openai/gpt-6-luna', 'openai/gpt-5.6-terra'])(
+  'OpenAI Responses fast mode supports API-key LiteLLM model %s',
+  (modelId) => {
+    const ctx = context(
+      { provider: 'litellm-openai', api: 'openai-responses', id: modelId },
+      false,
+    );
+    const state = createFastModeState(true);
+    const modelStatus = syncFeatureState(ctx, state);
+
+    expect(getFastPayload({ model: modelId }, ctx, state, modelStatus)).toEqual({
+      model: modelId,
+      service_tier: 'priority',
+    });
+  },
+);
+
+test('Claude Opus 4.7 stays unsupported because the API rejects fast mode', () => {
+  const ctx = context({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-4-7' });
+  const state = createFastModeState(true);
+  const modelStatus = syncFeatureState(ctx, state);
+  const headers: Record<string, string | null> = {};
+  applyFastModeHeaders(headers, ctx, state, modelStatus);
+
+  expect(modelStatus.isSupported).toBe(false);
+  expect(getFastPayload({ model: 'claude-opus-4-7' }, ctx, state, modelStatus)).toBe(undefined);
+  expect(headers).toEqual({});
+});
