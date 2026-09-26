@@ -1,3 +1,17 @@
+## 0.3.19 (2026-09-26)
+
+### 🚀 Features
+
+- **fast-mode:** match models by API to support proxies, Opus 5.5, and GPT-6 ([65080a1](https://github.com/araketski/pi-packages/commit/65080a1))
+
+### 🩹 Fixes
+
+- **fast-mode:** drop Claude Opus 4.7, which rejects fast mode ([e1c4248](https://github.com/araketski/pi-packages/commit/e1c4248))
+
+### ❤️ Thank You
+
+- Weidong Sun
+
 ## 0.3.18 (2026-07-27)
 
 ### 🩹 Fixes
