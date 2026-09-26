@@ -7,6 +7,7 @@ import { join } from 'node:path';
 const root = process.cwd();
 const read = (path) => readFile(join(root, path), 'utf8');
 const rootReadme = await read('README.md');
+const repositoryUrl = 'https://github.com/araketski/pi-packages';
 const packageEntries = await readdir(join(root, 'packages'), { withFileTypes: true });
 let publicPackages = 0;
 
@@ -24,6 +25,21 @@ for (const entry of packageEntries) {
 
   publicPackages += 1;
   assert.equal(typeof packageJson.name, 'string', `${entry.name} must have a package name`);
+  assert.equal(
+    packageJson.repository?.url,
+    `git+${repositoryUrl}.git`,
+    `${entry.name} must link to the publishing repository`,
+  );
+  assert.equal(
+    packageJson.homepage,
+    `${repositoryUrl}/tree/main/packages/${entry.name}`,
+    `${entry.name} must link to its package directory`,
+  );
+  assert.equal(
+    packageJson.bugs?.url,
+    `${repositoryUrl}/issues`,
+    `${entry.name} must link to the publishing repository's issues`,
+  );
   assert.ok(
     rootReadme.includes(`| \`packages/${entry.name}\``) &&
       rootReadme.includes(`\`${packageJson.name}\``),

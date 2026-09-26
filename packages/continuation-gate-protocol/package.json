@@ -10,13 +10,13 @@
     "protocol"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/aliaksei-raketski/pi-packages/tree/main/packages/continuation-gate-protocol",
+  "homepage": "https://github.com/araketski/pi-packages/tree/main/packages/continuation-gate-protocol",
   "bugs": {
-    "url": "https://github.com/aliaksei-raketski/pi-packages/issues"
+    "url": "https://github.com/araketski/pi-packages/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aliaksei-raketski/pi-packages.git",
+    "url": "git+https://github.com/araketski/pi-packages.git",
     "directory": "packages/continuation-gate-protocol"
   },
   "main": "./dist/index.js",
