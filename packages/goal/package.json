@@ -1,6 +1,6 @@
 {
   "name": "@aliaksei-raketski/pi-goal",
-  "version": "0.3.19",
+  "version": "0.3.20",
   "type": "module",
   "description": "Persistent autonomous goals for Pi with continuation-gate coordination.",
   "keywords": [
