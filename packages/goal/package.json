@@ -12,13 +12,13 @@
     "agent-skills"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/aliaksei-raketski/pi-packages/tree/main/packages/goal",
+  "homepage": "https://github.com/araketski/pi-packages/tree/main/packages/goal",
   "bugs": {
-    "url": "https://github.com/aliaksei-raketski/pi-packages/issues"
+    "url": "https://github.com/araketski/pi-packages/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aliaksei-raketski/pi-packages.git",
+    "url": "git+https://github.com/araketski/pi-packages.git",
     "directory": "packages/goal"
   },
   "publishConfig": {
