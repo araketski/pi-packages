@@ -101,6 +101,8 @@ beforeAll(() => {
   expect(contents).toContain('dist/generators/prompt/schema.json');
   expect(contents).toContain('dist/generators/theme/theme.js');
   expect(contents).toContain('dist/generators/theme/schema.json');
+  expect(contents).toContain('dist/generators/extension/extension.js');
+  expect(contents).toContain('dist/generators/extension/schema.json');
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
@@ -136,6 +138,7 @@ afterAll(() => {
 // @mara checks DES-NXPI-SKILL-CONTRACT
 // @mara checks DES-NXPI-PROMPT-CONTRACT
 // @mara checks DES-NXPI-THEME-CONTRACT
+// @mara checks DES-NXPI-EXTENSION-CONTRACT
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -481,6 +484,66 @@ describe('packed nx-pi in independent consumers', () => {
           'themes/soft-light.json',
         ],
       });
+      // Pi supplies the typed extension API; its import is declared as a peer, not bundled.
+      const extensionArgs = ['status-line', '--project=@terminal/pi-example'];
+      const extensionBefore = authoredFiles(root);
+      const extensionPreview = generate(root, [...extensionArgs, '--dry-run'], 'extension');
+      expect(extensionPreview.status, extensionPreview.stdout + extensionPreview.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(extensionBefore);
+      const createdExtension = generate(root, extensionArgs, 'extension');
+      expect(createdExtension.status, createdExtension.stdout + createdExtension.stderr).toBe(0);
+      expect(
+        readFileSync(join(root, 'packages/example/extensions/status-line/index.ts'), 'utf8'),
+      ).toContain("import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'");
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { extensions: ['./extensions/status-line/index.ts'] },
+        files: [
+          'README.md',
+          'skills/code-review',
+          'skills/release-notes',
+          'prompts/code-review.md',
+          'prompts/release-notes.md',
+          'themes/soft-dark.json',
+          'themes/soft-light.json',
+          'extensions/status-line',
+        ],
+        peerDependencies: { '@earendil-works/pi-coding-agent': '*' },
+      });
+      const extensionAfter = authoredFiles(root);
+      const repeatedExtension = generate(root, extensionArgs, 'extension');
+      expect(
+        repeatedExtension.status,
+        repeatedExtension.stdout + repeatedExtension.stderr,
+      ).not.toBe(0);
+      expect(authoredFiles(root)).toEqual(extensionAfter);
+      const secondExtension = generate(
+        root,
+        ['another', '--project=@terminal/pi-example'],
+        'extension',
+      );
+      expect(secondExtension.status, secondExtension.stdout + secondExtension.stderr).toBe(0);
+      const extensionFinal = authoredFiles(root);
+      const extensionCheck = spawnSync(
+        process.execPath,
+        [cli[0], 'run', '@terminal/pi-example:pi-check'],
+        {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      expect(extensionCheck.status, extensionCheck.stdout + extensionCheck.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(extensionFinal);
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { extensions: ['./extensions/status-line/index.ts', './extensions/another/index.ts'] },
+        peerDependencies: { '@earendil-works/pi-coding-agent': '*' },
+      });
+      mkdirSync(join(root, 'packages/example/extensions/status-line/helpers'));
+      writeFileSync(
+        join(root, 'packages/example/extensions/status-line/helpers/format.ts'),
+        'export const format = (text: string) => text;\n',
+      );
       mkdirSync(join(root, 'packages/example/skills/code-review/scripts'));
       writeFileSync(
         join(root, 'packages/example/skills/code-review/scripts/helper.mjs'),
@@ -504,6 +567,9 @@ describe('packed nx-pi in independent consumers', () => {
       expect(resourceFiles).toContain('prompts/release-notes.md');
       expect(resourceFiles).toContain('themes/soft-dark.json');
       expect(resourceFiles).toContain('themes/soft-light.json');
+      expect(resourceFiles).toContain('extensions/status-line/index.ts');
+      expect(resourceFiles).toContain('extensions/status-line/helpers/format.ts');
+      expect(resourceFiles).toContain('extensions/another/index.ts');
       expect(resourceFiles).toContain('README.md');
 
       // Nx owns the library's TypeScript project/build setup; nx-pi owns its
@@ -931,6 +997,21 @@ describe('packed nx-pi in independent consumers', () => {
         skills: ['./skills/code-review'],
         prompts: ['./prompts/code-review.md'],
         themes: ['./themes/soft-dark.json'],
+      });
+      const generatedExtension = generate(
+        root,
+        ['status-line', `--project=${scope}/pi-example`],
+        'extension',
+      );
+      expect(generatedExtension.status, generatedExtension.stdout + generatedExtension.stderr).toBe(
+        0,
+      );
+      expect(
+        readFileSync(join(root, 'packages/example/extensions/status-line/index.ts'), 'utf8'),
+      ).toContain("import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'");
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { extensions: ['./extensions/status-line/index.ts'] },
+        peerDependencies: { '@earendil-works/pi-coding-agent': '*' },
       });
 
       // The real apps preset may use a different TypeScript layout from the

@@ -80,4 +80,4 @@ See [[DES-NXPI-INIT-CONTRACT]] for current initialization rules and
 [[VER-NXPI-INIT]] for the broader verification method, portions of which remain
 planned. Passing initialization and initial source-check tests are not evidence
 for packed validation, Pi resource-loading parity, actual registry publication,
-or completion of resource generators beyond the initial skill, prompt, and theme scaffolds.
+or fully implemented Pi resources beyond the initial skill, prompt, theme, and extension scaffolds.

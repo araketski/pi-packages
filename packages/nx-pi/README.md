@@ -2,8 +2,8 @@
 
 An Nx plugin for Pi package development. Implements `init`, a minimal `package`
 generator, an Nx JS-backed compiled `library` generator, `skill`, `prompt`,
-and `theme` scaffolds, and inferred `pi-check`. Packed validation and extension
-generation are not implemented yet. This package has not been released by this change.
+`theme`, and `extension` scaffolds, and inferred `pi-check`. Packed validation
+is not implemented yet. This package has not been released by this change.
 
 ## Initialization
 
@@ -108,6 +108,24 @@ allowlist absent. The name must be exact lowercase kebab-case (at most 64
 characters), and existing destinations fail unchanged. It adds no scripts,
 other tooling, or dependency on Pi. Source validation checks only the file's
 presence, not theme contents or Pi loading.
+
+## Scaffold a Pi extension
+
+```sh
+pnpm nx g @araketski/nx-pi:extension status-line --project=@acme/pi-example --no-interactive
+```
+
+Creates `extensions/status-line/index.ts`, a typed, no-op Pi extension with an
+explicit TODO for the actor to implement. It registers the source file in
+`package.json.pi.extensions`, adds the extension directory to a present `files`
+allowlist so later helpers can be packed, and adds
+`@earendil-works/pi-coding-agent: "*"` to `peerDependencies` if absent. A
+consumer-authored nonblank Pi peer range is preserved. Pi supplies this API;
+the scaffold does not bundle Pi, compile extension source, install dependencies,
+or configure TypeScript. An actor who wants local typechecking must make Pi's
+types available in the consumer workspace. Existing extension directories and
+invalid inputs fail unchanged. `pi-check` verifies presence, not execution or
+packed dependency closure.
 
 ## Create a shared library
 

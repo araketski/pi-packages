@@ -29,6 +29,11 @@
       "factory": "./dist/generators/theme/theme",
       "schema": "./dist/generators/theme/schema.json",
       "description": "Scaffold a minimal Pi theme in an existing resource package"
+    },
+    "extension": {
+      "factory": "./dist/generators/extension/extension",
+      "schema": "./dist/generators/extension/schema.json",
+      "description": "Scaffold a typed Pi extension in an existing resource package"
     }
   }
 }

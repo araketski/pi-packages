@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "NxPiExtension",
+  "title": "Scaffold a typed Pi extension in an existing resource package",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Exact lowercase kebab-case extension name (1–64 characters).",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "$default": { "$source": "argv", "index": 0 }
+    },
+    "project": {
+      "type": "string",
+      "description": "Existing Pi package Nx project name."
+    }
+  },
+  "required": ["name", "project"],
+  "additionalProperties": false
+}
