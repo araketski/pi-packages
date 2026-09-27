@@ -1,8 +1,9 @@
 # @araketski/nx-pi
 
 An Nx plugin for Pi package development. Implements `init`, a minimal `package`
-generator, an Nx JS-backed compiled `library` generator, and inferred `pi-check`.
-Packed validation and resource scaffolding are not implemented yet. This package has not been released by this change.
+generator, an Nx JS-backed compiled `library` generator, a `skill` scaffold,
+and inferred `pi-check`. Packed validation and other resource generators are not
+implemented yet. This package has not been released by this change.
 
 ## Initialization
 
@@ -58,6 +59,22 @@ missing inputs fail without authored changes; `--dry-run` previews the creation.
 not create resources, a license file, tooling configuration, dependencies, or
 publication defaults. A license declaration alone does not establish publication
 readiness; packed resource validation remains future work.
+
+## Scaffold a Pi skill
+
+```sh
+pnpm nx g @araketski/nx-pi:skill code-review --project=@acme/pi-example --no-interactive
+```
+
+This adds `skills/code-review/SKILL.md` to an existing Pi resource package and
+registers `./skills/code-review` in `package.json.pi.skills`. The name must be
+lowercase kebab-case (at most 64 characters); `--description` optionally sets
+frontmatter text. Without it, the description is an explicit TODO. The body is
+also an explicit TODO: **the actor must write the real description and workflow
+before using or publishing the skill**. No example scripts or dependencies are
+created. Existing resource directories fail unchanged. An existing `files`
+allowlist gains `skills/code-review`; absent allowlists remain absent. Source
+validation checks presence only, not that the scaffold is ready for Pi to use.
 
 ## Create a shared library
 

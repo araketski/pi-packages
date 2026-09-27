@@ -14,6 +14,11 @@
       "factory": "./dist/generators/library/library",
       "schema": "./dist/generators/library/schema.json",
       "description": "Create a compiled shared library using Nx JS and consumer metadata"
+    },
+    "skill": {
+      "factory": "./dist/generators/skill/skill",
+      "schema": "./dist/generators/skill/schema.json",
+      "description": "Scaffold an unfinished Pi skill in an existing resource package"
     }
   }
 }

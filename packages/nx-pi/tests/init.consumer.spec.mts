@@ -95,6 +95,8 @@ beforeAll(() => {
   expect(contents).toContain('dist/generators/package/schema.json');
   expect(contents).toContain('dist/generators/library/library.js');
   expect(contents).toContain('dist/generators/library/schema.json');
+  expect(contents).toContain('dist/generators/skill/skill.js');
+  expect(contents).toContain('dist/generators/skill/schema.json');
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
@@ -127,6 +129,7 @@ afterAll(() => {
 // @mara checks REQ-NXPI-VALIDATION-TARGET-NAMES
 // @mara checks REQ-NXPI-LIBRARY-EXPORTS
 // @mara checks DES-NXPI-LIBRARY-CONTRACT
+// @mara checks DES-NXPI-SKILL-CONTRACT
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -312,6 +315,72 @@ describe('packed nx-pi in independent consumers', () => {
       expect(emptyCollision.status, emptyCollision.stdout + emptyCollision.stderr).not.toBe(0);
       expect(emptyCollision.stdout + emptyCollision.stderr).toMatch(/packages\/empty.*exist/i);
       expect(authoredFiles(root)).toEqual(beforeEmpty);
+
+      // Register an unfinished scaffold in a package with a consumer-owned files allowlist.
+      const skillManifest = json(join(root, 'packages/example/package.json'));
+      skillManifest.files = ['README.md'];
+      save(join(root, 'packages/example/package.json'), skillManifest);
+      writeFileSync(join(root, 'packages/example/README.md'), 'authored package docs\n');
+      const skillBefore = authoredFiles(root);
+      const skillArgs = ['code-review', '--project=@terminal/pi-example'];
+      const previewSkill = generate(root, [...skillArgs, '--dry-run'], 'skill');
+      expect(previewSkill.status, previewSkill.stdout + previewSkill.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(skillBefore);
+      const createdSkill = generate(root, skillArgs, 'skill');
+      expect(createdSkill.status, createdSkill.stdout + createdSkill.stderr).toBe(0);
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { skills: ['./skills/code-review'] },
+        files: ['README.md', 'skills/code-review'],
+      });
+      expect(
+        readFileSync(join(root, 'packages/example/skills/code-review/SKILL.md'), 'utf8'),
+      ).toContain('TODO: Replace this scaffold with instructions');
+      const skillAfter = authoredFiles(root);
+      const skillCheck = spawnSync(
+        process.execPath,
+        [cli[0], 'run', '@terminal/pi-example:pi-check'],
+        {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      expect(skillCheck.status, skillCheck.stdout + skillCheck.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(skillAfter);
+      const repeatedSkill = generate(root, skillArgs, 'skill');
+      expect(repeatedSkill.status, repeatedSkill.stdout + repeatedSkill.stderr).not.toBe(0);
+      expect(authoredFiles(root)).toEqual(skillAfter);
+      const secondSkill = generate(
+        root,
+        ['release-notes', '--project=@terminal/pi-example'],
+        'skill',
+      );
+      expect(secondSkill.status, secondSkill.stdout + secondSkill.stderr).toBe(0);
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { skills: ['./skills/code-review', './skills/release-notes'] },
+        files: ['README.md', 'skills/code-review', 'skills/release-notes'],
+      });
+      mkdirSync(join(root, 'packages/example/skills/code-review/scripts'));
+      writeFileSync(
+        join(root, 'packages/example/skills/code-review/scripts/helper.mjs'),
+        'export const ready = true;\n',
+      );
+      const resourcePackOutput = JSON.parse(
+        execFileSync(manager, ['pack', '--pack-destination', temporaryRoot, '--json'], {
+          cwd: join(root, 'packages/example'),
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        }),
+      ) as Array<{ files: Array<{ path: string }> }> | { files: Array<{ path: string }> };
+      const resourceFiles = (
+        Array.isArray(resourcePackOutput) ? resourcePackOutput[0] : resourcePackOutput
+      ).files.map(({ path }) => path);
+      expect(resourceFiles).toContain('skills/code-review/SKILL.md');
+      expect(resourceFiles).toContain('skills/release-notes/SKILL.md');
+      expect(resourceFiles).toContain('skills/code-review/scripts/helper.mjs');
+      expect(resourceFiles).toContain('README.md');
 
       // Nx owns the library's TypeScript project/build setup; nx-pi owns its
       // package identity and explicit source-validation opt-in marker.
@@ -702,6 +771,18 @@ describe('packed nx-pi in independent consumers', () => {
       expect(Object.keys(authoredFiles(root)).filter((path) => !(path in beforePackage))).toEqual([
         'packages/example/package.json',
       ]);
+      const generatedSkill = generate(
+        root,
+        ['code-review', `--project=${scope}/pi-example`],
+        'skill',
+      );
+      expect(generatedSkill.status, generatedSkill.stdout + generatedSkill.stderr).toBe(0);
+      expect(
+        readFileSync(join(root, 'packages/example/skills/code-review/SKILL.md'), 'utf8'),
+      ).toContain('TODO: Replace this scaffold with instructions');
+      expect(json(join(root, 'packages/example/package.json')).pi).toEqual({
+        skills: ['./skills/code-review'],
+      });
 
       // The real apps preset may use a different TypeScript layout from the
       // minimal fixture; let Nx JS integrate with the existing workspace.
