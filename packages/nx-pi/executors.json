@@ -1,0 +1,9 @@
+{
+  "executors": {
+    "pi-check": {
+      "implementation": "./dist/executors/pi-check/executor",
+      "schema": "./dist/executors/pi-check/schema.json",
+      "description": "Check Pi package source without installing or executing package code"
+    }
+  }
+}

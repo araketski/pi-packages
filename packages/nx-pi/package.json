@@ -5,7 +5,8 @@
     "dist",
     "!**/*.tsbuildinfo",
     "!**/*.map",
-    "generators.json"
+    "generators.json",
+    "executors.json"
   ],
   "type": "commonjs",
   "main": "./dist/index.js",
@@ -32,5 +33,6 @@
   "engines": {
     "node": ">=24.15.0 <25 || >=26.0.0 <27"
   },
+  "executors": "./executors.json",
   "generators": "./generators.json"
 }

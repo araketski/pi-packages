@@ -86,6 +86,9 @@ beforeAll(() => {
   expect(contents).toContain('generators.json');
   expect(contents).toContain('dist/generators/init/init.js');
   expect(contents).toContain('dist/generators/init/schema.json');
+  expect(contents).toContain('executors.json');
+  expect(contents).toContain('dist/executors/pi-check/executor.js');
+  expect(contents).toContain('dist/executors/pi-check/schema.json');
   expect(
     contents.some((path) =>
       /(^src\/|^docs\/|^tests\/|\.spec\.|tsbuildinfo|\.map$|\.mara\.md$)/.test(path),
@@ -110,6 +113,9 @@ afterAll(() => {
 // @mara checks DES-NXPI-INIT-CONTRACT
 // @mara checks REQ-NXPI-PUBLIC-PLUGIN
 // @mara checks REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+// @mara checks REQ-NXPI-SOURCE-VALIDATION
+// @mara checks REQ-NXPI-VALIDATION-ELIGIBILITY
+// @mara checks REQ-NXPI-VALIDATION-TARGET-NAMES
 describe('packed init in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: explicit and interactive init preserve dry-run, cancellation, and reruns',
@@ -247,6 +253,95 @@ describe('packed init in independent consumers', () => {
       expect(noPrompt.status, noPrompt.output).toBe(0);
       expect(noPrompt.output).not.toContain(title);
       expect(authoredFiles(root)).toEqual(afterPrompt);
+
+      // Exercise the packed plugin's Nx inference and executor, not only its
+      // source functions. All authored fixture state is captured after setup.
+      for (const name of ['resource', 'library', 'other', 'pi-named']) {
+        mkdirSync(join(root, 'packages', name, 'src'), { recursive: true });
+        save(join(root, 'packages', name, 'package.json'), {
+          name: `@terminal/${name}`,
+          ...(name === 'resource' ? { pi: { extensions: ['./src/entry.ts'] } } : {}),
+        });
+        save(join(root, 'packages', name, 'project.json'), {
+          name,
+          ...(name === 'library' ? { tags: ['nx-pi:library'] } : {}),
+        });
+      }
+      writeFileSync(
+        join(root, 'packages/resource/src/entry.ts'),
+        'throw new Error("not executed");\n',
+      );
+      const runNx = (...args: string[]) =>
+        spawnSync(process.execPath, [cli[0], ...args], {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        });
+      const show = (name: string) => {
+        const result = runNx('show', 'project', name, '--json');
+        expect(result.status, result.stdout + result.stderr).toBe(0);
+        return JSON.parse(result.stdout) as { targets: Record<string, unknown> };
+      };
+      const beforeChecks = authoredFiles(root);
+      for (const name of ['resource', 'library']) {
+        expect(show(name).targets).toHaveProperty('pi-check');
+        expect(show(name).targets).not.toHaveProperty('pi-check-package');
+        const check = runNx('run', `${name}:pi-check`);
+        expect(check.status, check.stdout + check.stderr).toBe(0);
+      }
+      for (const name of ['other', 'pi-named'])
+        expect(show(name).targets).not.toHaveProperty('pi-check');
+      expect(authoredFiles(root)).toEqual(beforeChecks);
+
+      const missingManifest = {
+        name: '@terminal/resource',
+        pi: { extensions: ['./src/missing.ts'] },
+      };
+      save(join(root, 'packages/resource/package.json'), missingManifest);
+      const missingSnapshot = authoredFiles(root);
+      const missing = runNx('run', 'resource:pi-check');
+      expect(missing.status, missing.stdout + missing.stderr).not.toBe(0);
+      expect(missing.stdout + missing.stderr).toMatch(/resource.*extensions.*src\/missing\.ts/);
+      expect(authoredFiles(root)).toEqual(missingSnapshot);
+
+      save(join(root, 'packages/resource/project.json'), {
+        name: 'resource',
+        targets: { 'pi-check': { command: 'echo existing' } },
+      });
+      const beforeCollision = authoredFiles(root);
+      const targetCollision = runNx('show', 'project', 'resource', '--json');
+      expect(targetCollision.status, targetCollision.stdout + targetCollision.stderr).not.toBe(0);
+      expect(targetCollision.stdout + targetCollision.stderr).toMatch(
+        /resource.*already defines target.*pi-check.*project\.json/,
+      );
+      expect(authoredFiles(root)).toEqual(beforeCollision);
+      save(join(root, 'packages/resource/project.json'), { name: 'resource' });
+
+      const configuredNx = json(join(root, 'nx.json'));
+      configuredNx.plugins = [{ plugin, options: { sourceTargetName: 'validate-pi' } }];
+      save(join(root, 'nx.json'), configuredNx);
+      const beforeConfiguredCheck = authoredFiles(root);
+      expect(show('resource').targets).toHaveProperty('validate-pi');
+      expect(show('resource').targets).not.toHaveProperty('pi-check');
+      const configuredFailure = runNx('run', 'resource:validate-pi');
+      expect(
+        configuredFailure.status,
+        configuredFailure.stdout + configuredFailure.stderr,
+      ).not.toBe(0);
+      expect(configuredFailure.stdout + configuredFailure.stderr).toMatch(
+        /resource.*extensions.*src\/missing\.ts/,
+      );
+      expect(authoredFiles(root)).toEqual(beforeConfiguredCheck);
+      save(join(root, 'packages/resource/package.json'), { name: '@terminal/resource', pi: null });
+      expect(show('resource').targets).toHaveProperty('validate-pi');
+      const malformed = runNx('run', 'resource:validate-pi');
+      expect(malformed.status, malformed.stdout + malformed.stderr).not.toBe(0);
+      expect(malformed.stdout + malformed.stderr).toMatch(/resource.*pi.*object/);
+      save(join(root, 'packages/resource/package.json'), missingManifest);
+      writeFileSync(join(root, 'packages/resource/src/missing.ts'), 'export {};\n');
+      const restored = runNx('run', 'resource:validate-pi');
+      expect(restored.status, restored.stdout + restored.stderr).toBe(0);
     },
     180_000,
   );

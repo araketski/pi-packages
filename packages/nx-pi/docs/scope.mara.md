@@ -14,8 +14,12 @@ The current development slice concerns tooling, not statusline protocol behavior
 required scoped root name. It preserves safe registration, unchanged reruns,
 actionable conflicts, runtime guards, and no dependency installation. Cancellation
 leaves authored files unchanged; optional metadata is never prompted for. Exact
-rules are in [[DES-NXPI-INIT-CONTRACT]]. Its registered entrypoint does not yet
-infer targets. Validators and resource generators remain unimplemented.
+rules are in [[DES-NXPI-INIT-CONTRACT]]. The registered plugin now infers a
+source-only `pi-check` for projects with a `pi` manifest or the `nx-pi:library`
+tag. Its executor checks literal resource declarations and reports malformed
+manifests, missing paths, and unsupported patterns without running package code.
+Packed validation, full pattern semantics, and resource generators remain
+unimplemented; see [[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
@@ -46,6 +50,14 @@ Terminal fixture setup also required disabling Nx-owned analytics prompts and
 setting terminal dimensions. These are local execution observations for this
 increment, not evidence for unimplemented portions of [[VER-NXPI-INIT]], remote
 CI, other operating systems, or every allowed Node/Nx release.
+
+The subsequent source-inference slice adds 16 source tests and packed npm/pnpm
+checks for Nx target selection, execution, authored collision errors, and unchanged
+configuration. Cross-plugin inferred target collisions are deliberately outside
+its guarantee because Nx does not expose other plugins' targets to `createNodes`
+before merging. Literal resource paths are checked; glob and exclusion semantics
+remain future work. The earlier 80-test count above describes the interactive-init
+commit, not this later slice.
 
 ## Purpose and initial scope
 
@@ -171,9 +183,10 @@ its output is absent. Packed-artifact validation and additional checks follow;
 do not expose a placeholder target before it works.
 
 See [[DES-NXPI-VALIDATION-TARGETS]] and [[VER-NXPI-FIRST-INCREMENT]] for the
-contract and verification plan. Exact options, the shared-library marker, and
-precise version ranges remain to be specified; the approved initial compatibility
-boundary is [[DES-NXPI-IMPLEMENTATION-BASELINE]].
+contract and verification plan. The initial source-target option and shared-library marker are recorded in
+[[DES-NXPI-VALIDATION-TARGETS]]. Broader option contracts and compatibility remain
+to be specified; the approved initial boundary is
+[[DES-NXPI-IMPLEMENTATION-BASELINE]].
 
 ## Generator interface
 

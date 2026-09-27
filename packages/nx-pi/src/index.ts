@@ -1,1 +1,1 @@
-export {};
+export { createNodes } from './plugin';
