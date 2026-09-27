@@ -16,10 +16,11 @@ actionable conflicts, runtime guards, and no dependency installation. Cancellati
 leaves authored files unchanged; optional metadata is never prompted for. Exact
 rules are in [[DES-NXPI-INIT-CONTRACT]]. The registered plugin now infers a
 source-only `pi-check` for projects with a `pi` manifest or the `nx-pi:library`
-tag. Its executor checks literal resource declarations and reports malformed
-manifests, missing paths, and unsupported patterns without running package code.
-Packed validation, full pattern semantics, and resource generators remain
-unimplemented; see [[DES-NXPI-VALIDATION-TARGETS]].
+tag. Its executor checks literal paths and package-relative glob selections,
+applies exclusions, and reports malformed manifests and unmatched positive
+patterns without running package code. Resource-specific contents, Pi loading
+parity, packed validation, and generators remain unimplemented; see
+[[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
@@ -55,9 +56,20 @@ The subsequent source-inference slice adds 16 source tests and packed npm/pnpm
 checks for Nx target selection, execution, authored collision errors, and unchanged
 configuration. Cross-plugin inferred target collisions are deliberately outside
 its guarantee because Nx does not expose other plugins' targets to `createNodes`
-before merging. Literal resource paths are checked; glob and exclusion semantics
-remain future work. The earlier 80-test count above describes the interactive-init
-commit, not this later slice.
+before merging. That slice checked literal paths; the subsequent
+resource-pattern increment adds globs and exclusions. The earlier 80-test count
+above describes the interactive-init commit, not these later slices.
+
+The resource-pattern increment passed 114 tests on each of Node 24.19.0 and
+26.7.0 locally (110 source cases and four packed-consumer cases using npm and
+pnpm). New source cases were first observed failing on unsupported patterns;
+additional regressions exposed overly broad parent-path rejection and native
+Node glob traversal through wildcard-discovered symlinked directories. The
+latter now uses public Node filesystem glob exclusion before traversal. An
+intermediate runner failed with the local `/tmp` quota error (`-122`) before
+loading tests; isolated runner temporary storage outside `/tmp` restored full
+runs without skipping assertions. These observations do not establish complete
+Pi discovery parity, content validation, network isolation, or remote CI.
 
 ## Purpose and initial scope
 

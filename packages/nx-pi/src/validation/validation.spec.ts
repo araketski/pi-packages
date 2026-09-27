@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { CreateNodesContext, ExecutorContext } from '@nx/devkit';
@@ -163,16 +163,118 @@ describe('source check execution', () => {
     await expect(exec('resource')).rejects.toThrow(/resource.*pi.*object/);
   });
 
-  it('rejects unsupported globs and unsafe paths without accessing them', async () => {
+  const declared = (type: string, entries: string[]) =>
     save('packages/resource/package.json', {
       name: '@fixture/pi-resource',
-      pi: { extensions: ['../escape.ts'] },
+      pi: { [type]: entries },
     });
-    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*escape\.ts/);
-    save('packages/resource/package.json', {
-      name: '@fixture/pi-resource',
-      pi: { extensions: ['./src/*.ts'] },
-    });
-    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*glob/i);
+
+  it('accepts wildcard, recursive, brace and direct hidden-root patterns without executing contents', async () => {
+    resource('packages/resource/src/nested/second.ts');
+    resource('packages/resource/.hidden/secret.ts');
+    declared('extensions', ['./src/**/*.ts', './.hidden/*.ts']);
+    expect(await exec('resource')).toEqual({ success: true });
+    declared('extensions', ['./src/{entry,nested/second}.ts']);
+    expect(await exec('resource')).toEqual({ success: true });
+  });
+
+  it('does not traverse hidden or symlinked directories via wildcard recursion', async () => {
+    resource('outside.ts');
+    mkdirSync(join(root, 'packages/resource/src/.hidden'), { recursive: true });
+    symlinkSync(join(root, 'outside.ts'), join(root, 'packages/resource/src/.hidden/escape.ts'));
+    mkdirSync(join(root, 'outside'), { recursive: true });
+    resource('outside/escape.ts');
+    symlinkSync(join(root, 'outside'), join(root, 'packages/resource/src/linked'));
+    declared('extensions', ['./src/**/*.ts']);
+    expect(await exec('resource')).toEqual({ success: true });
+  });
+
+  it('accepts matching directories for skill roots', async () => {
+    resource('packages/resource/skills/pdf/SKILL.md');
+    declared('skills', ['./skills/*']);
+    expect(await exec('resource')).toEqual({ success: true });
+  });
+
+  it.each([
+    ['!./src/nested/*.ts', './src/**/*.ts'],
+    ['./src/**/*.ts', '!./src/nested/*.ts'],
+    ['./src/*.ts', '!./src/*.ts'],
+  ])('supports order-independent exclusions %j', async (...entries) => {
+    resource('packages/resource/src/nested/second.ts');
+    declared('extensions', entries);
+    expect(await exec('resource')).toEqual({ success: true });
+  });
+
+  it('accepts legitimate filenames containing two consecutive dots', async () => {
+    resource('packages/resource/src/archive..ts');
+    declared('extensions', ['./src/archive..ts']);
+    expect(await exec('resource')).toEqual({ success: true });
+  });
+
+  it('allows unmatched exclusions but rejects unmatched positive patterns', async () => {
+    declared('extensions', ['./src/*.ts', '!./src/nothing*.ts']);
+    expect(await exec('resource')).toEqual({ success: true });
+    declared('extensions', ['./src/nothing*.ts']);
+    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*nothing.*match|exist/i);
+  });
+
+  it('fails an exclusion-only declaration and a blank entry', async () => {
+    declared('extensions', ['!./src/*.ts']);
+    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*positive|exclusion/i);
+    declared('extensions', ['']);
+    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*invalid|empty/i);
+  });
+
+  it.each(['../escape.ts', '/tmp/escape.ts', './src/../*.ts', '!../*.ts'])(
+    'rejects paths escaping the package root: %s',
+    async (entry) => {
+      declared('extensions', ['./src/entry.ts', entry]);
+      await expect(exec('resource')).rejects.toThrow(
+        /resource.*extensions.*escape|outside|parent|absolute/i,
+      );
+    },
+  );
+
+  it('rejects selected symlinks that escape the package root', async () => {
+    resource('outside.ts');
+    symlinkSync(join(root, 'outside.ts'), join(root, 'packages/resource/src/link.ts'));
+    declared('extensions', ['./src/*.ts']);
+    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*symlink|escapes/i);
+  });
+
+  it.each(['./src/**/*.ts', './src/broken.ts'])(
+    'reports a broken selected symlink for %s with project and declaration',
+    async (pattern) => {
+      symlinkSync(join(root, 'outside-missing.ts'), join(root, 'packages/resource/src/broken.ts'));
+      declared('extensions', [pattern]);
+      await expect(exec('resource')).rejects.toThrow(
+        /resource.*extensions.*broken|src\/\*\*\/\*\.ts/i,
+      );
+    },
+  );
+
+  it('validates only selected matches after exclusions', async () => {
+    resource('outside.ts');
+    symlinkSync(join(root, 'outside.ts'), join(root, 'packages/resource/src/link.ts'));
+    declared('extensions', ['./src/*.ts', '!./src/link.ts']);
+    expect(await exec('resource')).toEqual({ success: true });
+    declared('extensions', ['./src/*.ts']);
+    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*symlink|escapes/i);
+  });
+
+  it('rejects directly named symlinked roots resolving outside the package', async () => {
+    mkdirSync(join(root, 'outside'), { recursive: true });
+    resource('outside/escape.ts');
+    symlinkSync(join(root, 'outside'), join(root, 'packages/resource/shortcut'));
+    declared('extensions', ['./shortcut/*.ts']);
+    await expect(exec('resource')).rejects.toThrow(/resource.*extensions.*shortcut.*escapes/i);
+  });
+
+  it('permits directly named symlinked roots that resolve inside the package', async () => {
+    mkdirSync(join(root, 'packages/resource/linked'), { recursive: true });
+    resource('packages/resource/linked/a.ts');
+    symlinkSync(join(root, 'packages/resource/linked'), join(root, 'packages/resource/shortcut'));
+    declared('extensions', ['./shortcut/*.ts']);
+    expect(await exec('resource')).toEqual({ success: true });
   });
 });

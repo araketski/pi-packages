@@ -342,6 +342,30 @@ describe('packed init in independent consumers', () => {
       writeFileSync(join(root, 'packages/resource/src/missing.ts'), 'export {};\n');
       const restored = runNx('run', 'resource:validate-pi');
       expect(restored.status, restored.stdout + restored.stderr).toBe(0);
+
+      mkdirSync(join(root, 'packages/resource/src/nested'), { recursive: true });
+      writeFileSync(
+        join(root, 'packages/resource/src/nested/skipped.ts'),
+        'throw new Error("not executed");\n',
+      );
+      save(join(root, 'packages/resource/package.json'), {
+        name: '@terminal/resource',
+        pi: { extensions: ['!./src/nested/*.ts', './src/**/*.ts'] },
+      });
+      const beforeGlob = authoredFiles(root);
+      const globbed = runNx('run', 'resource:validate-pi');
+      expect(globbed.status, globbed.stdout + globbed.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(beforeGlob);
+
+      save(join(root, 'packages/resource/package.json'), {
+        name: '@terminal/resource',
+        pi: { extensions: ['./src/absent-*.ts'] },
+      });
+      const beforeMissingGlob = authoredFiles(root);
+      const noMatch = runNx('run', 'resource:validate-pi');
+      expect(noMatch.status, noMatch.stdout + noMatch.stderr).not.toBe(0);
+      expect(noMatch.stdout + noMatch.stderr).toMatch(/resource.*extensions.*absent-\*\.ts.*match/);
+      expect(authoredFiles(root)).toEqual(beforeMissingGlob);
     },
     180_000,
   );

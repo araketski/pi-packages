@@ -1,9 +1,9 @@
 # @araketski/nx-pi
 
 An Nx plugin for Pi package development. Currently implements `init`, including
-interactive missing-name prompting, plus an initial inferred `pi-check` for
-literal Pi resource paths and opted-in libraries. Packed validation, full glob
-support, and resource scaffolding are not implemented yet. This package has not been released by this change.
+interactive missing-name prompting, plus an inferred `pi-check` for Pi resource
+paths and opted-in libraries. Packed validation and resource scaffolding are not
+implemented yet. This package has not been released by this change.
 
 ## Initialization
 
@@ -31,11 +31,14 @@ with the `nx-pi:library` tag. Configure a different target name with
 An explicitly authored target of the same name fails before Nx merges it.
 Other plugins’ inferred targets are outside this collision check.
 
-`pi-check` currently validates literal paths in the `extensions`, `skills`,
-`prompts`, and `themes` arrays. It rejects glob/exclusion patterns until their
-full semantics are implemented. It needs no Pi installation, build output,
-network access, or package-code execution. No `pi-check-package` target is
-inferred yet.
+`pi-check` validates package-relative literals and filesystem globs in the
+`extensions`, `skills`, `prompts`, and `themes` arrays, then applies `!`-prefixed
+exclusions. Positive declarations must each match a path; exclusion-only arrays
+fail, while `[]` and explicitly excluding all positive matches succeed. A
+directly named hidden or symlinked root is supported if its selected paths stay
+inside the package. This validates source presence, not Pi resource loading or
+contents. It needs no Pi installation, build output, network access, or
+package-code execution. No `pi-check-package` target is inferred yet.
 
 Nx conventionally calls `init` after `nx add` installs a plugin. A plain
 package-manager install does not run initialization.
