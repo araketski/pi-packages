@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { runInTerminal } from './terminal.mjs';
 
 const plugin = '@araketski/nx-pi';
 const packageRoot = resolve(import.meta.dirname, '..');
@@ -106,12 +107,13 @@ afterAll(() => {
 });
 
 // @mara checks REQ-NXPI-INIT
+// @mara checks DES-NXPI-INIT-CONTRACT
 // @mara checks REQ-NXPI-PUBLIC-PLUGIN
 // @mara checks REQ-NXPI-INFRASTRUCTURE-NEUTRAL
 describe('packed init in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
-    '%s: discovers init, preserves dry-run, and reruns without authored changes',
-    (manager) => {
+    '%s: explicit and interactive init preserve dry-run, cancellation, and reruns',
+    async (manager) => {
       const root = join(temporaryRoot, manager);
       mkdirSync(root);
       const version = execFileSync(manager, ['--version'], { env, encoding: 'utf8' }).trim();
@@ -186,6 +188,65 @@ describe('packed init in independent consumers', () => {
       expect(conflict.status, conflict.stdout + conflict.stderr).not.toBe(0);
       expect(conflict.stdout + conflict.stderr).toMatch(/license.*conflict/);
       expect(authoredFiles(root)).toEqual(after);
+
+      // The minimal fixture deliberately lacks the required name/registration
+      // so the real terminal can exercise prompt completion and cancellation.
+      const promptManifest = json(join(root, 'package.json'));
+      delete promptManifest.name;
+      save(join(root, 'package.json'), promptManifest);
+      const promptNx = { analytics: false, defaultBase: 'trunk', custom: { retained: true } };
+      save(join(root, 'nx.json'), promptNx);
+      const beforePrompt = authoredFiles(root);
+      const cli = [join(root, 'node_modules/nx/dist/bin/nx.js'), 'generate', `${plugin}:init`];
+      const promptArgs = [...cli, '--interactive', '--bugs=https://example.com/prompt-issues'];
+      const unchanged = () => expect(authoredFiles(root)).toEqual(beforePrompt);
+      const title = 'Scoped root package name';
+
+      const disabled = await runInTerminal(root, [...cli, '--no-interactive'], env, []);
+      expect(disabled.status, disabled.output).not.toBe(0);
+      expect(disabled.output).not.toContain(title);
+      unchanged();
+
+      const canceled = await runInTerminal(root, promptArgs, env, [
+        { waitFor: title, input: '\u0003', check: unchanged },
+      ]);
+      expect(canceled.status, canceled.output).not.toBe(0);
+      expect(canceled.output).toMatch(/canceled/i);
+      unchanged();
+
+      const interactivePreview = await runInTerminal(root, [...promptArgs, '--dry-run'], env, [
+        { waitFor: title, input: '@terminal/workspace\r', check: unchanged },
+      ]);
+      expect(interactivePreview.status, interactivePreview.output).toBe(0);
+      expect(interactivePreview.output).toContain('package.json');
+      expect(interactivePreview.output).toContain('nx.json');
+      unchanged();
+
+      const answered = await runInTerminal(root, promptArgs, env, [
+        { waitFor: title, input: 'unscoped\r', check: unchanged },
+        {
+          waitFor: 'Enter a valid scoped npm name',
+          input: '\u007f'.repeat(8) + '@terminal/workspace\r',
+          check: unchanged,
+        },
+      ]);
+      expect(answered.status, answered.output).toBe(0);
+      expect(json(join(root, 'package.json'))).toEqual({
+        ...promptManifest,
+        name: '@terminal/workspace',
+        bugs: 'https://example.com/prompt-issues',
+      });
+      expect(json(join(root, 'nx.json'))).toEqual({ ...promptNx, plugins: [plugin] });
+      const afterPrompt = authoredFiles(root);
+      expect(Object.keys(afterPrompt)).toEqual(Object.keys(beforePrompt));
+      for (const path of Object.keys(beforePrompt)) {
+        if (path !== 'package.json' && path !== 'nx.json')
+          expect(afterPrompt[path]).toBe(beforePrompt[path]);
+      }
+      const noPrompt = await runInTerminal(root, promptArgs, env, []);
+      expect(noPrompt.status, noPrompt.output).toBe(0);
+      expect(noPrompt.output).not.toContain(title);
+      expect(authoredFiles(root)).toEqual(afterPrompt);
     },
     180_000,
   );

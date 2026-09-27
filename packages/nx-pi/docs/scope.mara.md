@@ -10,24 +10,42 @@ The current development slice concerns tooling, not statusline protocol behavior
 ## Current implementation state
 
 `packages/nx-pi` was scaffolded with `@nx/plugin:plugin` and compiles to CommonJS.
-The first behavioral slice implements non-interactive `init`: explicit missing
-metadata, a scoped root name, safe registration, unchanged reruns, actionable
-conflicts, runtime guards, and no dependency installation. Exact rules are in
-[[DES-NXPI-INIT-CONTRACT]]. Its registered entrypoint does not yet infer targets.
-Interactive prompts, validators, and resource generators remain unimplemented.
+`init` supports explicit missing metadata and an interactive prompt for an absent
+required scoped root name. It preserves safe registration, unchanged reruns,
+actionable conflicts, runtime guards, and no dependency installation. Cancellation
+leaves authored files unchanged; optional metadata is never prompted for. Exact
+rules are in [[DES-NXPI-INIT-CONTRACT]]. Its registered entrypoint does not yet
+infer targets. Validators and resource generators remain unimplemented.
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
 both minimal hand-authored fixtures and real `create-nx-workspace`-generated
 workspaces. They exercise packed installation, automatic initialization through
 `nx add`, explicit CLI invocation, dry-run, reruns, conflict failures, and
-authored-file preservation. These checks do not establish completion of the
-broader [[VER-NXPI-INIT]] or [[VER-NXPI-FIRST-INCREMENT]].
+authored-file preservation. Minimal fixtures also exercise real terminal answers,
+invalid-name correction, Ctrl-C cancellation, and interactive dry-run. These checks
+do not establish completion of the broader [[VER-NXPI-INIT]] or
+[[VER-NXPI-FIRST-INCREMENT]].
 
 The project documentation was relocated here after scaffolding, preserving all
 structured identities. `package.json.files` excludes this knowledge, tests, and
 test configuration from the npm artifact. No publication or release workflow is
 implemented. Repository test infrastructure is not added to consumer workspaces.
+
+## Observed verification of interactive initialization
+
+The interactive-init increment passed 80 tests on each of Node 24.19.0 and
+26.7.0 locally: 76 source cases and four packed-consumer cases covering npm and
+pnpm, including real generated workspaces. Six new source cases first failed
+against the non-interactive implementation before the prompt was added.
+
+The Node 24 runner initially encountered the local temporary-storage quota
+error (`-122`) before loading tests. Re-running with runner temporary storage as
+well as consumer fixtures outside `/tmp` passed without skipping assertions.
+Terminal fixture setup also required disabling Nx-owned analytics prompts and
+setting terminal dimensions. These are local execution observations for this
+increment, not evidence for unimplemented portions of [[VER-NXPI-INIT]], remote
+CI, other operating systems, or every allowed Node/Nx release.
 
 ## Purpose and initial scope
 
@@ -52,7 +70,7 @@ Nx and the runtime/compiler facilities required by the selected package kind
 remain technical prerequisites. Define and test a supported package-manager and
 toolchain matrix; infrastructure neutrality is not a claim of universal support.
 The approved initial boundary is Nx 23, with Node 24 and 26 and npm/pnpm consumer
-fixtures. Current non-interactive initialization pins and runtime ranges are
+fixtures. Current initialization pins and runtime ranges are
 recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; broader compatibility must be
 verified before it is advertised.
 

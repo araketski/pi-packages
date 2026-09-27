@@ -1,4 +1,5 @@
 import { NX_VERSION, readJson, writeJson, type Tree } from '@nx/devkit';
+import { isInteractive, textPrompt } from '@nx/devkit/internal';
 import validatePackageName from 'validate-npm-package-name';
 import type { InitGeneratorSchema } from './schema';
 import { assertSupportedRuntime } from './runtime';
@@ -72,17 +73,15 @@ function prepareMetadata(manifest: Record<string, unknown>, options: InitGenerat
       changed = true;
     }
   }
-  const name = manifest.name;
-  if (
-    typeof name !== 'string' ||
-    !name.startsWith('@') ||
-    !validatePackageName(name).validForNewPackages
-  ) {
-    fail(
-      'root package.json name must be a valid scoped npm name (for example @acme/workspace); supply --name when absent, or explicitly repair the existing name.',
-    );
-  }
   return changed;
+}
+
+function isScopedName(name: unknown): name is string {
+  return (
+    typeof name === 'string' &&
+    name.startsWith('@') &&
+    validatePackageName(name).validForNewPackages
+  );
 }
 
 function prepareRegistration(nx: Record<string, unknown>): boolean {
@@ -116,13 +115,32 @@ function prepareRegistration(nx: Record<string, unknown>): boolean {
 /**
  * @mara implements REQ-NXPI-INIT
  * @mara implements REQ-NXPI-METADATA-SOURCE
+ * @mara implements DES-NXPI-INIT-CONTRACT
  */
 export async function initGenerator(tree: Tree, options: InitGeneratorSchema = {}): Promise<void> {
   assertSupportedRuntime(NX_VERSION, process.versions.node);
   const manifest = readObject(tree, 'package.json');
   const nx = readObject(tree, 'nx.json');
-  const metadataChanged = prepareMetadata(manifest, options);
+  let metadataChanged = prepareMetadata(manifest, options);
   const registrationChanged = prepareRegistration(nx);
+
+  if (!Object.hasOwn(manifest, 'name') && isInteractive() && process.stdin.isTTY) {
+    manifest.name = await textPrompt({
+      message: 'Scoped root package name',
+      placeholder: '@acme/workspace',
+      validate: (answer) =>
+        isScopedName(answer)
+          ? undefined
+          : 'Enter a valid scoped npm name, such as @acme/workspace.',
+      onCancel: () => fail('Initialization canceled; nx-pi made no authored changes.'),
+    });
+    metadataChanged = true;
+  }
+  if (!isScopedName(manifest.name)) {
+    fail(
+      'root package.json name must be a valid scoped npm name (for example @acme/workspace); supply --name when absent, or explicitly repair the existing name.',
+    );
+  }
 
   // Validate everything before authoring either file. Nx owns dry-run/commit.
   if (metadataChanged) {
