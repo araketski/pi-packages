@@ -48,13 +48,13 @@ function authoredFiles(root: string): Record<string, string> {
   return result;
 }
 
-function generate(root: string, args: string[]) {
+function generate(root: string, args: string[], generator = 'init') {
   return spawnSync(
     process.execPath,
     [
       join(root, 'node_modules/nx/dist/bin/nx.js'),
       'generate',
-      `${plugin}:init`,
+      `${plugin}:${generator}`,
       '--no-interactive',
       ...args,
     ],
@@ -86,6 +86,8 @@ beforeAll(() => {
   expect(contents).toContain('generators.json');
   expect(contents).toContain('dist/generators/init/init.js');
   expect(contents).toContain('dist/generators/init/schema.json');
+  expect(contents).toContain('dist/generators/package/package.js');
+  expect(contents).toContain('dist/generators/package/schema.json');
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
@@ -253,6 +255,54 @@ describe('packed init in independent consumers', () => {
       expect(noPrompt.status, noPrompt.output).toBe(0);
       expect(noPrompt.output).not.toContain(title);
       expect(authoredFiles(root)).toEqual(afterPrompt);
+
+      // Creation uses the packed plugin through the real Nx CLI, after init.
+      const beforePackage = authoredFiles(root);
+      const packageArgs = ['example', '--packageVersion=1.2.3'];
+      const previewPackage = generate(root, [...packageArgs, '--dry-run'], 'package');
+      expect(previewPackage.status, previewPackage.stdout + previewPackage.stderr).toBe(0);
+      expect(previewPackage.stdout).toContain('packages/example/package.json');
+      expect(authoredFiles(root)).toEqual(beforePackage);
+      for (const invalidArgs of [
+        ['example'],
+        ['pi-example', '--packageVersion=1.2.3'],
+        ['example', '--packageVersion=bad'],
+      ]) {
+        const invalid = generate(root, invalidArgs, 'package');
+        expect(invalid.status, invalid.stdout + invalid.stderr).not.toBe(0);
+        expect(authoredFiles(root)).toEqual(beforePackage);
+      }
+      const createdPackage = generate(root, packageArgs, 'package');
+      expect(createdPackage.status, createdPackage.stdout + createdPackage.stderr).toBe(0);
+      expect(json(join(root, 'packages/example/package.json'))).toEqual({
+        name: '@terminal/pi-example',
+        version: '1.2.3',
+        license: 'MIT',
+        homepage: 'https://example.com/fixture',
+        bugs: 'https://example.com/prompt-issues',
+        pi: {},
+      });
+      const createdSnapshot = authoredFiles(root);
+      expect(Object.keys(createdSnapshot).filter((path) => !(path in beforePackage))).toEqual([
+        'packages/example/package.json',
+      ]);
+      const generatedCheck = spawnSync(
+        process.execPath,
+        [cli[0], 'run', '@terminal/pi-example:pi-check'],
+        { cwd: root, env, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(generatedCheck.status, generatedCheck.stdout + generatedCheck.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(createdSnapshot);
+      const repeatedPackage = generate(root, packageArgs, 'package');
+      expect(repeatedPackage.status, repeatedPackage.stdout + repeatedPackage.stderr).not.toBe(0);
+      expect(repeatedPackage.stdout + repeatedPackage.stderr).toMatch(/packages\/example.*exist/i);
+      expect(authoredFiles(root)).toEqual(createdSnapshot);
+      mkdirSync(join(root, 'packages/empty'));
+      const beforeEmpty = authoredFiles(root);
+      const emptyCollision = generate(root, ['empty', '--packageVersion=1.2.3'], 'package');
+      expect(emptyCollision.status, emptyCollision.stdout + emptyCollision.stderr).not.toBe(0);
+      expect(emptyCollision.stdout + emptyCollision.stderr).toMatch(/packages\/empty.*exist/i);
+      expect(authoredFiles(root)).toEqual(beforeEmpty);
 
       // Exercise the packed plugin's Nx inference and executor, not only its
       // source functions. All authored fixture state is captured after setup.
@@ -463,6 +513,25 @@ describe('packed init in independent consumers', () => {
       expect(conflict.status, conflict.stdout + conflict.stderr).not.toBe(0);
       expect(conflict.stdout + conflict.stderr).toMatch(/name.*conflict/);
       expect(authoredFiles(root)).toEqual(after);
+
+      // Exercise package creation in the actual create-nx-workspace fixture too.
+      // Supply missing license through init, not by editing the fixture metadata.
+      if (!installedManifest.license) {
+        const licensed = generate(root, ['--license=MIT']);
+        expect(licensed.status, licensed.stdout + licensed.stderr).toBe(0);
+      }
+      const beforePackage = authoredFiles(root);
+      const createdPackage = generate(root, ['example', '--packageVersion=1.0.0'], 'package');
+      expect(createdPackage.status, createdPackage.stdout + createdPackage.stderr).toBe(0);
+      const scope = (installedManifest.name as string).split('/')[0];
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        name: `${scope}/pi-example`,
+        version: '1.0.0',
+        pi: {},
+      });
+      expect(Object.keys(authoredFiles(root)).filter((path) => !(path in beforePackage))).toEqual([
+        'packages/example/package.json',
+      ]);
     },
     300_000,
   );

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "NxPiPackage",
+  "title": "Create a Pi resource package",
+  "description": "Create a minimal Pi manifest from consumer-owned root metadata. Does not install tools or dependencies.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unprefixed lowercase kebab-case name; creates packages/<name> as @<root-scope>/pi-<name>.",
+      "$default": { "$source": "argv", "index": 0 }
+    },
+    "packageVersion": {
+      "type": "string",
+      "description": "Explicit initial semantic version; no version is assumed."
+    }
+  },
+  "required": ["name", "packageVersion"]
+}

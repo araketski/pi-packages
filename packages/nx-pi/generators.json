@@ -4,6 +4,11 @@
       "factory": "./dist/generators/init/init",
       "schema": "./dist/generators/init/schema.json",
       "description": "Initialize an existing Nx workspace for Pi package development"
+    },
+    "package": {
+      "factory": "./dist/generators/package/package",
+      "schema": "./dist/generators/package/schema.json",
+      "description": "Create a minimal Pi resource package from consumer-owned metadata"
     }
   }
 }

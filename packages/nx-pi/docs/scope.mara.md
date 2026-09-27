@@ -18,9 +18,12 @@ rules are in [[DES-NXPI-INIT-CONTRACT]]. The registered plugin now infers a
 source-only `pi-check` for projects with a `pi` manifest or the `nx-pi:library`
 tag. Its executor checks literal paths and package-relative glob selections,
 applies exclusions, and reports malformed manifests and unmatched positive
-patterns without running package code. Resource-specific contents, Pi loading
-parity, packed validation, and generators remain unimplemented; see
-[[DES-NXPI-VALIDATION-TARGETS]].
+patterns without running package code. The minimal `package` generator creates
+only `packages/<name>/package.json` from root metadata with an explicit version,
+without configuring TypeScript, linting,
+or other consumer tools. Library and resource generators, resource-specific
+contents, Pi loading parity, and packed validation remain unimplemented; see
+[[DES-NXPI-PACKAGE-CONTRACT]] and [[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
@@ -70,6 +73,16 @@ intermediate runner failed with the local `/tmp` quota error (`-122`) before
 loading tests; isolated runner temporary storage outside `/tmp` restored full
 runs without skipping assertions. These observations do not establish complete
 Pi discovery parity, content validation, network isolation, or remote CI.
+
+The minimal package-generator increment passed 144 tests on each of Node
+24.19.0 and 26.7.0 locally (140 source cases and four packed npm/pnpm consumer
+cases). The package source tests first failed against the Nx generator scaffold;
+additional malformed-optional-metadata tests also failed before validation was
+added. Packed CLI checks cover dry-run, no default version, explicit root metadata,
+repeated creation, empty-directory collision, and real generated workspaces.
+The CLI exposed Nx's reserved `--version` option, so the generator uses
+`--packageVersion`. These checks do not establish license-file completeness,
+usable packed resource packages, library/resource generators, or remote CI.
 
 ## Purpose and initial scope
 
