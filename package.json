@@ -5,6 +5,7 @@
   "license": "MIT",
   "scripts": {},
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
     "@nx/js": "catalog:",
     "@nx/oxlint": "catalog:",
     "@nx/plugin": "catalog:",

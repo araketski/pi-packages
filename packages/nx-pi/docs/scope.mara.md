@@ -28,8 +28,11 @@ scaffolds to Pi packages; see [[DES-NXPI-SKILL-CONTRACT]] and
 [[DES-NXPI-PROMPT-CONTRACT]]. The first `theme` generator adds a valid,
 terminal-default palette scaffold under [[DES-NXPI-THEME-CONTRACT]]. The first
 `extension` generator adds a typed no-op extension and an explicit Pi peer
-declaration under [[DES-NXPI-EXTENSION-CONTRACT]]. Pi loading parity and packed
-validation remain unimplemented; see [[DES-NXPI-VALIDATION-TARGETS]].
+declaration under [[DES-NXPI-EXTENSION-CONTRACT]]. An isolated positive test
+now checks Pi 0.87.1 SDK discovery from packed, installed resource fixtures
+under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. Missing-artifact diagnostics,
+full Pi loading parity, and an inferred packed-validation target remain
+unimplemented; see [[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use

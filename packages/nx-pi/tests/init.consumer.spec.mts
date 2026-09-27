@@ -12,6 +12,7 @@ import {
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { runInTerminal } from './terminal.mjs';
 
@@ -139,6 +140,7 @@ afterAll(() => {
 // @mara checks DES-NXPI-PROMPT-CONTRACT
 // @mara checks DES-NXPI-THEME-CONTRACT
 // @mara checks DES-NXPI-EXTENSION-CONTRACT
+// @mara implements VER-NXPI-PACKED-RESOURCE-DISCOVERY
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -542,8 +544,43 @@ describe('packed nx-pi in independent consumers', () => {
       mkdirSync(join(root, 'packages/example/extensions/status-line/helpers'));
       writeFileSync(
         join(root, 'packages/example/extensions/status-line/helpers/format.ts'),
-        'export const format = (text: string) => text;\n',
+        "export const fixtureDescription = 'Helper loaded from the packed package';\n",
       );
+      // Actors replace scaffold TODOs in the fixture before publishing it.
+      writeFileSync(
+        join(root, 'packages/example/extensions/status-line/index.ts'),
+        "import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';\nimport { fixtureDescription } from './helpers/format.ts';\n\nexport default function (pi: ExtensionAPI): void {\n  pi.registerCommand('nxpi-fixture', { description: fixtureDescription, handler: async (_args, ctx) => { ctx.ui.notify(fixtureDescription, 'info'); } });\n}\n",
+      );
+      writeFileSync(
+        join(root, 'packages/example/extensions/another/index.ts'),
+        "import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';\n\nexport default function (pi: ExtensionAPI): void {\n  pi.registerCommand('nxpi-another', { description: 'Show another fixture action', handler: async (_args, ctx) => { ctx.ui.notify('Another fixture action ran', 'info'); } });\n}\n",
+      );
+      writeFileSync(
+        join(root, 'packages/example/skills/release-notes/SKILL.md'),
+        '---\nname: release-notes\ndescription: Prepare release notes from reviewed changes.\n---\n\n# Release notes\n\nSummarize relevant changes for the release.\n',
+      );
+      writeFileSync(
+        join(root, 'packages/example/prompts/release-notes.md'),
+        '---\ndescription: Draft release notes.\n---\n\nWrite release notes from the provided changes.\n',
+      );
+      writeFileSync(
+        join(root, 'packages/example/skills/code-review/SKILL.md'),
+        '---\nname: code-review\ndescription: Review fixture changes with safe checks.\n---\n\n# Review fixture changes\n\nCheck the supplied change for correctness.\n',
+      );
+      writeFileSync(
+        join(root, 'packages/example/prompts/code-review.md'),
+        '---\ndescription: Review a provided change.\n---\n\nReview the provided change carefully.\n',
+      );
+      const publishedTheme = json(join(root, 'packages/example/themes/soft-dark.json'));
+      (publishedTheme.colors as Record<string, string>).accent = '#88aaff';
+      (publishedTheme.colors as Record<string, string>).selectedBg = '#222222';
+      save(join(root, 'packages/example/themes/soft-dark.json'), publishedTheme);
+      const secondPublishedTheme = json(join(root, 'packages/example/themes/soft-light.json'));
+      (secondPublishedTheme.colors as Record<string, string>).accent = '#3050a0';
+      (secondPublishedTheme.colors as Record<string, string>).selectedBg = '#dddddd';
+      save(join(root, 'packages/example/themes/soft-light.json'), secondPublishedTheme);
+      writeFileSync(join(root, 'packages/example/notes.spec.ts'), 'not for publication\n');
+      writeFileSync(join(root, 'packages/example/tsconfig.test.json'), '{}\n');
       mkdirSync(join(root, 'packages/example/skills/code-review/scripts'));
       writeFileSync(
         join(root, 'packages/example/skills/code-review/scripts/helper.mjs'),
@@ -556,10 +593,13 @@ describe('packed nx-pi in independent consumers', () => {
           encoding: 'utf8',
           timeout: 60_000,
         }),
-      ) as Array<{ files: Array<{ path: string }> }> | { files: Array<{ path: string }> };
-      const resourceFiles = (
-        Array.isArray(resourcePackOutput) ? resourcePackOutput[0] : resourcePackOutput
-      ).files.map(({ path }) => path);
+      ) as
+        | Array<{ filename: string; files: Array<{ path: string }> }>
+        | { filename: string; files: Array<{ path: string }> };
+      const resourceTarball = Array.isArray(resourcePackOutput)
+        ? resourcePackOutput[0]
+        : resourcePackOutput;
+      const resourceFiles = resourceTarball.files.map(({ path }) => path);
       expect(resourceFiles).toContain('skills/code-review/SKILL.md');
       expect(resourceFiles).toContain('skills/release-notes/SKILL.md');
       expect(resourceFiles).toContain('skills/code-review/scripts/helper.mjs');
@@ -571,6 +611,106 @@ describe('packed nx-pi in independent consumers', () => {
       expect(resourceFiles).toContain('extensions/status-line/helpers/format.ts');
       expect(resourceFiles).toContain('extensions/another/index.ts');
       expect(resourceFiles).toContain('README.md');
+      expect(resourceFiles).not.toContain('notes.spec.ts');
+      expect(resourceFiles).not.toContain('tsconfig.test.json');
+
+      const isolatedResources = join(temporaryRoot, `resource-consumer-${manager}`);
+      mkdirSync(isolatedResources);
+      save(join(isolatedResources, 'package.json'), {
+        name: `resource-consumer-${manager}`,
+        private: true,
+        dependencies: {
+          '@terminal/pi-example': `file:${isAbsolute(resourceTarball.filename) ? resourceTarball.filename : join(temporaryRoot, resourceTarball.filename)}`,
+          '@earendil-works/pi-coding-agent': '0.87.1',
+        },
+      });
+      execFileSync(
+        manager,
+        manager === 'npm'
+          ? ['install', '--ignore-scripts', '--no-audit', '--no-fund']
+          : ['install', '--ignore-scripts'],
+        { cwd: isolatedResources, env, encoding: 'utf8', timeout: 120_000 },
+      );
+      const installedResource = realpathSync(
+        join(isolatedResources, 'node_modules/@terminal/pi-example'),
+      );
+      expect(installedResource).toContain(isolatedResources);
+      const installedPi = realpathSync(
+        join(isolatedResources, 'node_modules/@earendil-works/pi-coding-agent/dist/index.js'),
+      );
+      expect(installedPi).toContain(isolatedResources);
+      const sdk = (await import(
+        pathToFileURL(installedPi).href
+      )) as typeof import('@earendil-works/pi-coding-agent');
+      const isolatedAgent = join(isolatedResources, 'agent');
+      mkdirSync(isolatedAgent);
+      save(join(isolatedAgent, 'settings.json'), {
+        packages: ['../node_modules/@terminal/pi-example'],
+      });
+      const beforeDiscovery = authoredFiles(root);
+      const loader = new sdk.DefaultResourceLoader({
+        cwd: isolatedResources,
+        agentDir: isolatedAgent,
+      });
+      await loader.reload();
+      const packageItems = <T extends { sourceInfo?: { baseDir?: string; origin?: string } }>(
+        items: T[],
+      ) =>
+        items.filter(
+          (item) =>
+            item.sourceInfo?.origin === 'package' &&
+            item.sourceInfo.baseDir &&
+            realpathSync(item.sourceInfo.baseDir) === installedResource,
+        );
+      const skills = loader.getSkills();
+      const prompts = loader.getPrompts();
+      const themes = loader.getThemes();
+      const extensions = loader.getExtensions();
+      const fromInstalledPackage = (path?: string) =>
+        path?.startsWith(`${installedResource}${sep}`) ||
+        path?.startsWith(`${join(isolatedResources, 'node_modules/@terminal/pi-example')}${sep}`);
+      const fixtureDiagnostics = <
+        T extends { path?: string; collision?: { winnerPath: string; loserPath: string } },
+      >(
+        diagnostics: T[],
+      ) =>
+        diagnostics.filter(
+          ({ path, collision }) =>
+            fromInstalledPackage(path) ||
+            fromInstalledPackage(collision?.winnerPath) ||
+            fromInstalledPackage(collision?.loserPath),
+        );
+      expect(fixtureDiagnostics(skills.diagnostics)).toEqual([]);
+      expect(fixtureDiagnostics(prompts.diagnostics)).toEqual([]);
+      expect(fixtureDiagnostics(themes.diagnostics)).toEqual([]);
+      expect(extensions.errors.filter(({ path }) => fromInstalledPackage(path))).toEqual([]);
+      const packedSkill = packageItems(skills.skills).find(({ name }) => name === 'code-review');
+      expect(packedSkill?.description).toBe('Review fixture changes with safe checks.');
+      expect(realpathSync(packedSkill!.filePath)).toContain(installedResource);
+      expect(packageItems(skills.skills).map(({ name }) => name)).toContain('release-notes');
+      const packedPrompt = packageItems(prompts.prompts).find(({ name }) => name === 'code-review');
+      expect(packedPrompt?.content).toContain('Review the provided change carefully.');
+      expect(realpathSync(packedPrompt!.filePath)).toContain(installedResource);
+      expect(packageItems(prompts.prompts).map(({ name }) => name)).toContain('release-notes');
+      const packedTheme = packageItems(themes.themes).find(({ name }) => name === 'soft-dark');
+      expect(packedTheme?.getFgAnsi('accent')).not.toBe('');
+      expect(realpathSync(packedTheme!.sourcePath!)).toContain(installedResource);
+      expect(packageItems(themes.themes).map(({ name }) => name)).toContain('soft-light');
+      expect(packageItems(extensions.extensions).map(({ path }) => path)).toEqual([
+        expect.stringContaining('extensions/status-line/index.ts'),
+        expect.stringContaining('extensions/another/index.ts'),
+      ]);
+      const packedExtension = packageItems(extensions.extensions).find(({ path }) =>
+        path.endsWith('/status-line/index.ts'),
+      );
+      expect(packedExtension?.commands.get('nxpi-fixture')?.description).toBe(
+        'Helper loaded from the packed package',
+      );
+      const secondPackedExtension = packageItems(extensions.extensions).find(({ path }) =>
+        path.endsWith('/another/index.ts'),
+      );
+      expect(secondPackedExtension?.commands.has('nxpi-another')).toBe(true);
+      expect(authoredFiles(root)).toEqual(beforeDiscovery);
 
       // Nx owns the library's TypeScript project/build setup; nx-pi owns its
       // package identity and explicit source-validation opt-in marker.
