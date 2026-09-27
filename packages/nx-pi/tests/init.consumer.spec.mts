@@ -99,6 +99,8 @@ beforeAll(() => {
   expect(contents).toContain('dist/generators/skill/schema.json');
   expect(contents).toContain('dist/generators/prompt/prompt.js');
   expect(contents).toContain('dist/generators/prompt/schema.json');
+  expect(contents).toContain('dist/generators/theme/theme.js');
+  expect(contents).toContain('dist/generators/theme/schema.json');
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
@@ -133,6 +135,7 @@ afterAll(() => {
 // @mara checks DES-NXPI-LIBRARY-CONTRACT
 // @mara checks DES-NXPI-SKILL-CONTRACT
 // @mara checks DES-NXPI-PROMPT-CONTRACT
+// @mara checks DES-NXPI-THEME-CONTRACT
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -420,6 +423,64 @@ describe('packed nx-pi in independent consumers', () => {
           'prompts/release-notes.md',
         ],
       });
+      // A minimal valid theme may be added to the same multi-resource package.
+      const themeArgs = ['soft-dark', '--project=@terminal/pi-example'];
+      const themeBefore = authoredFiles(root);
+      const themePreview = generate(root, [...themeArgs, '--dry-run'], 'theme');
+      expect(themePreview.status, themePreview.stdout + themePreview.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(themeBefore);
+      const createdTheme = generate(root, themeArgs, 'theme');
+      expect(createdTheme.status, createdTheme.stdout + createdTheme.stderr).toBe(0);
+      const theme = json(join(root, 'packages/example/themes/soft-dark.json'));
+      expect(theme.name).toBe('soft-dark');
+      expect(Object.keys(theme.colors as Record<string, string>)).toHaveLength(51);
+      expect(Object.values(theme.colors as Record<string, string>)).toEqual(Array(51).fill(''));
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: {
+          skills: ['./skills/code-review', './skills/release-notes'],
+          prompts: ['./prompts/code-review.md', './prompts/release-notes.md'],
+          themes: ['./themes/soft-dark.json'],
+        },
+        files: [
+          'README.md',
+          'skills/code-review',
+          'skills/release-notes',
+          'prompts/code-review.md',
+          'prompts/release-notes.md',
+          'themes/soft-dark.json',
+        ],
+      });
+      const themeAfter = authoredFiles(root);
+      const repeatedTheme = generate(root, themeArgs, 'theme');
+      expect(repeatedTheme.status, repeatedTheme.stdout + repeatedTheme.stderr).not.toBe(0);
+      expect(authoredFiles(root)).toEqual(themeAfter);
+      const secondTheme = generate(root, ['soft-light', '--project=@terminal/pi-example'], 'theme');
+      expect(secondTheme.status, secondTheme.stdout + secondTheme.stderr).toBe(0);
+      const themeFinal = authoredFiles(root);
+      const themeCheck = spawnSync(
+        process.execPath,
+        [cli[0], 'run', '@terminal/pi-example:pi-check'],
+        {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      expect(themeCheck.status, themeCheck.stdout + themeCheck.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(themeFinal);
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { themes: ['./themes/soft-dark.json', './themes/soft-light.json'] },
+        files: [
+          'README.md',
+          'skills/code-review',
+          'skills/release-notes',
+          'prompts/code-review.md',
+          'prompts/release-notes.md',
+          'themes/soft-dark.json',
+          'themes/soft-light.json',
+        ],
+      });
       mkdirSync(join(root, 'packages/example/skills/code-review/scripts'));
       writeFileSync(
         join(root, 'packages/example/skills/code-review/scripts/helper.mjs'),
@@ -441,6 +502,8 @@ describe('packed nx-pi in independent consumers', () => {
       expect(resourceFiles).toContain('skills/code-review/scripts/helper.mjs');
       expect(resourceFiles).toContain('prompts/code-review.md');
       expect(resourceFiles).toContain('prompts/release-notes.md');
+      expect(resourceFiles).toContain('themes/soft-dark.json');
+      expect(resourceFiles).toContain('themes/soft-light.json');
       expect(resourceFiles).toContain('README.md');
 
       // Nx owns the library's TypeScript project/build setup; nx-pi owns its
@@ -856,6 +919,18 @@ describe('packed nx-pi in independent consumers', () => {
       expect(json(join(root, 'packages/example/package.json')).pi).toEqual({
         skills: ['./skills/code-review'],
         prompts: ['./prompts/code-review.md'],
+      });
+      const generatedTheme = generate(
+        root,
+        ['soft-dark', `--project=${scope}/pi-example`],
+        'theme',
+      );
+      expect(generatedTheme.status, generatedTheme.stdout + generatedTheme.stderr).toBe(0);
+      expect(json(join(root, 'packages/example/themes/soft-dark.json')).name).toBe('soft-dark');
+      expect(json(join(root, 'packages/example/package.json')).pi).toEqual({
+        skills: ['./skills/code-review'],
+        prompts: ['./prompts/code-review.md'],
+        themes: ['./themes/soft-dark.json'],
       });
 
       // The real apps preset may use a different TypeScript layout from the

@@ -1,9 +1,9 @@
 # @araketski/nx-pi
 
 An Nx plugin for Pi package development. Implements `init`, a minimal `package`
-generator, an Nx JS-backed compiled `library` generator, `skill` and `prompt`
-scaffolds, and inferred `pi-check`. Packed validation and other resource
-generators are not implemented yet. This package has not been released by this change.
+generator, an Nx JS-backed compiled `library` generator, `skill`, `prompt`,
+and `theme` scaffolds, and inferred `pi-check`. Packed validation and extension
+generation are not implemented yet. This package has not been released by this change.
 
 ## Initialization
 
@@ -92,6 +92,22 @@ existing destinations fail unchanged. A present `files` allowlist gains only
 `prompts/review.md`; an absent allowlist remains absent. No dependencies,
 scripts, or other tooling are added. Source validation checks presence, not
 that the prompt is ready to use.
+
+## Scaffold a Pi theme
+
+```sh
+pnpm nx g @araketski/nx-pi:theme soft-dark --project=@acme/pi-example --no-interactive
+```
+
+Creates `themes/soft-dark.json` with matching theme `name` and all 51 required
+Pi 0.87.1 color roles set to the valid terminal-default value (`""`). This is
+an intentionally plain starting point; **the actor chooses the palette**.
+It registers `./themes/soft-dark.json` in `package.json.pi.themes` and adds
+`themes/soft-dark.json` to a present `files` allowlist, leaving an absent
+allowlist absent. The name must be exact lowercase kebab-case (at most 64
+characters), and existing destinations fail unchanged. It adds no scripts,
+other tooling, or dependency on Pi. Source validation checks only the file's
+presence, not theme contents or Pi loading.
 
 ## Create a shared library
 

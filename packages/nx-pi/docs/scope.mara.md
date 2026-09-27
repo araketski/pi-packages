@@ -25,8 +25,9 @@ without configuring TypeScript, linting, or other consumer tools. The first
 metadata and optional checked Nx integrations; see [[DES-NXPI-LIBRARY-CONTRACT]].
 The first `skill` and `prompt` generators add visibly unfinished source
 scaffolds to Pi packages; see [[DES-NXPI-SKILL-CONTRACT]] and
-[[DES-NXPI-PROMPT-CONTRACT]]. Other resource generators, Pi loading parity,
-and packed validation remain unimplemented; see
+[[DES-NXPI-PROMPT-CONTRACT]]. The first `theme` generator adds a valid,
+terminal-default palette scaffold under [[DES-NXPI-THEME-CONTRACT]]. Extension
+generation, Pi loading parity, and packed validation remain unimplemented; see
 [[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source

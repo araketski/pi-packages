@@ -24,6 +24,11 @@
       "factory": "./dist/generators/prompt/prompt",
       "schema": "./dist/generators/prompt/schema.json",
       "description": "Scaffold an unfinished Pi prompt template in an existing resource package"
+    },
+    "theme": {
+      "factory": "./dist/generators/theme/theme",
+      "schema": "./dist/generators/theme/schema.json",
+      "description": "Scaffold a minimal Pi theme in an existing resource package"
     }
   }
 }
