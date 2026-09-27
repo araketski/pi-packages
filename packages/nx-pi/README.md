@@ -1,9 +1,9 @@
 # @araketski/nx-pi
 
 An Nx plugin for Pi package development. Implements `init`, a minimal `package`
-generator, an Nx JS-backed compiled `library` generator, a `skill` scaffold,
-and inferred `pi-check`. Packed validation and other resource generators are not
-implemented yet. This package has not been released by this change.
+generator, an Nx JS-backed compiled `library` generator, `skill` and `prompt`
+scaffolds, and inferred `pi-check`. Packed validation and other resource
+generators are not implemented yet. This package has not been released by this change.
 
 ## Initialization
 
@@ -75,6 +75,23 @@ before using or publishing the skill**. No example scripts or dependencies are
 created. Existing resource directories fail unchanged. An existing `files`
 allowlist gains `skills/code-review`; absent allowlists remain absent. Source
 validation checks presence only, not that the scaffold is ready for Pi to use.
+
+## Scaffold a Pi prompt template
+
+```sh
+pnpm nx g @araketski/nx-pi:prompt review --project=@acme/pi-example --no-interactive
+```
+
+Creates `prompts/review.md` (the `/review` command) in an existing Pi resource
+package and registers `./prompts/review.md` in `package.json.pi.prompts`.
+`--description` optionally sets the command-completion description. Without
+it, the frontmatter description is a TODO; the prompt body is always a TODO.
+**The actor must replace the TODOs before using or publishing the template.**
+The name must be exact lowercase kebab-case (at most 64 characters), and
+existing destinations fail unchanged. A present `files` allowlist gains only
+`prompts/review.md`; an absent allowlist remains absent. No dependencies,
+scripts, or other tooling are added. Source validation checks presence, not
+that the prompt is ready to use.
 
 ## Create a shared library
 

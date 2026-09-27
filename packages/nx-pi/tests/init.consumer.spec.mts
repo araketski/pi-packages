@@ -97,6 +97,8 @@ beforeAll(() => {
   expect(contents).toContain('dist/generators/library/schema.json');
   expect(contents).toContain('dist/generators/skill/skill.js');
   expect(contents).toContain('dist/generators/skill/schema.json');
+  expect(contents).toContain('dist/generators/prompt/prompt.js');
+  expect(contents).toContain('dist/generators/prompt/schema.json');
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
@@ -130,6 +132,7 @@ afterAll(() => {
 // @mara checks REQ-NXPI-LIBRARY-EXPORTS
 // @mara checks DES-NXPI-LIBRARY-CONTRACT
 // @mara checks DES-NXPI-SKILL-CONTRACT
+// @mara checks DES-NXPI-PROMPT-CONTRACT
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -361,6 +364,62 @@ describe('packed nx-pi in independent consumers', () => {
         pi: { skills: ['./skills/code-review', './skills/release-notes'] },
         files: ['README.md', 'skills/code-review', 'skills/release-notes'],
       });
+      // A prompt may coexist with skills. Its file is an explicit, unfinished / command.
+      const promptCreationArgs = ['code-review', '--project=@terminal/pi-example'];
+      const promptBefore = authoredFiles(root);
+      const promptPreview = generate(root, [...promptCreationArgs, '--dry-run'], 'prompt');
+      expect(promptPreview.status, promptPreview.stdout + promptPreview.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(promptBefore);
+      const createdPrompt = generate(root, promptCreationArgs, 'prompt');
+      expect(createdPrompt.status, createdPrompt.stdout + createdPrompt.stderr).toBe(0);
+      expect(readFileSync(join(root, 'packages/example/prompts/code-review.md'), 'utf8')).toContain(
+        'TODO: Replace this scaffold with prompt text',
+      );
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: {
+          skills: ['./skills/code-review', './skills/release-notes'],
+          prompts: ['./prompts/code-review.md'],
+        },
+        files: [
+          'README.md',
+          'skills/code-review',
+          'skills/release-notes',
+          'prompts/code-review.md',
+        ],
+      });
+      const promptAfter = authoredFiles(root);
+      const repeatedPrompt = generate(root, promptCreationArgs, 'prompt');
+      expect(repeatedPrompt.status, repeatedPrompt.stdout + repeatedPrompt.stderr).not.toBe(0);
+      expect(authoredFiles(root)).toEqual(promptAfter);
+      const secondPrompt = generate(
+        root,
+        ['release-notes', '--project=@terminal/pi-example'],
+        'prompt',
+      );
+      expect(secondPrompt.status, secondPrompt.stdout + secondPrompt.stderr).toBe(0);
+      const promptFinal = authoredFiles(root);
+      const promptCheck = spawnSync(
+        process.execPath,
+        [cli[0], 'run', '@terminal/pi-example:pi-check'],
+        {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      expect(promptCheck.status, promptCheck.stdout + promptCheck.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(promptFinal);
+      expect(json(join(root, 'packages/example/package.json'))).toMatchObject({
+        pi: { prompts: ['./prompts/code-review.md', './prompts/release-notes.md'] },
+        files: [
+          'README.md',
+          'skills/code-review',
+          'skills/release-notes',
+          'prompts/code-review.md',
+          'prompts/release-notes.md',
+        ],
+      });
       mkdirSync(join(root, 'packages/example/skills/code-review/scripts'));
       writeFileSync(
         join(root, 'packages/example/skills/code-review/scripts/helper.mjs'),
@@ -380,6 +439,8 @@ describe('packed nx-pi in independent consumers', () => {
       expect(resourceFiles).toContain('skills/code-review/SKILL.md');
       expect(resourceFiles).toContain('skills/release-notes/SKILL.md');
       expect(resourceFiles).toContain('skills/code-review/scripts/helper.mjs');
+      expect(resourceFiles).toContain('prompts/code-review.md');
+      expect(resourceFiles).toContain('prompts/release-notes.md');
       expect(resourceFiles).toContain('README.md');
 
       // Nx owns the library's TypeScript project/build setup; nx-pi owns its
@@ -782,6 +843,19 @@ describe('packed nx-pi in independent consumers', () => {
       ).toContain('TODO: Replace this scaffold with instructions');
       expect(json(join(root, 'packages/example/package.json')).pi).toEqual({
         skills: ['./skills/code-review'],
+      });
+      const generatedPrompt = generate(
+        root,
+        ['code-review', `--project=${scope}/pi-example`],
+        'prompt',
+      );
+      expect(generatedPrompt.status, generatedPrompt.stdout + generatedPrompt.stderr).toBe(0);
+      expect(readFileSync(join(root, 'packages/example/prompts/code-review.md'), 'utf8')).toContain(
+        'TODO: Replace this scaffold with prompt text',
+      );
+      expect(json(join(root, 'packages/example/package.json')).pi).toEqual({
+        skills: ['./skills/code-review'],
+        prompts: ['./prompts/code-review.md'],
       });
 
       // The real apps preset may use a different TypeScript layout from the

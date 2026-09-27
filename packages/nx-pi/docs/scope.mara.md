@@ -23,8 +23,10 @@ only `packages/<name>/package.json` from root metadata with an explicit version,
 without configuring TypeScript, linting, or other consumer tools. The first
 `library` generator uses Nx JS for a compiled `tsc` scaffold with consumer-owned
 metadata and optional checked Nx integrations; see [[DES-NXPI-LIBRARY-CONTRACT]].
-Resource generators, Pi loading parity, and packed validation remain
-unimplemented; see [[DES-NXPI-PACKAGE-CONTRACT]] and
+The first `skill` and `prompt` generators add visibly unfinished source
+scaffolds to Pi packages; see [[DES-NXPI-SKILL-CONTRACT]] and
+[[DES-NXPI-PROMPT-CONTRACT]]. Other resource generators, Pi loading parity,
+and packed validation remain unimplemented; see
 [[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source

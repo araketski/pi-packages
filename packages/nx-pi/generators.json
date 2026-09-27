@@ -19,6 +19,11 @@
       "factory": "./dist/generators/skill/skill",
       "schema": "./dist/generators/skill/schema.json",
       "description": "Scaffold an unfinished Pi skill in an existing resource package"
+    },
+    "prompt": {
+      "factory": "./dist/generators/prompt/prompt",
+      "schema": "./dist/generators/prompt/schema.json",
+      "description": "Scaffold an unfinished Pi prompt template in an existing resource package"
     }
   }
 }
