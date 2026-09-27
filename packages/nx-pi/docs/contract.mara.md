@@ -347,7 +347,7 @@ The first implementation must accept a valid minimal fixture and reject a declar
 
 Infer validation targets for Pi resource packages identified by an explicit pi manifest and for shared libraries explicitly opted in by the library generator. Do not classify a project from its pi- name prefix alone. Leave unrelated Nx projects without nx-pi validation targets.
 
-The explicit shared-library opt-in representation and handling of malformed pi manifests remain to be specified. Manifests with invalid declarations must not silently evade validation merely because their contents are invalid.
+Shared libraries opt in through the Nx project tag `nx-pi:library`, authored by the library generator. The presence of a `pi` property in package.json identifies a Pi resource package even when the property is malformed; validation must report the malformed declaration instead of silently omitting the project. The detailed shape of valid manifests and diagnostic rules follow the source-validation increment.
 :::
 
 :::mara requirement REQ-NXPI-VALIDATION-TARGET-NAMES
@@ -359,7 +359,7 @@ The explicit shared-library opt-in representation and handling of malformed pi m
 
 Validation target names shall be configurable, defaulting to pi-check for source validation and pi-check-package for packed-artifact validation. Target inference must not silently overwrite an existing target.
 
-Exact option names and conflict-reporting behavior remain to be specified. The first increment implements only the source check; the packed-artifact target must not be advertised as working before its checks exist.
+The Nx plugin registration accepts `options.sourceTargetName` for the source target; omitted means `pi-check`. Reserve `options.packageTargetName` and its default `pi-check-package` for the later packed-artifact increment; do not infer a target before it works. An eligible project with an existing target of the chosen name must receive an actionable collision failure, not a silent merge, replacement, or skip. Nx may merge inferred targets from separate plugins; guaranteeing this rule across both authored and other-plugin-inferred targets requires investigation before implementation.
 :::
 
 :::mara design DES-NXPI-VALIDATION-TARGETS
@@ -380,7 +380,7 @@ Source validation must work before a library build and without Pi, networking, o
 
 The agreed first implementation increment consists of init, target inference, and a minimal pi-check that distinguishes a valid fixture from a missing declared resource. Packed validation, broader rule coverage, and resource scaffolding follow in subsequent increments. Do not infer a nonfunctional packed-validation target in the first increment. Statusline behavior remains out of scope.
 
-The initial Nx/Node and package-manager boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]. The target-name option schema, shared-library opt-in marker, and detailed collision handling remain to be specified; this item records the approved split and sequencing without claiming implementation.
+The initial Nx/Node and package-manager boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]. Use the Nx project tag `nx-pi:library` as the explicit shared-library opt-in, not a Pi resource manifest or a naming prefix. Resource packages are recognized by the presence of `package.json.pi`, even if malformed; the source check must surface errors for malformed declarations. The plugin option `sourceTargetName` customizes the source target, defaulting to `pi-check`. Reserve `packageTargetName` for packed validation when implemented. An existing target of the chosen name is a failure with an actionable diagnostic; never silently merge, overwrite, or skip it. Nx 23 plugin hooks and target merging require investigation to enforce this across independently inferred targets, as well as authored targets. These choices are approved but not yet implemented.
 :::
 
 :::mara verification VER-NXPI-FIRST-INCREMENT
