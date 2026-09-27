@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "NxPiLibrary",
+  "title": "Create a compiled shared library",
+  "description": "Use Nx JS to create a compiled Pi-adjacent shared library with consumer-owned metadata and Nx release support.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unprefixed lowercase kebab-case library name.",
+      "$default": { "$source": "argv", "index": 0 }
+    },
+    "packageVersion": {
+      "type": "string",
+      "description": "Explicit initial version. Nx reserves --version."
+    },
+    "strict": { "type": "boolean", "description": "Pass strict TypeScript setting to Nx JS." },
+    "linter": {
+      "type": "string",
+      "enum": ["none", "eslint", "oxlint"],
+      "description": "Nx linter integration; defaults to none."
+    },
+    "unitTestRunner": {
+      "type": "string",
+      "enum": ["none", "jest", "vitest"],
+      "description": "Nx unit test runner; defaults to none."
+    },
+    "formatter": {
+      "type": "string",
+      "enum": ["none", "prettier", "oxfmt"],
+      "description": "Nx formatter integration; defaults to none."
+    }
+  },
+  "required": ["name", "packageVersion"]
+}

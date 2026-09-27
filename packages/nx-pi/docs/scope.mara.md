@@ -20,10 +20,12 @@ tag. Its executor checks literal paths and package-relative glob selections,
 applies exclusions, and reports malformed manifests and unmatched positive
 patterns without running package code. The minimal `package` generator creates
 only `packages/<name>/package.json` from root metadata with an explicit version,
-without configuring TypeScript, linting,
-or other consumer tools. Library and resource generators, resource-specific
-contents, Pi loading parity, and packed validation remain unimplemented; see
-[[DES-NXPI-PACKAGE-CONTRACT]] and [[DES-NXPI-VALIDATION-TARGETS]].
+without configuring TypeScript, linting, or other consumer tools. The first
+`library` generator uses Nx JS for a compiled `tsc` scaffold with consumer-owned
+metadata and optional checked Nx integrations; see [[DES-NXPI-LIBRARY-CONTRACT]].
+Resource generators, Pi loading parity, and packed validation remain
+unimplemented; see [[DES-NXPI-PACKAGE-CONTRACT]] and
+[[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
@@ -37,8 +39,10 @@ do not establish completion of the broader [[VER-NXPI-INIT]] or
 
 The project documentation was relocated here after scaffolding, preserving all
 structured identities. `package.json.files` excludes this knowledge, tests, and
-test configuration from the npm artifact. No publication or release workflow is
-implemented. Repository test infrastructure is not added to consumer workspaces.
+test configuration from the npm artifact. No repository-wide release workflow or
+registry publication is implemented; generated libraries use Nx Release's
+existing consumer configuration.
+Repository test infrastructure is not added to consumer workspaces.
 
 ## Observed verification of interactive initialization
 
@@ -82,7 +86,20 @@ added. Packed CLI checks cover dry-run, no default version, explicit root metada
 repeated creation, empty-directory collision, and real generated workspaces.
 The CLI exposed Nx's reserved `--version` option, so the generator uses
 `--packageVersion`. These checks do not establish license-file completeness,
-usable packed resource packages, library/resource generators, or remote CI.
+usable packed resource packages, resource generators, or remote CI.
+
+The first library-generator increment passed 160 tests on each of Node 24.19.0
+and 26.7.0 locally (156 source cases and four packed npm/pnpm consumer cases).
+Source tests initially failed against the Nx generator scaffold; packed tests
+exposed missing Nx-owned compiler dependencies and the classic Nx JS output
+path being outside the new package. The generator now returns Nx's dependency
+installation task and locates compiled output inside the published package.
+Packed independent npm/pnpm consumers build, pack, import the JS, resolve its
+TypeScript declarations, and exercise Nx Release version/publish dry-runs. Nx
+Oxlint and Vitest/Oxfmt opt-ins were exercised in the minimal consumers, and
+library builds were checked in actual `create-nx-workspace` apps fixtures. These
+checks do not establish actual registry publication, all optional integrations,
+resource-specific content validation, or remote CI.
 
 ## Purpose and initial scope
 

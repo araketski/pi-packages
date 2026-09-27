@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@nx/devkit": "catalog:",
+    "@nx/js": "catalog:",
     "tslib": "catalog:",
     "validate-npm-package-name": "catalog:"
   },

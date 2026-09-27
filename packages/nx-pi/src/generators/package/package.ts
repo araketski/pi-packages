@@ -34,7 +34,13 @@ const semver =
  * @mara implements DES-NXPI-GENERATOR-INTERFACE
  * @mara implements DES-NXPI-PACKAGE-CONTRACT
  */
-export async function packageGenerator(tree: Tree, options: PackageGeneratorSchema): Promise<void> {
+export function preparePackage(
+  tree: Tree,
+  options: PackageGeneratorSchema,
+): {
+  root: string;
+  manifest: Record<string, unknown>;
+} {
   const { name, packageVersion } = options;
   if (typeof name !== 'string' || !identifier.test(name) || name.startsWith('pi-')) {
     fail(
@@ -106,9 +112,14 @@ export async function packageGenerator(tree: Tree, options: PackageGeneratorSche
     );
     generated[field] = value;
   }
-  generated.pi = {};
+  return { root, manifest: generated };
+}
+
+/** @mara implements DES-NXPI-PACKAGE-CONTRACT */
+export async function packageGenerator(tree: Tree, options: PackageGeneratorSchema): Promise<void> {
+  const { root, manifest } = preparePackage(tree, options);
   // All preconditions are checked before the first write; Nx owns dry-run/commit.
-  writeJson(tree, `${root}/package.json`, generated);
+  writeJson(tree, `${root}/package.json`, { ...manifest, pi: {} });
 }
 
 export default packageGenerator;

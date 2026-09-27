@@ -9,6 +9,11 @@
       "factory": "./dist/generators/package/package",
       "schema": "./dist/generators/package/schema.json",
       "description": "Create a minimal Pi resource package from consumer-owned metadata"
+    },
+    "library": {
+      "factory": "./dist/generators/library/library",
+      "schema": "./dist/generators/library/schema.json",
+      "description": "Create a compiled shared library using Nx JS and consumer metadata"
     }
   }
 }

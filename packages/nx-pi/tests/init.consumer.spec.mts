@@ -48,7 +48,12 @@ function authoredFiles(root: string): Record<string, string> {
   return result;
 }
 
-function generate(root: string, args: string[], generator = 'init') {
+function generate(
+  root: string,
+  args: string[],
+  generator = 'init',
+  childEnv: NodeJS.ProcessEnv = env,
+) {
   return spawnSync(
     process.execPath,
     [
@@ -58,7 +63,7 @@ function generate(root: string, args: string[], generator = 'init') {
       '--no-interactive',
       ...args,
     ],
-    { cwd: root, env, encoding: 'utf8', timeout: 60_000 },
+    { cwd: root, env: childEnv, encoding: 'utf8', timeout: 60_000 },
   );
 }
 
@@ -88,6 +93,8 @@ beforeAll(() => {
   expect(contents).toContain('dist/generators/init/schema.json');
   expect(contents).toContain('dist/generators/package/package.js');
   expect(contents).toContain('dist/generators/package/schema.json');
+  expect(contents).toContain('dist/generators/library/library.js');
+  expect(contents).toContain('dist/generators/library/schema.json');
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
@@ -118,9 +125,11 @@ afterAll(() => {
 // @mara checks REQ-NXPI-SOURCE-VALIDATION
 // @mara checks REQ-NXPI-VALIDATION-ELIGIBILITY
 // @mara checks REQ-NXPI-VALIDATION-TARGET-NAMES
-describe('packed init in independent consumers', () => {
+// @mara checks REQ-NXPI-LIBRARY-EXPORTS
+// @mara checks DES-NXPI-LIBRARY-CONTRACT
+describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
-    '%s: explicit and interactive init preserve dry-run, cancellation, and reruns',
+    '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
     async (manager) => {
       const root = join(temporaryRoot, manager);
       mkdirSync(root);
@@ -132,7 +141,7 @@ describe('packed init in independent consumers', () => {
         name: '@fixture/workspace',
         private: true,
         scripts: { test: 'echo consumer' },
-        devDependencies: { nx: NX_VERSION, [plugin]: `file:${tarball}` },
+        devDependencies: { nx: NX_VERSION, typescript: '6.0.3', [plugin]: `file:${tarball}` },
       });
       save(join(root, 'nx.json'), { defaultBase: 'trunk', custom: { retained: true } });
       writeFileSync(join(root, '.gitignore'), 'node_modules\n.nx\n');
@@ -303,6 +312,167 @@ describe('packed init in independent consumers', () => {
       expect(emptyCollision.status, emptyCollision.stdout + emptyCollision.stderr).not.toBe(0);
       expect(emptyCollision.stdout + emptyCollision.stderr).toMatch(/packages\/empty.*exist/i);
       expect(authoredFiles(root)).toEqual(beforeEmpty);
+
+      // Nx owns the library's TypeScript project/build setup; nx-pi owns its
+      // package identity and explicit source-validation opt-in marker.
+      const libraryBefore = authoredFiles(root);
+      const libraryArgs = ['shared', '--packageVersion=1.2.3'];
+      const libraryPreview = generate(root, [...libraryArgs, '--dry-run'], 'library');
+      expect(libraryPreview.status, libraryPreview.stdout + libraryPreview.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(libraryBefore);
+      const libraryCreated = generate(root, libraryArgs, 'library', {
+        ...env,
+        pnpm_config_ignore_scripts: 'true',
+      });
+      expect(libraryCreated.status, libraryCreated.stdout + libraryCreated.stderr).toBe(0);
+      const libraryManifest = json(join(root, 'packages/shared/package.json'));
+      expect(libraryManifest).toMatchObject({
+        name: '@terminal/pi-shared',
+        version: '1.2.3',
+        license: 'MIT',
+      });
+      expect(libraryManifest).not.toHaveProperty('pi');
+      expect(json(join(root, 'packages/shared/project.json')).tags).toContain('nx-pi:library');
+      const showLibrary = spawnSync(
+        process.execPath,
+        [cli[0], 'show', 'project', 'shared', '--json'],
+        { cwd: root, env, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(showLibrary.status, showLibrary.stdout + showLibrary.stderr).toBe(0);
+      const targets = (JSON.parse(showLibrary.stdout) as { targets: Record<string, unknown> })
+        .targets;
+      expect(targets).toHaveProperty('build');
+      expect(targets).toHaveProperty('pi-check');
+      expect(targets).toHaveProperty('nx-release-publish');
+      const libraryBuilt = spawnSync(process.execPath, [cli[0], 'run', 'shared:build'], {
+        cwd: root,
+        env,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      expect(libraryBuilt.status, libraryBuilt.stdout + libraryBuilt.stderr).toBe(0);
+      const libraryPackOutput = JSON.parse(
+        execFileSync(manager, ['pack', '--pack-destination', temporaryRoot, '--json'], {
+          cwd: join(root, 'packages/shared'),
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        }),
+      ) as
+        | Array<{ filename: string; files: Array<{ path: string }> }>
+        | { filename: string; files: Array<{ path: string }> };
+      const libraryTarball = Array.isArray(libraryPackOutput)
+        ? libraryPackOutput[0]
+        : libraryPackOutput;
+      expect(libraryTarball.files.map(({ path }) => path)).toContain('dist/index.js');
+      expect(libraryTarball.files.map(({ path }) => path)).toContain('dist/index.d.ts');
+      const isolated = join(temporaryRoot, `isolated-${manager}`);
+      mkdirSync(isolated);
+      save(join(isolated, 'package.json'), {
+        name: 'isolated-lib-consumer',
+        private: true,
+        dependencies: {
+          '@terminal/pi-shared': `file:${isAbsolute(libraryTarball.filename) ? libraryTarball.filename : join(temporaryRoot, libraryTarball.filename)}`,
+        },
+        devDependencies: { typescript: '6.0.3' },
+      });
+      execFileSync(
+        manager,
+        manager === 'npm'
+          ? ['install', '--ignore-scripts', '--no-audit', '--no-fund']
+          : ['install', '--ignore-scripts'],
+        { cwd: isolated, env, encoding: 'utf8', timeout: 120_000 },
+      );
+      const imported = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          "import { shared } from '@terminal/pi-shared'; if (shared() !== 'shared') process.exit(1);",
+        ],
+        { cwd: isolated, env, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(imported.status, imported.stdout + imported.stderr).toBe(0);
+      writeFileSync(
+        join(isolated, 'consumer.mts'),
+        "import { shared } from '@terminal/pi-shared';\nexport const result: string = shared();\n",
+      );
+      const typed = spawnSync(
+        process.execPath,
+        [
+          join(isolated, 'node_modules/typescript/bin/tsc'),
+          '--noEmit',
+          '--module',
+          'nodenext',
+          '--moduleResolution',
+          'nodenext',
+          '--target',
+          'es2022',
+          'consumer.mts',
+        ],
+        { cwd: isolated, env, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(typed.status, typed.stdout + typed.stderr).toBe(0);
+      expect(authoredFiles(root)).not.toEqual(libraryBefore); // generated project and build output
+      const libraryAfter = authoredFiles(root);
+      const releaseVersion = spawnSync(
+        process.execPath,
+        [
+          cli[0],
+          'release',
+          'version',
+          '1.2.4',
+          '--projects=shared',
+          '--dry-run',
+          '--first-release',
+          '--no-git-commit',
+          '--no-git-tag',
+          '--no-stage-changes',
+        ],
+        { cwd: root, env, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(releaseVersion.status, releaseVersion.stdout + releaseVersion.stderr).toBe(0);
+      expect(releaseVersion.stdout + releaseVersion.stderr).toMatch(/pi-shared|shared/);
+      const releasePublish = spawnSync(
+        process.execPath,
+        [cli[0], 'release', 'publish', '--projects=shared', '--dry-run', '--first-release'],
+        { cwd: root, env, encoding: 'utf8', timeout: 60_000 },
+      );
+      expect(releasePublish.status, releasePublish.stdout + releasePublish.stderr).toBe(0);
+      expect(releasePublish.stdout + releasePublish.stderr).toMatch(/pi-shared|shared/);
+      expect(authoredFiles(root)).toEqual(libraryAfter);
+      const repeatedLibrary = generate(root, libraryArgs, 'library');
+      expect(repeatedLibrary.status, repeatedLibrary.stdout + repeatedLibrary.stderr).not.toBe(0);
+      expect(authoredFiles(root)).toEqual(libraryAfter);
+      const optedLint = generate(
+        root,
+        ['linted', '--packageVersion=1.0.0', '--linter=oxlint', '--strict=false'],
+        'library',
+        { ...env, pnpm_config_ignore_scripts: 'true' },
+      );
+      expect(optedLint.status, optedLint.stdout + optedLint.stderr).toBe(0);
+      const lintResult = spawnSync(process.execPath, [cli[0], 'run', 'linted:lint'], {
+        cwd: root,
+        env,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      expect(lintResult.status, lintResult.stdout + lintResult.stderr).toBe(0);
+      const optedTests = generate(
+        root,
+        ['tested', '--packageVersion=1.0.0', '--unitTestRunner=vitest', '--formatter=oxfmt'],
+        'library',
+        { ...env, pnpm_config_ignore_scripts: 'true' },
+      );
+      expect(optedTests.status, optedTests.stdout + optedTests.stderr).toBe(0);
+      const testResult = spawnSync(process.execPath, [cli[0], 'run', 'tested:test'], {
+        cwd: root,
+        env,
+        encoding: 'utf8',
+        timeout: 90_000,
+      });
+      expect(testResult.status, testResult.stdout + testResult.stderr).toBe(0);
+      expect(json(join(root, 'package.json')).devDependencies).toHaveProperty('oxfmt');
 
       // Exercise the packed plugin's Nx inference and executor, not only its
       // source functions. All authored fixture state is captured after setup.
@@ -532,6 +702,41 @@ describe('packed init in independent consumers', () => {
       expect(Object.keys(authoredFiles(root)).filter((path) => !(path in beforePackage))).toEqual([
         'packages/example/package.json',
       ]);
+
+      // The real apps preset may use a different TypeScript layout from the
+      // minimal fixture; let Nx JS integrate with the existing workspace.
+      const beforeLibrary = authoredFiles(root);
+      const library = generate(root, ['shared', '--packageVersion=1.0.0'], 'library', {
+        ...creationEnv,
+        pnpm_config_ignore_scripts: 'true',
+      });
+      expect(library.status, library.stdout + library.stderr).toBe(0);
+      expect(json(join(root, 'packages/shared/package.json'))).toMatchObject({
+        name: `${scope}/pi-shared`,
+        version: '1.0.0',
+      });
+      expect(json(join(root, 'packages/shared/project.json')).tags).toContain('nx-pi:library');
+      const afterLibrary = authoredFiles(root);
+      for (const path of Object.keys(beforeLibrary)) {
+        if (
+          ![
+            'package.json',
+            'package-lock.json',
+            'pnpm-lock.yaml',
+            'nx.json',
+            'tsconfig.json',
+            'tsconfig.base.json',
+          ].includes(path)
+        ) {
+          expect(afterLibrary[path]).toBe(beforeLibrary[path]);
+        }
+      }
+      const built = spawnSync(
+        process.execPath,
+        [join(root, 'node_modules/nx/dist/bin/nx.js'), 'run', 'shared:build'],
+        { cwd: root, env: creationEnv, encoding: 'utf8', timeout: 90_000 },
+      );
+      expect(built.status, built.stdout + built.stderr).toBe(0);
     },
     300_000,
   );
