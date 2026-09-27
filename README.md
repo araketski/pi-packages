@@ -5,6 +5,7 @@
 - [Workspace layout](docs/workspace-layout.mara.md) — publishable packages versus private repository utilities.
 - [Nx Pi tooling scope](packages/nx-pi/docs/scope.mara.md) — package kinds, scaffolding, validation, and future maintenance operations.
 - [Workspace linting](docs/tooling.mara.md) — configuration, Nx commands, and verification criteria.
+- [Repository testing](docs/testing.mara.md) — local Vitest/Nx integration and isolated consumer checks.
 
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 

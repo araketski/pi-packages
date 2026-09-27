@@ -13,6 +13,9 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['24.19.0', '26.7.0']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -22,7 +25,7 @@ jobs:
       - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
-          version: 11.13.0
+          version: 12.6.0
           run_install: false
 
       # This enables task distribution via Nx Cloud
@@ -35,7 +38,7 @@ jobs:
       # Cache node_modules
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile

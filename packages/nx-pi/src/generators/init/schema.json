@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "NxPiInit",
+  "title": "Initialize Pi package development",
+  "description": "Register nx-pi and fill explicitly supplied missing root package metadata. Does not install dependencies.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Scoped root npm package name, used only when root package.json has no name."
+    },
+    "license": {
+      "type": "string",
+      "description": "License declaration to add when absent. Publication validates completeness."
+    },
+    "repository": { "type": "string", "description": "Repository URL to add when absent." },
+    "homepage": { "type": "string", "description": "HTTP(S) homepage URL to add when absent." },
+    "bugs": { "type": "string", "description": "HTTP(S) issue-tracker URL to add when absent." }
+  }
+}

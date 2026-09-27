@@ -9,16 +9,25 @@ The current development slice concerns tooling, not statusline protocol behavior
 
 ## Current implementation state
 
-`packages/nx-pi` was scaffolded with the installed `@nx/plugin:plugin` generator
-using TypeScript compilation. Only the package scaffold exists: `init`, inferred
-targets, validators, resource generators, and compatibility fixtures are not yet
-implemented. Generator-added release services, test-runner configuration, and
-unused compiler dependencies were not adopted.
+`packages/nx-pi` was scaffolded with `@nx/plugin:plugin` and compiles to CommonJS.
+The first behavioral slice implements non-interactive `init`: explicit missing
+metadata, a scoped root name, safe registration, unchanged reruns, actionable
+conflicts, runtime guards, and no dependency installation. Exact rules are in
+[[DES-NXPI-INIT-CONTRACT]]. Its registered entrypoint does not yet infer targets.
+Interactive prompts, validators, and resource generators remain unimplemented.
+
+Repository-local Vitest tests run through the inferred Nx `test` target. Source
+checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
+both minimal hand-authored fixtures and real `create-nx-workspace`-generated
+workspaces. They exercise packed installation, automatic initialization through
+`nx add`, explicit CLI invocation, dry-run, reruns, conflict failures, and
+authored-file preservation. These checks do not establish completion of the
+broader [[VER-NXPI-INIT]] or [[VER-NXPI-FIRST-INCREMENT]].
 
 The project documentation was relocated here after scaffolding, preserving all
-structured identities. `package.json.files` excludes repository-only knowledge
-from the npm artifact. Build, lint, and typecheck checks of this scaffold are not
-verification of the planned feature contracts.
+structured identities. `package.json.files` excludes this knowledge, tests, and
+test configuration from the npm artifact. No publication or release workflow is
+implemented. Repository test infrastructure is not added to consumer workspaces.
 
 ## Purpose and initial scope
 
@@ -43,10 +52,11 @@ Nx and the runtime/compiler facilities required by the selected package kind
 remain technical prerequisites. Define and test a supported package-manager and
 toolchain matrix; infrastructure neutrality is not a claim of universal support.
 The approved initial boundary is Nx 23, with Node 24 and 26 and npm/pnpm consumer
-fixtures. Exact fixture versions and minimum supported ranges must be finalized
-and tested before advertising compatibility; see [[DES-NXPI-IMPLEMENTATION-BASELINE]].
+fixtures. Current non-interactive initialization pins and runtime ranges are
+recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; broader compatibility must be
+verified before it is advertised.
 
-This repository's pnpm catalogs, Oxfmt, Oxlint, Vitest plans, and Mara workflow are
+This repository's pnpm catalogs, Oxfmt, Oxlint, Vitest, and Mara workflow are
 local development choices, not requirements imposed by the published plugin.
 See [[REQ-NXPI-INFRASTRUCTURE-NEUTRAL]] and [[ADR-NXPI-PUBLIC-CORE]].
 

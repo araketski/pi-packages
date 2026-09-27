@@ -37,8 +37,9 @@ pnpm nx run <project>:lint --fix
 ```
 
 The existing CI workflow already includes `lint` in its Nx `run-many` command.
-The `nx-pi` scaffold now receives a lint target. Checking its initial empty
-entrypoint does not establish that future generator behavior has been verified.
+The `nx-pi` project receives a lint target, including its generator and test
+source. Linting does not replace its behavioral tests or establish completion of
+its broader planned contracts.
 
 ## Verifying the setup
 

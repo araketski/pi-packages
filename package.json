@@ -8,13 +8,17 @@
     "@nx/js": "catalog:",
     "@nx/oxlint": "catalog:",
     "@nx/plugin": "catalog:",
+    "@nx/vitest": "catalog:",
     "@swc/helpers": "catalog:",
     "@types/node": "catalog:",
+    "create-nx-workspace": "catalog:",
     "nx": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
     "tslib": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -174,7 +174,7 @@ Scaffolding shall use the root package.json as authority for npm scope, reposito
 
 The initial root metadata field set is name, license, repository, homepage, and bugs. Name is required and must include a valid npm scope so generators can derive generated-package scope. License is optional during init and checked at creation/publication; repository, homepage, and bugs URLs are optional. Expose explicit inputs for these fields and prompt only for missing required values, not optional metadata. Reject a present unscoped root name with an actionable error rather than automatically renaming the workspace.
 
-Metadata generation shall not consult GitHub CLI, SSH configuration, or network services. Do not invent author information, branch URLs, or publication defaults. Exact CLI option names, supported field representations, and validation details remain to be specified.
+Metadata generation shall not consult GitHub CLI, SSH configuration, or network services. Do not invent author information, branch URLs, or publication defaults. The current non-interactive init option names, field representations, and validation rules are specified in [[DES-NXPI-INIT-CONTRACT]]. Interactive behavior and metadata derivation by subsequent creation/publication operations remain to be specified.
 :::
 
 :::mara design DES-NXPI-GENERATOR-INTERFACE
@@ -213,7 +213,7 @@ Use supported Nx integration facilities for the consumer workspace rather than i
 
 nx-pi shall be publishable as a conventional compiled npm Nx plugin. Its packed artifact shall contain the runtime entrypoints, generator schemas, templates, and other runtime assets needed to initialize an independent supported Nx workspace and run its generators and validation. It shall not depend on source paths or undeclared development dependencies from this repository.
 
-The plugin is development tooling, not a Pi resource package. Its approved npm identity is @araketski/nx-pi, implemented under packages/nx-pi. The initial compatibility boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; release policy and precise supported-version ranges remain to be specified separately from generated Pi package names.
+The plugin is development tooling, not a Pi resource package. Its approved npm identity is @araketski/nx-pi, implemented under packages/nx-pi. The initial compatibility boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; release policy and expansion beyond the current compatibility slice remain to be specified separately from generated Pi package names.
 :::
 
 :::mara requirement REQ-NXPI-INIT
@@ -225,7 +225,7 @@ The plugin is development tooling, not a Pi resource package. Its approved npm i
 
 An init generator shall establish the Pi package conventions and nx-pi configuration required in an existing supported Nx workspace, obtaining metadata from explicit consumer-owned inputs. It shall preserve unrelated configuration, report incompatible or missing required inputs actionably, and leave a successfully initialized workspace unchanged on a repeated invocation with the same inputs and plugin version.
 
-Initialization shall obey the infrastructure-neutral contract. It must not silently replace existing package-manager, lint, test, formatting, CI, or release choices. Unlike creation generators, init is intended to operate on an existing workspace and be safe to rerun. Init shall not install or upgrade dependencies, including Pi. Plugin installation precedes initialization as a separate operation. Init owns its plugin registration in nx.json and filling missing shared metadata in root package.json from explicit options or interactive answers. It shall reuse existing metadata, never invent values or silently overwrite existing ones, and fail actionably in non-interactive mode when required values remain missing. Detailed field and option definitions, conflict diagnostics, and the supported workspace baseline remain to be specified in [[DES-NXPI-INIT-CONTRACT]].
+Initialization shall obey the infrastructure-neutral contract. It must not silently replace existing package-manager, lint, test, formatting, CI, or release choices. Unlike creation generators, init is intended to operate on an existing workspace and be safe to rerun. Init shall not install or upgrade dependencies, including Pi. Plugin installation precedes initialization as a separate operation. Init owns its plugin registration in nx.json and filling missing shared metadata in root package.json from explicit options or interactive answers. It shall reuse existing metadata, never invent values or silently overwrite existing ones, and fail actionably in non-interactive mode when required values remain missing. The non-interactive field/option definitions, conflict diagnostics, and current workspace baseline are specified in [[DES-NXPI-INIT-CONTRACT]]. Interactive prompts and validation-target inference are not implemented by this first slice.
 :::
 
 :::mara verification VER-NXPI-INIT
@@ -238,7 +238,7 @@ Initialization shall obey the infrastructure-neutral contract. It must not silen
 :verifies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
 :verifies: DES-NXPI-INIT-CONTRACT
 
-Install the packed plugin into disposable fresh and already-configured Nx workspace fixtures for each declared supported baseline. Record authored manifest, lockfile, and configuration state after installation but before init, so installation side effects are not attributed to initialization.
+Install the packed plugin into disposable fresh and already-configured Nx workspace fixtures for each declared supported baseline. Include both minimal hand-authored fixtures and real workspaces generated by the pinned create-nx-workspace CLI using the apps preset, separately with npm and pnpm. In generated workspaces, exercise nx add with the local tarball to verify the init convention, then test explicit generator calls. Do not modify generated metadata merely to make initialization succeed. Record authored manifest, lockfile, and configuration state after installation but before init, so installation side effects are not attributed to initialization.
 
 Exercise existing complete metadata, missing required metadata supplied through explicit options, and missing metadata supplied through interactive answers. The authored diff may contain only the nx-pi registration in nx.json and supplied additions to missing shared metadata fields in root package.json. Preserve existing metadata and unrelated fields, including scripts, dependencies, package-manager configuration, and private/publication state. Confirm that later generators read the persisted values as their metadata authority. Verify root @acme/workspace yields @acme/pi-example for a generated example package, and an existing unscoped root name is rejected without renaming. Cover each approved root field: name, license, repository, homepage, and bugs. Interactive initialization prompts only for missing required metadata; omitted optional metadata causes no prompt and remains absent. Confirm no author information, branch URLs, or publication defaults are invented.
 
@@ -250,7 +250,7 @@ Run dry-run with supplied missing metadata and no plugin registration. Verify th
 
 Include fixtures without Pi, catalogs, or lint/test/format/CI/release configuration, plus fixtures with differing existing infrastructure. Confirm init does not introduce dependencies, migrate infrastructure, create projects, or add a marker file. Repository metadata and complete license declarations may be absent when not explicitly supplied; they must not be invented. A missing scoped root name must either be explicitly supplied or produce actionable failure. Verify registration enables validation for eligible fixture projects without rewriting their configuration.
 
-The remaining field/option definitions, diagnostics, target eligibility, and supported matrix in [[DES-NXPI-INIT-CONTRACT]] must be settled before this verification definition is finalized. This is a planned method, not passing execution evidence.
+Source tests in src/generators/init and packed-consumer tests in tests/init.consumer.spec.mts implement the current non-interactive subset. The consumer suite creates and cleans independent generated and minimal fixtures, compares authored files after installation, and exercises real CLI dry-run and reruns. Runtime guards have source tests; the consumer matrix runs on the pinned Node versions. Interactive prompts, generated-package identity derivation, and target inference portions of this broader method remain planned. This definition is not passing execution evidence for those remaining portions.
 :::
 
 :::mara decision ADR-NXPI-PUBLIC-CORE
@@ -275,11 +275,11 @@ Implement initialization before a new-workspace preset and reuse that initializa
 :satisfies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
 :satisfies: REQ-NXPI-METADATA-SOURCE
 
-The initialization boundary, inferred-target registration, explicit filling of missing root metadata, and absence of dependency installation are agreed. The item remains draft until precise version ranges and detailed options/diagnostics are specified; no implementation is claimed.
+The initialization boundary, inferred-target registration, explicit filling of missing root metadata, and absence of dependency installation are agreed. The non-interactive slice below is implemented. This broader item remains draft while interactive behavior and inference-option semantics are unfinished; implementation of one slice does not imply completion of the whole contract.
 
 ## Boundary
 
-The caller supplies an existing Nx workspace with readable root package.json and nx.json. Workspace creation belongs to the later preset. Installing nx-pi is a separate package-manager operation; init assumes the plugin is already installed and does not install or upgrade unrelated tools. Supported Nx and Node versions must be declared and checked before changes. The approved initial boundary is Nx 23 with Node 24 and 26, and npm/pnpm consumer fixtures, as recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; exact fixture versions and minimum supported minor/patch ranges remain to be specified.
+The caller supplies an existing Nx workspace with readable root package.json and nx.json. Workspace creation belongs to the later preset. Installing nx-pi is a separate package-manager operation; init assumes the plugin is already installed and does not install or upgrade unrelated tools. Supported Nx and Node versions must be declared and checked before changes. The approved initial boundary is Nx 23 with Node 24 and 26, and npm/pnpm consumer fixtures, as recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; the current fixtures use Nx 23.2.1, Node 24.19.0 or 26.7.0, and pnpm 12.6.0 or the npm bundled with those Node releases. Runtime Node support starts at 24.15.0 or 26.0.0, reflecting the npm-name validator dependency; the package peer currently pins Nx 23.2.1.
 
 ## Ownership
 
@@ -301,7 +301,19 @@ Keep Pi out of init. Introduce Pi development support when generating an extensi
 
 ## Metadata and remaining details
 
-Npm and Pi publication fields belong in package.json. Root package.json remains their workspace-level authority; generated package manifests carry their package-specific metadata. Do not create project.json to store or duplicate publication metadata. Nx-only project configuration is a separate concern. The agreed initial root field set is name (required scoped npm name), license (optional at init, checked at creation/publication), repository (optional URL), homepage (optional URL), and bugs (optional issue-tracker URL). Do not author other publication metadata or defaults as part of init. Exact option names, field representations, precise compatibility ranges, eligibility-marker representation, and diagnostic details remain to be specified.
+Npm and Pi publication fields belong in package.json. Root package.json remains their workspace-level authority; generated package manifests carry their package-specific metadata. Do not create project.json to store or duplicate publication metadata. Nx-only project configuration is a separate concern. The agreed initial root field set is name (required scoped npm name), license (optional at init, checked at creation/publication), repository (optional URL), homepage (optional URL), and bugs (optional issue-tracker URL). Do not author other publication metadata or defaults as part of init. Non-interactive option names and field representations are specified below. Interactive prompt details, eligibility-marker representation, and inference-option semantics remain to be specified.
+
+## First non-interactive slice
+
+Expose optional string options named name, license, repository, homepage, and bugs. They fill only absent properties in root package.json; null, empty, or malformed existing values are not silently treated as absent. Name must resolve to a scoped npm name valid for new packages. Without a supplied missing name, report an actionable error referring to root package.json and --name; do not prompt in this slice. No positional name or default metadata is synthesized.
+
+Supplied values must be nonblank strings without leading/trailing whitespace. License is persisted as supplied; license completeness remains a creation/publication concern. Homepage and bugs inputs must be absolute HTTP(S) URLs. Repository accepts absolute HTTP(S), git, SSH, git+https, and git+ssh URLs. Existing npm repository/bugs objects are preserved: an explicit option matching their url property is compatible, with no rewriting of their type, directory, email, or other properties. No equivalence between distinct URL spellings is inferred. Optional metadata not supplied is left untouched, including representations that a later creation/publication check may reject.
+
+Register @araketski/nx-pi as a shorthand entry only when absent. Preserve a single existing shorthand/object registration byte-for-byte when no additions are needed; preserve its options, include/exclude filters, and unknown fields. Diagnose a non-array plugins field, malformed plugin entries, non-object own options, or duplicate own registrations before writing either file. Object-valued options are preserved without implementing target-option semantics in this slice; those checks follow the inference contract.
+
+Check the installed Nx major (23) and Node versions (24.15+ within major 24, or major 26) before changes. Dependency/peer ranges constrain the concrete install further; major guards are not evidence that every minor/patch combination has been tested. No installation callback is returned. Nx handles dry-run through its Tree transaction; test this through the packed generator's CLI, not by simulating a separate dryRun implementation.
+
+The observable acceptance criteria are registration and supplied missing-field additions only, exact authored-state preservation on identical reruns or validation failure, no consumer dependency/tool changes, and an independently installed packed generator that Nx can discover and invoke. Interactive prompts and validation-target inference are subsequent increments. The root plugin entrypoint does not expose placeholder targets in this slice.
 :::
 
 :::mara requirement REQ-NXPI-SOURCE-VALIDATION
@@ -358,7 +370,7 @@ Source validation must work before a library build and without Pi, networking, o
 
 The agreed first implementation increment consists of init, target inference, and a minimal pi-check that distinguishes a valid fixture from a missing declared resource. Packed validation, broader rule coverage, and resource scaffolding follow in subsequent increments. Do not infer a nonfunctional packed-validation target in the first increment. Statusline behavior remains out of scope.
 
-The initial Nx/Node and package-manager boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]. The target-name option schema, shared-library opt-in marker, detailed collision handling, and exact fixture versions remain to be specified; this item records the approved split and sequencing without claiming implementation.
+The initial Nx/Node and package-manager boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]. The target-name option schema, shared-library opt-in marker, and detailed collision handling remain to be specified; this item records the approved split and sequencing without claiming implementation.
 :::
 
 :::mara verification VER-NXPI-FIRST-INCREMENT
@@ -394,7 +406,7 @@ The approved npm identity is @araketski/nx-pi, implemented under packages/nx-pi.
 
 The approved initial compatibility boundary is Nx major 23, with Node majors 24 and 26 as test environments. Consumer fixtures initially cover npm and pnpm, without requiring catalogs. Cover both package managers on both Node majors. This is an intended compatibility boundary, not a claim that any combination already passes. Broader compatibility must be demonstrated before it is advertised; the repository's pnpm development policy is not a requirement on plugin consumers.
 
-Pin exact Nx, Node, and package-manager versions in the eventual fixture setup and record them with execution results. Minimum minor/patch support and precise peer/engine ranges must follow the selected baseline and observed verification, not an untested major-wide guarantee. The item remains draft pending those precise version definitions; the identity, directory, major-version boundary, and fixture package managers are agreed.
+The non-interactive init fixtures use Nx and create-nx-workspace 23.2.1. CI is configured for Node 24.19.0 (bundled npm 11.17.0) and Node 26.7.0 (bundled npm 11.19.0), with pnpm 12.6.0 on both. Tests record the actual tool versions. The package peer pins Nx 23.2.1; its Node engine permits >=24.15.0 <25 or >=26.0.0 <27, matching the runtime guard and dependency floor. Tested reference versions are not a claim that every allowed minor/patch was individually exercised. The broader plugin-wide compatibility contract remains draft until later Pi/runtime and generated-library contracts are specified.
 
-The initial package scaffold now exists under packages/nx-pi, generated with @nx/plugin:plugin and configured for compiled CommonJS output. Its planned documentation was relocated from docs/planned/nx-pi to packages/nx-pi/docs using Mara item moves, preserving all 26 item IDs and MIDs and repairing document links. Repository-only specifications are excluded from publication through the package file allowlist. No init generator, target inference, source validator, or consumer compatibility fixture is implemented yet. Scaffold verification does not establish feature completion, publication readiness, or compatibility-matrix results.
+The initial package scaffold now exists under packages/nx-pi, generated with @nx/plugin:plugin and configured for compiled CommonJS output. Its planned documentation was relocated from docs/planned/nx-pi to packages/nx-pi/docs using Mara item moves, preserving all 26 item IDs and MIDs and repairing document links. Repository-only specifications are excluded from publication through the package file allowlist. The first non-interactive init slice and repository-local Vitest/Nx tests are implemented. Consumer fixtures install the packed plugin in both minimal and create-nx-workspace-generated npm/pnpm workspaces and exercise explicit init plus nx add initialization. Interactive prompts, target inference, source validation, and resource/library generators remain unimplemented. Verification of this slice does not establish completion of those features or publication readiness.
 :::

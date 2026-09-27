@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "init": {
+      "factory": "./dist/generators/init/init",
+      "schema": "./dist/generators/init/schema.json",
+      "description": "Initialize an existing Nx workspace for Pi package development"
+    }
+  }
+}

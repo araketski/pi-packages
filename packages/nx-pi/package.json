@@ -4,7 +4,8 @@
   "files": [
     "dist",
     "!**/*.tsbuildinfo",
-    "!**/*.map"
+    "!**/*.map",
+    "generators.json"
   ],
   "type": "commonjs",
   "main": "./dist/index.js",
@@ -19,9 +20,17 @@
   },
   "dependencies": {
     "@nx/devkit": "catalog:",
-    "tslib": "catalog:"
+    "tslib": "catalog:",
+    "validate-npm-package-name": "catalog:"
+  },
+  "devDependencies": {
+    "@types/validate-npm-package-name": "catalog:"
   },
   "peerDependencies": {
     "nx": "catalog:"
-  }
+  },
+  "engines": {
+    "node": ">=24.15.0 <25 || >=26.0.0 <27"
+  },
+  "generators": "./generators.json"
 }
