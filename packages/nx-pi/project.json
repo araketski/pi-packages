@@ -1,0 +1,32 @@
+{
+  "name": "nx-pi",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/nx-pi/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "packages/nx-pi/dist",
+        "main": "packages/nx-pi/src/index.ts",
+        "tsConfig": "packages/nx-pi/tsconfig.lib.json",
+        "rootDir": "packages/nx-pi/src",
+        "generatePackageJson": false,
+        "assets": [
+          {
+            "input": "./packages/nx-pi/src",
+            "glob": "**/!(*.ts)",
+            "output": "."
+          },
+          {
+            "input": "./packages/nx-pi/src",
+            "glob": "**/*.d.ts",
+            "output": "."
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+format_version = 3
+
+[project]
+name = "pi-packages--rework"
+schema = ".mara/schema.yaml"
+
+[content]
+include = ["**/*.mara.md"]
+
+[rules]
+format_version = 1
+files = [".mara/engineering-rules.yaml"]
+
+[[code.languages]]
+name = "typescript"
+command = [
+  "npx",
+  "--yes",
+  "@sourcegraph/scip-typescript@0.4.0",
+  "index",
+  "--pnpm-workspaces",
+  "--output",
+  "{output}",
+  "--no-progress-bar",
+]
+position_encoding = "utf16"
+extensions = ["ts", "mts", "cts"]
+grammar = ".mara/code/typescript.wasm"
+query = ".mara/code/typescript.scm"

@@ -1,116 +1,116 @@
-# Pi Packages
+# PiPackagesRework
 
-Nx monorepo for public npm-distributed [Pi](https://pi.dev) packages.
+## Project documentation
 
-## Packages
+- [Workspace layout](docs/workspace-layout.mara.md) — publishable packages versus private repository utilities.
+- [Nx Pi tooling scope](packages/nx-pi/docs/scope.mara.md) — package kinds, scaffolding, validation, and future maintenance operations.
+- [Workspace linting](docs/tooling.mara.md) — configuration, Nx commands, and verification criteria.
 
-| Workspace                              | npm package                                         | Description                                                                         | Install                                                            |
-| -------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `packages/angular-developer`           | `@aliaksei-raketski/pi-angular-developer`           | Angular developer skill with local documentation helper scripts.                    | `pi install npm:@aliaksei-raketski/pi-angular-developer`           |
-| `packages/continuation-gate-inspector` | `@aliaksei-raketski/pi-continuation-gate-inspector` | Read-only local inspector for continuation-gate diagnostics.                        | `pi install npm:@aliaksei-raketski/pi-continuation-gate-inspector` |
-| `packages/continuation-gate-protocol`  | `@aliaksei-raketski/pi-continuation-gate-protocol`  | Shared continuation-gate protocol for cooperating Pi extensions.                    | `pi install npm:@aliaksei-raketski/pi-continuation-gate-protocol`  |
-| `packages/caffeinate`                  | `@aliaksei-raketski/pi-caffeinate`                  | Keeps the computer awake while Pi or continuation work is active.                   | `pi install npm:@aliaksei-raketski/pi-caffeinate`                  |
-| `packages/fast-mode`                   | `@aliaksei-raketski/pi-fast-mode`                   | Extension that enables fast-mode payload tuning for supported Claude/OpenAI models. | `pi install npm:@aliaksei-raketski/pi-fast-mode`                   |
-| `packages/goal`                        | `@aliaksei-raketski/pi-goal`                        | Persistent, evidence-gated thread goals and continuation support.                   | `pi install npm:@aliaksei-raketski/pi-goal`                        |
-| `packages/nx-developer`                | `@aliaksei-raketski/pi-nx-developer`                | Nx workspace development and documentation skills.                                  | `pi install npm:@aliaksei-raketski/pi-nx-developer`                |
-| `packages/statusline`                  | `@aliaksei-raketski/pi-statusline`                  | Extension for a customizable, ANSI-aware statusline footer.                         | `pi install npm:@aliaksei-raketski/pi-statusline`                  |
-| `packages/statusline-protocol`         | `@aliaksei-raketski/pi-statusline-protocol`         | Shared source-aware structured status protocol.                                     | `pi install npm:@aliaksei-raketski/pi-statusline-protocol`         |
-| `packages/taiga-ui-docs`               | `@aliaksei-raketski/pi-taiga-ui-docs`               | Taiga UI docs skill backed by a bundled helper script.                              | `pi install npm:@aliaksei-raketski/pi-taiga-ui-docs`               |
-| `packages/tmux-bash`                   | `@aliaksei-raketski/pi-tmux-bash`                   | Tmux-backed command execution with bounded output and continuation gates.           | `pi install npm:@aliaksei-raketski/pi-tmux-bash`                   |
-| `packages/tmux-bash-core`              | `@aliaksei-raketski/pi-tmux-bash-core`              | Compiled read-only scope, manifest, metadata, discovery, and attach helpers.        | `npm install @aliaksei-raketski/pi-tmux-bash-core`                 |
+<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
-## Development
+✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
 
-Install dependencies:
+[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
 
-```bash
-pnpm install
+## Generate a library
+
+```sh
+npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
 ```
 
-List Nx projects:
+## Run tasks
 
-```bash
-pnpm nx show projects
+To build the library use:
+
+```sh
+npx nx build pkg1
 ```
 
-Inspect a project:
+To run any task with Nx use:
 
-```bash
-pnpm nx show project @aliaksei-raketski/pi-fast-mode --json
+```sh
+npx nx <target> <project-name>
 ```
 
-Run checks for all Pi packages:
+These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
 
-```bash
-pnpm nx run-many --projects='packages/*' -t lint,typecheck
+[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+
+## Versioning and releasing
+
+To version and release the library use
+
+```
+npx nx release
 ```
 
-Run all configured test targets:
+Pass `--dry-run` to see what would happen without actually releasing the library.
 
-```bash
-pnpm nx run-many -t test --parallel=3
+[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+
+## Keep TypeScript project references up to date
+
+Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+
+To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+
+```sh
+npx nx sync
 ```
 
-Explore the workspace graph:
+You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
 
-```bash
-pnpm nx graph
+```sh
+npx nx sync:check
 ```
 
-## Generating Pi packages and components
+[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
 
-Use the local Nx generators instead of hand-rolling package metadata or Pi component folders.
+## Set up CI!
 
-Create a package container:
+### Step 1
 
-```bash
-pnpm nx g @aliaksei-raketski/nx-pi:package my-package --dry-run --no-interactive
-pnpm nx g @aliaksei-raketski/nx-pi:package my-package --no-interactive
+To connect to Nx Cloud, run the following command:
+
+```sh
+npx nx connect
 ```
 
-Add components to an existing Pi package:
+Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
 
-```bash
-pnpm nx g @aliaksei-raketski/nx-pi:skill my-skill \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
-pnpm nx g @aliaksei-raketski/nx-pi:prompt my-prompt \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+### Step 2
 
-pnpm nx g @aliaksei-raketski/nx-pi:theme my-theme \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+Use the following command to configure a CI workflow for your workspace:
 
-pnpm nx g @aliaksei-raketski/nx-pi:extension my-extension \
-  --project=@aliaksei-raketski/pi-my-package \
-  --no-interactive
+```sh
+npx nx g ci-workflow
 ```
 
-Check available options before applying changes:
+[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
-```bash
-pnpm nx g @aliaksei-raketski/nx-pi:package --help
-pnpm nx g @aliaksei-raketski/nx-pi:skill --help
-pnpm nx g @aliaksei-raketski/nx-pi:extension --help
-```
+## Install Nx Console
 
-## Trying extensions locally
+Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
 
-```bash
-pi -e ./packages/fast-mode
-pi -e ./packages/statusline
-```
+[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
-## Syncing vendored skills
+## Useful links
 
-Some skill packages include their own maintenance scripts. For example:
+Learn more:
 
-```bash
-pnpm --filter @aliaksei-raketski/pi-angular-developer sync
-```
+- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
-## Publishing
+And join the Nx community:
 
-Packages are intended to be published to the public npm registry. Use Nx project metadata and package-level `package.json` versions as the source of truth during release automation.
+- [Discord](https://go.nx.dev/community)
+- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
+- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
+- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)

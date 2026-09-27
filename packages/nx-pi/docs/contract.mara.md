@@ -1,0 +1,400 @@
+# Nx Pi tooling contract
+
+Structured requirements and verification definitions for a publicly reusable Nx
+plugin for Pi package development.
+The [scope document](./scope.mara.md) provides context and deferred maintenance
+ideas. This contract records intended behavior, not implementation or execution
+results. Draft items capture the agreed direction while detailed CLI behavior
+and acceptance cases are being settled.
+
+Verification items describe repeatable checks to implement. No passing execution
+evidence is asserted by their presence. Statusline protocol behavior is outside
+this contract; use neutral packages when verifying tooling.
+
+:::mara goal GOAL-NXPI-MAINTENANCE
+:mid: 01M3H8502V5PC9J3NPQB9GF45A
+:title: Consistent package creation and dependable distribution
+:status: accepted
+
+Maintainers of independent Nx workspaces can quickly create consistent Pi resource packages and shared libraries, and determine whether distributed artifacts are usable without relying on the development workspace. nx-pi is intended to be a publicly reusable npm plugin, with this repository as its first consumer. Initial work covers initialization, scaffolding, and validation without imposing this repository's infrastructure. A new-workspace preset follows initialization; reconciliation, migrations, and optional infrastructure integrations are deferred.
+:::
+
+:::mara requirement REQ-NXPI-IDENTITY
+:mid: 01M3H850FGBPT4PACE66DK571H
+:title: Derive package identity from the workspace
+:status: draft
+:kind: functional
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Scaffolding shall accept an unprefixed lowercase kebab-case package name such as statusline-protocol and create packages/<name> with npm name <root-scope>/pi-<name>. The root package.json name must be a valid scoped npm name of the form @scope/workspace-name. Derive <root-scope> from that name, not from a separate scope setting. For example, root @acme/workspace and package name example produce @acme/pi-example. This applies to Pi resource packages and shared libraries.
+
+Reject scoped names, pi-prefixed names, uppercase names, whitespace, and path separators with actionable errors rather than silently normalizing identity. A missing required root scope is a configuration error. Exact length limits and the complete accepted character grammar remain to be specified.
+:::
+
+:::mara requirement REQ-NXPI-PRESERVE
+:mid: 01M3H850W30HX2ZG70N6XP1J13
+:title: Preserve existing work during scaffolding
+:status: draft
+:kind: quality
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Creation generators shall preserve unrelated authored files and manifest fields. Creating a package or library at an existing destination shall fail without changes. Adding a resource to an existing Pi package is supported, but a collision with an existing resource destination shall fail without changes, including a repeated invocation with identical inputs.
+
+The initial creation generators shall not provide an overwrite mode or silently replace resource implementations. Collision checks must complete before writing changes. The precise destination boundary for each resource type remains to be specified. Initialization is a separate operation with a safely repeatable existing-workspace contract under [[REQ-NXPI-INIT]].
+:::
+
+:::mara requirement REQ-NXPI-CATALOGS
+:mid: 01M3H8518RREP84Y2T4FGY82BB
+:title: Preserve centralized dependency versions
+:status: retired
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+When scaffolding introduces external runtime or development dependencies, their version choices shall live in pnpm catalogs and generated manifests shall use catalog references. Internal workspace dependencies shall use workspace references.
+
+The policy for absent catalog entries, version conflicts, and host peer compatibility ranges remains to be agreed; this item does not authorize automatic upgrades.
+:::
+
+:::mara requirement REQ-NXPI-RESOURCE-SOURCE
+:mid: 01M3H851NDJTVCNGEVD4VD2C00
+:title: Distribute Pi resources without compilation
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Pi resource packages shall distribute original resource files, including TypeScript extension source and required runtime helpers and assets, without requiring compilation of those resources. A package may contain multiple resources of multiple supported types: extensions, skills, prompts, and themes.
+:::
+
+:::mara requirement REQ-NXPI-LIBRARY-EXPORTS
+:mid: 01M3H852240E0JAQWKJ4CJG00B
+:title: Distribute shared libraries through standard npm exports
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Shared runtime libraries shall distribute compiled JavaScript and TypeScript declarations reachable through their npm exports. Their runtime imports shall not require access to workspace source or a Pi-specific TypeScript loader. Being consumed by a Pi resource package does not make a library a Pi resource package.
+
+The supported runtime versions and exact export layout remain to be specified.
+:::
+
+:::mara requirement REQ-NXPI-PACKED-VALIDATION
+:mid: 01M3H852EWE9JC5A442NA58XDB
+:title: Validate actual distributed artifacts
+:status: draft
+:kind: functional
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Validation shall check actual packed artifacts outside the development workspace: declared Pi resources must be discoverable, shared-library runtime exports and declarations must resolve, and required runtime dependencies must be available. Workspace links must not mask missing distributed files or dependencies.
+
+Validation commands, staging/build behavior, diagnostics, and the supported consumer-version matrix remain to be agreed.
+:::
+
+:::mara verification VER-NXPI-SCAFFOLD
+:mid: 01M3H852VM7XCJMKR1DWDQC5TN
+:title: Exercise scaffolding in disposable workspaces
+:status: draft
+:method: test
+:level: integration
+:verifies: REQ-NXPI-IDENTITY
+:verifies: REQ-NXPI-PRESERVE
+:verifies: REQ-NXPI-METADATA-SOURCE
+:verifies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+
+Invoke the real Nx generator CLI in disposable independent workspace fixtures using the declared supported toolchain and package-manager matrix. Include a workspace without pnpm configuration or catalogs. Verify package and library destinations and names derived from the consumer root scope. Confirm invalid prefixed, scoped, uppercase, whitespace-containing, and path-like package names fail rather than normalize. Missing required root configuration must produce actionable failure.
+
+Compare authored files and metadata before and after generation: unrelated content must be preserved. Repeat creation with identical inputs and exercise existing package and resource destinations; require failure with no changes. Confirm no overwrite option is offered, while adding a distinct resource to an existing Pi package succeeds. Test init separately under its repeatable initialization contract.
+
+Check metadata comes from explicit consumer configuration without invoking GitHub CLI, reading SSH configuration, or making network metadata lookups. Confirm generators do not install or configure catalogs or unrelated lint, test, formatting, CI, release, editor, documentation, or agent tools. Check declared dependencies can be resolved and packed using each supported consumer package manager, preserving existing references and configuration. Add precise boundary and optional-field cases once those contracts are agreed. This is a planned method, not an execution result.
+:::
+
+:::mara verification VER-NXPI-DISTRIBUTION
+:mid: 01M3H8538HTMQA34J4ST661D2T
+:title: Exercise isolated consumers of packed packages
+:status: draft
+:method: test
+:level: acceptance
+:verifies: REQ-NXPI-RESOURCE-SOURCE
+:verifies: REQ-NXPI-LIBRARY-EXPORTS
+:verifies: REQ-NXPI-PACKED-VALIDATION
+:verifies: REQ-NXPI-ARTIFACT-CONTENTS
+:verifies: REQ-NXPI-VALIDATION-READONLY
+:verifies: REQ-NXPI-PUBLIC-PLUGIN
+
+Pack nx-pi itself and install that artifact in an independent supported Nx workspace without links to the plugin development checkout. Confirm Nx resolves its initialization, generators, schemas, templates, and validation functionality using declared dependencies only. Run initialization and use the installed plugin to create the consumer fixtures below.
+
+Generate neutral Pi resource and shared-library fixtures, build only where applicable, and pack them using the selected publication workflow. Inspect tarball contents, then install the artifacts and their runtime dependency closure into an isolated consumer without workspace links. Check Pi discovery of each supported resource type, a runtime import of the library, and a TypeScript consumer resolving its declarations.
+
+Introduce a missing declared resource, missing exported artifact, or excluded required helper and require validation to report failure. Compare authored workspace files before and after validation to detect unintended repairs. Verify that development-only files are absent and required attribution is present. Fix the supported Pi/Node/TypeScript versions and exact commands before executing this method. No execution result is claimed.
+:::
+
+:::mara decision ADR-NXPI-PACKAGE-KINDS
+:mid: 01M3H853NAMB339N23TY6ZV5S2
+:title: Separate Pi resource and shared-library distribution
+:status: draft
+:justifies: REQ-NXPI-RESOURCE-SOURCE
+:justifies: REQ-NXPI-LIBRARY-EXPORTS
+
+Use source distribution for Pi resources and conventional compiled npm exports for shared runtime libraries. Pi loads TypeScript extensions, whereas an imported library should not depend on that special loading path. This preserves ordinary npm runtime and declaration resolution at the cost of a build step for shared libraries. Compilation does not imply bundling; runtime dependencies remain explicit.
+
+This is the agreed direction. The item remains draft while the linked distribution contracts and verification definitions are completed. It does not decide the API or behavior of the statusline library.
+:::
+
+:::mara requirement REQ-NXPI-ARTIFACT-CONTENTS
+:mid: 01M3H85QGDSXVFGTJQY2ZFBA46
+:title: Publish only consumer-facing package contents
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Distributed packages shall contain required runtime resources, helpers, assets, and applicable license and attribution material, and shall exclude tests, test configuration, caches, and development-only files.
+
+The precise file selection policy and intentional publication of user-facing documentation remain to be specified.
+:::
+
+:::mara requirement REQ-NXPI-VALIDATION-READONLY
+:mid: 01M3H85QX7CD0B4WJ9VRE74SY4
+:title: Report validation failures without repairing authored content
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Validation shall report violations without repairing authored files or package metadata. Repair is not an implicit side effect of checking a package.
+
+This does not prohibit temporary artifacts, caches, or build output; their permitted locations and lifecycle remain to be agreed.
+:::
+
+:::mara requirement REQ-NXPI-METADATA-SOURCE
+:mid: 01M3H8GMQ83CF8A9KHMSZ64RTT
+:title: Use explicit repository-owned metadata sources
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Scaffolding shall use the root package.json as authority for npm scope, repository URL, and license. Npm and Pi publication metadata shall be carried in package.json, with root metadata used as the workspace-level authority and generated package manifests containing package-specific fields. Do not introduce project.json as an alternative publication metadata store. Additional repository-wide settings, when needed, shall be explicitly configured. Missing required configuration shall produce an actionable error; genuinely optional metadata shall be omitted. Init shall prepare root package.json as the shared metadata source by reusing existing values and filling missing fields only from explicit options or interactive answers. Existing values must not be silently overwritten. Non-interactive initialization must fail actionably when required values are neither present nor supplied. A scoped root name must be available by completion, but repository links and a complete license declaration are not initialization prerequisites. License completeness is checked at package creation/publication; missing values must not be invented.
+
+The initial root metadata field set is name, license, repository, homepage, and bugs. Name is required and must include a valid npm scope so generators can derive generated-package scope. License is optional during init and checked at creation/publication; repository, homepage, and bugs URLs are optional. Expose explicit inputs for these fields and prompt only for missing required values, not optional metadata. Reject a present unscoped root name with an actionable error rather than automatically renaming the workspace.
+
+Metadata generation shall not consult GitHub CLI, SSH configuration, or network services. Do not invent author information, branch URLs, or publication defaults. Exact CLI option names, supported field representations, and validation details remain to be specified.
+:::
+
+:::mara design DES-NXPI-GENERATOR-INTERFACE
+:mid: 01M3H8GN43S4KH2JTSMFX7RZ23
+:title: Separate package, library, and resource generators
+:status: draft
+:kind: interface
+:satisfies: REQ-NXPI-RESOURCE-SOURCE
+:satisfies: REQ-NXPI-LIBRARY-EXPORTS
+:satisfies: REQ-NXPI-INIT
+
+Expose init for an existing supported Nx workspace; package for Pi resource containers; library for compiled shared libraries; and extension, skill, prompt, and theme for adding resources to an existing Pi package. Package and library generators apply common consumer-owned naming and metadata policy. Initialization is safely repeatable, whereas creation generators reject existing destinations.
+
+A new-workspace preset is a later composition of workspace creation and init, not a second implementation of initialization policy. Infrastructure-specific integrations are optional future work, not initial prerequisites. The plugin identity and initial compatibility boundary are recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]], and target selection is outlined in [[DES-NXPI-VALIDATION-TARGETS]]. Complete option schemas, eligibility-marker representation, and resource destination layouts remain to be specified; draft status reflects that incomplete interface contract.
+:::
+
+:::mara requirement REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+:mid: 01M3HA4T5NQJXKW71EZDHSGFMR
+:title: Avoid imposing consumer infrastructure
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+:supersedes: REQ-NXPI-CATALOGS
+
+Core initialization, scaffolding, and validation shall not require consumers to adopt pnpm, catalogs, a particular linter or test runner, a formatter, a CI or release service, an editor, Mara, or agent instructions. Nx and the runtime/compiler facilities required by the selected package kind remain technical prerequisites. Catalog creation and conversion are outside initial scope.
+
+Use supported Nx integration facilities for the consumer workspace rather than introducing a pnpm-specific workflow. Preserve existing dependency references and infrastructure configuration; do not silently migrate them to another policy. Optional integrations may be added later when justified. Specify and verify the supported package-manager and toolchain matrix before claiming support; infrastructure neutrality does not claim every combination works. This requirement concerns consuming workspaces, not this repository's own development choices.
+:::
+
+:::mara requirement REQ-NXPI-PUBLIC-PLUGIN
+:mid: 01M3HA4TKEC62Y5XNF3V5JW2GV
+:title: Distribute nx-pi as a standalone npm plugin
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+nx-pi shall be publishable as a conventional compiled npm Nx plugin. Its packed artifact shall contain the runtime entrypoints, generator schemas, templates, and other runtime assets needed to initialize an independent supported Nx workspace and run its generators and validation. It shall not depend on source paths or undeclared development dependencies from this repository.
+
+The plugin is development tooling, not a Pi resource package. Its approved npm identity is @araketski/nx-pi, implemented under packages/nx-pi. The initial compatibility boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; release policy and precise supported-version ranges remain to be specified separately from generated Pi package names.
+:::
+
+:::mara requirement REQ-NXPI-INIT
+:mid: 01M3HA4V0Y9HZCW8Z1GDBEVR4C
+:title: Initialize existing workspaces safely and repeatably
+:status: draft
+:kind: functional
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+An init generator shall establish the Pi package conventions and nx-pi configuration required in an existing supported Nx workspace, obtaining metadata from explicit consumer-owned inputs. It shall preserve unrelated configuration, report incompatible or missing required inputs actionably, and leave a successfully initialized workspace unchanged on a repeated invocation with the same inputs and plugin version.
+
+Initialization shall obey the infrastructure-neutral contract. It must not silently replace existing package-manager, lint, test, formatting, CI, or release choices. Unlike creation generators, init is intended to operate on an existing workspace and be safe to rerun. Init shall not install or upgrade dependencies, including Pi. Plugin installation precedes initialization as a separate operation. Init owns its plugin registration in nx.json and filling missing shared metadata in root package.json from explicit options or interactive answers. It shall reuse existing metadata, never invent values or silently overwrite existing ones, and fail actionably in non-interactive mode when required values remain missing. Detailed field and option definitions, conflict diagnostics, and the supported workspace baseline remain to be specified in [[DES-NXPI-INIT-CONTRACT]].
+:::
+
+:::mara verification VER-NXPI-INIT
+:mid: 01M3HA50S18A0R1CHG9SZ2ESZ1
+:title: Check initialization preservation and repeatability
+:status: draft
+:method: test
+:level: integration
+:verifies: REQ-NXPI-INIT
+:verifies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+:verifies: DES-NXPI-INIT-CONTRACT
+
+Install the packed plugin into disposable fresh and already-configured Nx workspace fixtures for each declared supported baseline. Record authored manifest, lockfile, and configuration state after installation but before init, so installation side effects are not attributed to initialization.
+
+Exercise existing complete metadata, missing required metadata supplied through explicit options, and missing metadata supplied through interactive answers. The authored diff may contain only the nx-pi registration in nx.json and supplied additions to missing shared metadata fields in root package.json. Preserve existing metadata and unrelated fields, including scripts, dependencies, package-manager configuration, and private/publication state. Confirm that later generators read the persisted values as their metadata authority. Verify root @acme/workspace yields @acme/pi-example for a generated example package, and an existing unscoped root name is rejected without renaming. Cover each approved root field: name, license, repository, homepage, and bugs. Interactive initialization prompts only for missing required metadata; omitted optional metadata causes no prompt and remains absent. Confirm no author information, branch URLs, or publication defaults are invented.
+
+Run init twice with identical inputs and plugin version; require no authored changes or scheduled installation on the second invocation. Include an already-registered plugin with missing metadata to verify initialization still fills explicitly supplied missing fields. Exercise supported shorthand and object registrations without rewriting consumer options.
+
+Exercise malformed configuration, missing required values without explicit inputs in non-interactive mode, conflicting supplied metadata, duplicate registrations, and incompatible options. Require actionable failure before either authored file changes. Simulate canceled interactive input and verify that neither partial root metadata nor a plugin registration is left behind. The non-interactive invocation must not attempt to prompt or hang.
+
+Run dry-run with supplied missing metadata and no plugin registration. Verify the reported changes include both files while neither is written and no install is scheduled. Compare package manifests and lockfiles and inspect scheduled callbacks, not only generated nx.json.
+
+Include fixtures without Pi, catalogs, or lint/test/format/CI/release configuration, plus fixtures with differing existing infrastructure. Confirm init does not introduce dependencies, migrate infrastructure, create projects, or add a marker file. Repository metadata and complete license declarations may be absent when not explicitly supplied; they must not be invented. A missing scoped root name must either be explicitly supplied or produce actionable failure. Verify registration enables validation for eligible fixture projects without rewriting their configuration.
+
+The remaining field/option definitions, diagnostics, target eligibility, and supported matrix in [[DES-NXPI-INIT-CONTRACT]] must be settled before this verification definition is finalized. This is a planned method, not passing execution evidence.
+:::
+
+:::mara decision ADR-NXPI-PUBLIC-CORE
+:mid: 01M3HA516PPFKFK3CGD4TCYNS9
+:title: Separate reusable plugin behavior from repository infrastructure
+:status: draft
+:justifies: REQ-NXPI-PUBLIC-PLUGIN
+:justifies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+:justifies: REQ-NXPI-INIT
+
+Target a publicly reusable Nx plugin and use this repository as its first consumer. Limit core behavior to Pi package concerns and compatible Nx integration rather than exporting our pnpm catalogs or preferred quality, CI, release, editor, documentation, and agent tools as mandatory consumer conventions. This keeps adoption independent of those choices, at the cost of specifying and testing an explicit compatibility matrix.
+
+Implement initialization before a new-workspace preset and reuse that initialization contract in the future preset. Add optional infrastructure integrations only when a concrete need justifies them. This repository may retain its own pnpm catalogs and quality tools for developing the plugin. The direction is agreed; detailed compatibility and initialization contracts remain draft.
+:::
+
+:::mara design DES-NXPI-INIT-CONTRACT
+:mid: 01M3HC40FHAVDV037RX97K3NQ7
+:title: Minimal initialization ownership and boundaries
+:status: draft
+:kind: behavior
+:satisfies: REQ-NXPI-INIT
+:satisfies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+:satisfies: REQ-NXPI-METADATA-SOURCE
+
+The initialization boundary, inferred-target registration, explicit filling of missing root metadata, and absence of dependency installation are agreed. The item remains draft until precise version ranges and detailed options/diagnostics are specified; no implementation is claimed.
+
+## Boundary
+
+The caller supplies an existing Nx workspace with readable root package.json and nx.json. Workspace creation belongs to the later preset. Installing nx-pi is a separate package-manager operation; init assumes the plugin is already installed and does not install or upgrade unrelated tools. Supported Nx and Node versions must be declared and checked before changes. The approved initial boundary is Nx 23 with Node 24 and 26, and npm/pnpm consumer fixtures, as recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]; exact fixture versions and minimum supported minor/patch ranges remain to be specified.
+
+## Ownership
+
+Prepare root package.json as the source of shared metadata for later generators. Reuse existing values. Fill missing metadata fields only from explicit options or answers to interactive prompts. Prompt only for missing required metadata; optional fields are supplied through options without mandatory questions. Do not duplicate those values into another configuration file, invent them, or silently overwrite existing metadata. Preserve all unrelated fields, including package-manager selection, scripts, dependency declarations, and private/publication state. Root package.json.name must be a valid scoped npm name by completion because generated packages derive their scope from it. Preserve a valid existing name, accept an explicitly supplied missing name, and report an existing unscoped name without automatically renaming it. License completeness is checked at package creation/publication rather than initialization; repository links remain optional. Supplied optional metadata may be persisted without making it mandatory.
+
+The agreed configuration integration is an nx-pi entry in nx.json.plugins for per-project validation-target inference. The permitted authored changes are this plugin registration and explicitly supplied missing root metadata. Init performs no dependency installation or upgrades, including Pi. Preserve all other entries, their order, unknown fields, and existing consumer-owned nx-pi options. Add a registration only if absent. Do not create a separate initialized marker, eagerly populate defaults, or add root scripts. The agreed validation split, default target names, project-selection policy, and first-increment boundary are recorded in [[DES-NXPI-VALIDATION-TARGETS]]. Detailed option and eligibility-marker schemas remain to be specified.
+
+Do not create packages/, change workspace globs, alter TypeScript projects, or create starter packages. A creation generator can establish its own required project registration and files when invoked. Do not install or configure a linter, formatter, test runner, CI, release system, catalogs, editor settings, Mara, or agent instructions.
+
+## Repeatability and failure behavior
+
+A compatible existing registration needs no change, including either supported shorthand or object syntax; init may still fill explicitly supplied missing root metadata. Preserve explicit supported options rather than replacing them with current defaults. Report duplicate or incompatible registrations and malformed configuration with actionable diagnostics; do not silently choose, merge, or overwrite conflicting entries. If supplied metadata conflicts with existing values, report the conflict rather than replacing values. In non-interactive mode, do not prompt or hang: missing required metadata without an explicit supplied value is an actionable error. In interactive mode, missing required values may be requested; cancellation must not leave partial metadata or plugin registration behind. Validate all collected inputs and conflicts before writing either file. The repeated operation with the same inputs and version makes no authored changes and schedules no installation.
+
+Dry-run shows both the intended metadata additions and plugin registration without writing them or performing an install. This guarantee is scoped to init itself: a preceding nx add installation may already have changed a manifest or lockfile, and init must not claim to roll back that separate operation. Nx's ordinary cache and diagnostic output are not authored project configuration.
+
+## Deferred dependency support
+
+Keep Pi out of init. Introduce Pi development support when generating an extension or enabling runtime-level Pi validation that needs it. Pure skills, prompts, and themes do not inherently require a Pi npm dependency; helper scripts may declare their own dependencies. Imported host-provided Pi packages use peer declarations in distributed extension packages, not a bundled host. The relevant later contracts must specify tested versions, dependency placement, and conflict handling.
+
+## Metadata and remaining details
+
+Npm and Pi publication fields belong in package.json. Root package.json remains their workspace-level authority; generated package manifests carry their package-specific metadata. Do not create project.json to store or duplicate publication metadata. Nx-only project configuration is a separate concern. The agreed initial root field set is name (required scoped npm name), license (optional at init, checked at creation/publication), repository (optional URL), homepage (optional URL), and bugs (optional issue-tracker URL). Do not author other publication metadata or defaults as part of init. Exact option names, field representations, precise compatibility ranges, eligibility-marker representation, and diagnostic details remain to be specified.
+:::
+
+:::mara requirement REQ-NXPI-SOURCE-VALIDATION
+:mid: 01M3HDEB72Z64G33MXMKSCPHVN
+:title: Check package source without executing or preparing it
+:status: draft
+:kind: functional
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Provide a fast workspace check of package metadata, resource declarations, paths, and package conventions. It shall not require a Pi installation, access the network, install dependencies, compile packages, or execute extensions or other package code. For shared libraries, absent not-yet-built output is not a source-validation failure.
+
+The first implementation must accept a valid minimal fixture and reject a declared resource that is missing, with an actionable diagnostic identifying the project and offending declaration/path. Additional metadata rules and full resource-pattern semantics remain to be specified incrementally.
+:::
+
+:::mara requirement REQ-NXPI-VALIDATION-ELIGIBILITY
+:mid: 01M3HDEBNH707RSD2NE8QKP4JC
+:title: Infer validation only for eligible projects
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Infer validation targets for Pi resource packages identified by an explicit pi manifest and for shared libraries explicitly opted in by the library generator. Do not classify a project from its pi- name prefix alone. Leave unrelated Nx projects without nx-pi validation targets.
+
+The explicit shared-library opt-in representation and handling of malformed pi manifests remain to be specified. Manifests with invalid declarations must not silently evade validation merely because their contents are invalid.
+:::
+
+:::mara requirement REQ-NXPI-VALIDATION-TARGET-NAMES
+:mid: 01M3HDEC3TPB8KAJHM27WC52TB
+:title: Allow validation target names without overwriting existing targets
+:status: draft
+:kind: constraint
+:contributes_to: GOAL-NXPI-MAINTENANCE
+
+Validation target names shall be configurable, defaulting to pi-check for source validation and pi-check-package for packed-artifact validation. Target inference must not silently overwrite an existing target.
+
+Exact option names and conflict-reporting behavior remain to be specified. The first increment implements only the source check; the packed-artifact target must not be advertised as working before its checks exist.
+:::
+
+:::mara design DES-NXPI-VALIDATION-TARGETS
+:mid: 01M3HDECHSWTYPPP1Z6KBD488K
+:title: Separate source checks from packed-artifact checks
+:status: draft
+:kind: behavior
+:satisfies: REQ-NXPI-SOURCE-VALIDATION
+:satisfies: REQ-NXPI-VALIDATION-ELIGIBILITY
+:satisfies: REQ-NXPI-VALIDATION-TARGET-NAMES
+:satisfies: REQ-NXPI-PACKED-VALIDATION
+
+Use pi-check for fast, non-executing workspace validation and pi-check-package for validation of actual distributed artifacts in isolated consumers. These are configurable default target names, not mandatory infrastructure choices.
+
+Infer targets only for explicitly manifested Pi packages and explicitly opted-in shared libraries. Inference discovers eligible projects; it does not rewrite their configuration. Never infer kind from npm name alone or silently replace another target.
+
+Source validation must work before a library build and without Pi, networking, or executing package code. Packed validation owns built-output, included-resource, runtime-dependency, and Pi compatibility checks; its preparation, execution permissions, dependency availability, and cleanup contract is deferred.
+
+The agreed first implementation increment consists of init, target inference, and a minimal pi-check that distinguishes a valid fixture from a missing declared resource. Packed validation, broader rule coverage, and resource scaffolding follow in subsequent increments. Do not infer a nonfunctional packed-validation target in the first increment. Statusline behavior remains out of scope.
+
+The initial Nx/Node and package-manager boundary is recorded in [[DES-NXPI-IMPLEMENTATION-BASELINE]]. The target-name option schema, shared-library opt-in marker, detailed collision handling, and exact fixture versions remain to be specified; this item records the approved split and sequencing without claiming implementation.
+:::
+
+:::mara verification VER-NXPI-FIRST-INCREMENT
+:mid: 01M3HDED08J7546KCC9NWS9GVB
+:title: Verify initialization and inferred source validation together
+:status: draft
+:method: test
+:level: acceptance
+:verifies: REQ-NXPI-SOURCE-VALIDATION
+:verifies: REQ-NXPI-VALIDATION-ELIGIBILITY
+:verifies: REQ-NXPI-VALIDATION-TARGET-NAMES
+:verifies: DES-NXPI-VALIDATION-TARGETS
+:verifies: DES-NXPI-IMPLEMENTATION-BASELINE
+
+Pack @araketski/nx-pi from packages/nx-pi and install it into isolated Nx 23 workspaces. Run npm and pnpm consumer fixtures on each of Node 24 and Node 26, without requiring catalogs, according to [[DES-NXPI-IMPLEMENTATION-BASELINE]]. Record exact tool versions and results for each combination; an unavailable combination is not a passing result. Execute the initialization checks in [[VER-NXPI-INIT]]. Use neutral Pi-resource, opted-in shared-library, unrelated-library, and pi-prefixed-but-unmarked fixtures. Inspect resolved Nx configuration: only eligible projects must receive the implemented source-validation target. Confirm source-validation inference does not rewrite project configuration.
+
+Run the target against a minimal valid Pi fixture and require success. Change an explicit resource declaration to a missing path and require failure with a diagnostic identifying the project and declaration/path. Restore the resource and require success. Run with no Pi installation, without build output, and with networking and package-code execution disallowed; source validation must not introduce any of these activities. A shared-library fixture with absent build output must not fail solely for that absence.
+
+Exercise configured target names and an existing colliding target; verify the prior target is never silently overwritten. Compare authored files before and after checks. Verify the first increment does not expose a placeholder packed-artifact target or claim broader checks are implemented.
+
+Complete the precise eligibility marker, supported fixture versions, target options, and diagnostic assertions before executing these checks. This is a planned acceptance method, not passing execution evidence.
+:::
+
+:::mara design DES-NXPI-IMPLEMENTATION-BASELINE
+:mid: 01M3HDQZDV8GAEV9YZ2SQSKEWX
+:title: Plugin identity and initial compatibility boundary
+:status: draft
+:kind: deployment
+:satisfies: REQ-NXPI-PUBLIC-PLUGIN
+:satisfies: REQ-NXPI-INFRASTRUCTURE-NEUTRAL
+
+The approved npm identity is @araketski/nx-pi, implemented under packages/nx-pi. It is a publishable compiled Nx plugin, not a Pi resource package; the generated-package pi- naming convention does not apply to this tooling package. Repository-only utilities belong under tools/ when needed. Directory placement does not determine Pi resource classification or compilation policy.
+
+The approved initial compatibility boundary is Nx major 23, with Node majors 24 and 26 as test environments. Consumer fixtures initially cover npm and pnpm, without requiring catalogs. Cover both package managers on both Node majors. This is an intended compatibility boundary, not a claim that any combination already passes. Broader compatibility must be demonstrated before it is advertised; the repository's pnpm development policy is not a requirement on plugin consumers.
+
+Pin exact Nx, Node, and package-manager versions in the eventual fixture setup and record them with execution results. Minimum minor/patch support and precise peer/engine ranges must follow the selected baseline and observed verification, not an untested major-wide guarantee. The item remains draft pending those precise version definitions; the identity, directory, major-version boundary, and fixture package managers are agreed.
+
+The initial package scaffold now exists under packages/nx-pi, generated with @nx/plugin:plugin and configured for compiled CommonJS output. Its planned documentation was relocated from docs/planned/nx-pi to packages/nx-pi/docs using Mara item moves, preserving all 26 item IDs and MIDs and repairing document links. Repository-only specifications are excluded from publication through the package file allowlist. No init generator, target inference, source validator, or consumer compatibility fixture is implemented yet. Scaffold verification does not establish feature completion, publication readiness, or compatibility-matrix results.
+:::

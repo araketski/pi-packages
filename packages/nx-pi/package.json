@@ -1,0 +1,27 @@
+{
+  "name": "@araketski/nx-pi",
+  "version": "0.0.1",
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo",
+    "!**/*.map"
+  ],
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@nx/devkit": "catalog:",
+    "tslib": "catalog:"
+  },
+  "peerDependencies": {
+    "nx": "catalog:"
+  }
+}
