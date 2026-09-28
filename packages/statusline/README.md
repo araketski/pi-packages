@@ -1,5 +1,5 @@
 # @araketski/pi-statusline
 
-Scaffold for a Pi TUI footer extension. The extension currently registers no behavior; it is not ready for use or publication.
+A configurable Pi TUI footer with built-in metrics, native extension statuses, and structured statuses from `@araketski/pi-statusline-protocol`. It supports multiline layouts, status appearance overrides, and trusted project configuration.
 
-The [statusline Mara contract](docs/contract.mara.md) defines intended behavior and planned verification. This repository-only documentation is excluded from the package artifact.
+The extension has automated fixture and Pi resource-loader tests, but a real interactive Pi session and publication readiness have not yet been verified. The [repository contract](docs/contract.mara.md) distinguishes intended behavior from completed checks; it is excluded from the package artifact.

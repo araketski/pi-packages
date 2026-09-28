@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "../../node_modules/.cache/statusline.tsbuildinfo",
+    "allowImportingTsExtensions": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["extensions/**/*.ts", "tests/**/*.ts", "vitest.config.mts"],
+  "references": [
+    {
+      "path": "../statusline-protocol"
+    }
+  ]
+}

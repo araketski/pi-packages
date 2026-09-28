@@ -49,16 +49,12 @@ export function mergeAppearance(base: StatusAppearance, patch?: StatusAppearance
   const result: StatusAppearance = { ...base, ...patch };
   if (patch.color !== undefined && typeof patch.color === 'object') {
     const previous = base.color;
-    const inherited =
-      previous === undefined
-        ? {}
-        : typeof previous === 'object'
-          ? previous
-          : { default: previous, byState: {} };
+    const previousStates = typeof previous === 'object' ? previous.byState : {};
+    const previousDefault = typeof previous === 'object' ? previous.default : previous;
+    const defaultColor = patch.color.default ?? previousDefault;
     result.color = {
-      ...inherited,
-      ...patch.color,
-      byState: { ...('byState' in inherited ? inherited.byState : {}), ...patch.color.byState },
+      ...(defaultColor === undefined ? {} : { default: defaultColor }),
+      byState: { ...previousStates, ...patch.color.byState },
     };
   }
   return result;

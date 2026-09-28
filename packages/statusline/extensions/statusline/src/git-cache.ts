@@ -28,8 +28,7 @@ const defaultRunner: CommandRunner = (program, args, cwd, signal) => new Promise
   execFile(program, [...args], { cwd, signal, timeout: program === 'gh' ? 3000 : 1500, maxBuffer: 1_048_576 },
     (error, stdout) => {
       if (signal.aborted) { reject(error ?? new Error('aborted')); return; }
-      resolve({ exitCode: error ? typeof (error as NodeJS.ErrnoException).code === 'number'
-        ? (error as NodeJS.ErrnoException).code as number : 1 : 0, stdout: String(stdout) });
+      resolve({ exitCode: error ? 1 : 0, stdout: String(stdout) });
     });
 });
 

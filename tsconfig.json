@@ -8,6 +8,9 @@
     },
     {
       "path": "./packages/statusline-protocol"
+    },
+    {
+      "path": "./packages/statusline"
     }
   ]
 }

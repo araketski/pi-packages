@@ -1,6 +1,7 @@
 {
   "name": "@araketski/pi-statusline",
   "version": "0.1.0",
+  "type": "module",
   "license": "MIT",
   "files": [
     "extensions"
