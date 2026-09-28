@@ -43,6 +43,7 @@ interface Options {
 export class GitCache {
   private data: GitData = {};
   private disposed = false;
+  private revision = 0;
   private readonly controllers = new Set<AbortController>();
   private timer?: ReturnType<typeof setInterval>;
   private inflight?: Promise<void>;
@@ -61,7 +62,10 @@ export class GitCache {
   refresh(): Promise<void> {
     if (this.disposed) return Promise.resolve();
     if (this.inflight) return this.inflight;
-    const promise = this.doRefresh().catch(() => undefined).finally(() => { this.inflight = undefined; });
+    const revision = this.revision;
+    const promise = this.doRefresh(revision).catch(() => undefined).finally(() => {
+      if (this.inflight === promise) this.inflight = undefined;
+    });
     this.inflight = promise;
     return promise;
   }
@@ -73,10 +77,10 @@ export class GitCache {
     finally { this.controllers.delete(controller); }
   }
 
-  private async doRefresh(): Promise<void> {
+  private async doRefresh(revision: number): Promise<void> {
     const previous = JSON.stringify(this.data);
     const result = await this.command('git', ['--no-optional-locks', 'status', '--porcelain=v2', '--branch', '--untracked-files=all']);
-    if (this.disposed) return;
+    if (this.disposed || revision !== this.revision) return;
     if (result.exitCode === null) return;
     if (result.exitCode !== 0) this.data = {};
     else {
@@ -86,7 +90,7 @@ export class GitCache {
       if (this.options.pr && git.branch) {
         try {
           const pr = await this.command('gh', ['pr', 'list', '--state', 'open', '--json', 'number', '--limit', '1', '--head', git.branch]);
-          if (this.disposed) return;
+          if (this.disposed || revision !== this.revision) return;
           if (pr.exitCode === 0) {
             const values: unknown = JSON.parse(pr.stdout);
             const number = Array.isArray(values) && values[0]?.number;
@@ -95,11 +99,14 @@ export class GitCache {
         } catch { /* transient gh failures leave existing same-branch PR alone */ }
       }
     }
-    if (!this.disposed && previous !== JSON.stringify(this.data)) this.options.onChange();
+    if (!this.disposed && revision === this.revision && previous !== JSON.stringify(this.data)) this.options.onChange();
   }
 
   invalidate(): void {
     if (this.disposed) return;
+    this.revision++;
+    for (const controller of this.controllers) controller.abort();
+    this.inflight = undefined;
     this.data = {};
     this.options.onChange();
     void this.refresh();
