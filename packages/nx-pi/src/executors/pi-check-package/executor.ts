@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { isAbsolute, join, matchesGlob, posix, resolve } from 'node:path';
 import type { ExecutorContext } from '@nx/devkit';
 import { list } from 'tar';
-import ts from 'typescript';
+import * as ts from 'typescript';
 
 const types = ['extensions', 'skills', 'prompts', 'themes'] as const;
 const script = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
