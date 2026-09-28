@@ -11,6 +11,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Workspace layout](docs/workspace-layout.mara.md)
 - [Testing and consumer fixtures](docs/testing.mara.md)
 - [Repository linting](docs/tooling.mara.md)
+- [Pi release compatibility policy](docs/pi-compatibility.mara.md)
 
 ## Development
 
