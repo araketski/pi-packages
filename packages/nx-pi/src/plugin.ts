@@ -76,10 +76,9 @@ export const createNodes: CreateNodes<Options> = [
         (pkg && Object.hasOwn(pkg, 'pi')) ||
         tags.some((value) => Array.isArray(value) && value.includes('nx-pi:library'));
       if (!eligible) continue;
-      const packed = Boolean(pkg && Object.hasOwn(pkg, 'pi'));
       for (const [name, option] of [
         [names.source, 'sourceTargetName'],
-        ...(packed ? [[names.packed, 'packageTargetName']] : []),
+        [names.packed, 'packageTargetName'],
       ]) {
         const collision = ownsTarget(project, pkg, name);
         if (collision) {
@@ -98,9 +97,7 @@ export const createNodes: CreateNodes<Options> = [
             [root]: {
               targets: {
                 [names.source]: { executor: '@araketski/nx-pi:pi-check' },
-                ...(packed
-                  ? { [names.packed]: { executor: '@araketski/nx-pi:pi-check-package' } }
-                  : {}),
+                [names.packed]: { executor: '@araketski/nx-pi:pi-check-package' },
               },
             },
           },

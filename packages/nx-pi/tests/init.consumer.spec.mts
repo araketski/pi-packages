@@ -144,6 +144,7 @@ afterAll(() => {
 // @mara checks DES-NXPI-THEME-CONTRACT
 // @mara checks DES-NXPI-EXTENSION-CONTRACT
 // @mara implements VER-NXPI-PACKED-RESOURCE-DISCOVERY
+// @mara implements VER-NXPI-PACKED-LIBRARY
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -796,6 +797,7 @@ describe('packed nx-pi in independent consumers', () => {
         .targets;
       expect(targets).toHaveProperty('build');
       expect(targets).toHaveProperty('pi-check');
+      expect(targets).toHaveProperty('pi-check-package');
       expect(targets).toHaveProperty('nx-release-publish');
       const libraryBuilt = spawnSync(process.execPath, [cli[0], 'run', 'shared:build'], {
         cwd: root,
@@ -819,6 +821,51 @@ describe('packed nx-pi in independent consumers', () => {
         : libraryPackOutput;
       expect(libraryTarball.files.map(({ path }) => path)).toContain('dist/index.js');
       expect(libraryTarball.files.map(({ path }) => path)).toContain('dist/index.d.ts');
+      const libraryArchive = isAbsolute(libraryTarball.filename)
+        ? libraryTarball.filename
+        : join(temporaryRoot, libraryTarball.filename);
+      const runLibraryCheck = (archive: string) =>
+        spawnSync(
+          process.execPath,
+          [cli[0], 'run', 'shared:pi-check-package', `--tarball=${archive}`],
+          { cwd: root, env, encoding: 'utf8', timeout: 60_000 },
+        );
+      const packLibraryWithout = (missing: string, suffix: string) => {
+        const copied = join(temporaryRoot, `library-without-${suffix}-${manager}`);
+        cpSync(join(root, 'packages/shared'), copied, { recursive: true });
+        rmSync(join(copied, missing));
+        const destination = join(temporaryRoot, `library-pack-without-${suffix}-${manager}`);
+        mkdirSync(destination);
+        const output = JSON.parse(
+          execFileSync(manager, ['pack', '--pack-destination', destination, '--json'], {
+            cwd: copied,
+            env,
+            encoding: 'utf8',
+            timeout: 60_000,
+          }),
+        ) as Array<{ filename: string }> | { filename: string };
+        const filename = Array.isArray(output) ? output[0].filename : output.filename;
+        return isAbsolute(filename) ? filename : join(destination, filename);
+      };
+      const beforeLibraryCheck = authoredFiles(root);
+      const validLibrary = runLibraryCheck(libraryArchive);
+      expect(validLibrary.status, validLibrary.stdout + validLibrary.stderr).toBe(0);
+      for (const [missing, suffix] of [
+        ['dist/index.js', 'js'],
+        ['dist/index.d.ts', 'types'],
+      ]) {
+        const invalidLibrary = runLibraryCheck(packLibraryWithout(missing, suffix));
+        expect(invalidLibrary.status, invalidLibrary.stdout + invalidLibrary.stderr).not.toBe(0);
+        expect(invalidLibrary.stdout + invalidLibrary.stderr).toContain(missing);
+      }
+      const sourceLibrary = spawnSync(process.execPath, [cli[0], 'run', 'shared:pi-check'], {
+        cwd: root,
+        env,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      expect(sourceLibrary.status, sourceLibrary.stdout + sourceLibrary.stderr).toBe(0);
+      expect(authoredFiles(root)).toEqual(beforeLibraryCheck);
       const isolated = join(temporaryRoot, `isolated-${manager}`);
       mkdirSync(isolated);
       save(join(isolated, 'package.json'), {
@@ -959,8 +1006,7 @@ describe('packed nx-pi in independent consumers', () => {
       const beforeChecks = authoredFiles(root);
       for (const name of ['resource', 'library']) {
         expect(show(name).targets).toHaveProperty('pi-check');
-        if (name === 'resource') expect(show(name).targets).toHaveProperty('pi-check-package');
-        else expect(show(name).targets).not.toHaveProperty('pi-check-package');
+        expect(show(name).targets).toHaveProperty('pi-check-package');
         const check = runNx('run', `${name}:pi-check`);
         expect(check.status, check.stdout + check.stderr).toBe(0);
       }
@@ -1003,7 +1049,7 @@ describe('packed nx-pi in independent consumers', () => {
       const beforeConfiguredCheck = authoredFiles(root);
       expect(show('resource').targets).toHaveProperty('validate-pi');
       expect(show('resource').targets).toHaveProperty('inspect-tarball');
-      expect(show('library').targets).not.toHaveProperty('inspect-tarball');
+      expect(show('library').targets).toHaveProperty('inspect-tarball');
       expect(show('resource').targets).not.toHaveProperty('pi-check');
       const configuredFailure = runNx('run', 'resource:validate-pi');
       expect(

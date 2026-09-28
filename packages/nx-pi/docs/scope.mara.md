@@ -30,11 +30,12 @@ terminal-default palette scaffold under [[DES-NXPI-THEME-CONTRACT]]. The first
 `extension` generator adds a typed no-op extension and an explicit Pi peer
 declaration under [[DES-NXPI-EXTENSION-CONTRACT]]. An isolated positive test
 now checks Pi 0.87.1 SDK discovery from packed, installed resource fixtures
-under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. The initial inferred,
-resource-only `pi-check-package` checks caller-supplied tarballs and missing
-static helpers under [[DES-NXPI-PACKED-INPUT-CONTRACT]] and
-[[VER-NXPI-PACKED-STATIC]]. Shared-library packed checks and full Pi loading
-parity remain future work; see [[DES-NXPI-VALIDATION-TARGETS]].
+under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. The inferred `pi-check-package`
+checks caller-supplied tarballs for declared resources, missing static extension
+helpers, and tagged-library JS/declaration export files under
+[[DES-NXPI-PACKED-INPUT-CONTRACT]], [[VER-NXPI-PACKED-STATIC]] and
+[[DES-NXPI-PACKED-LIBRARY]]. Actual library runtime/type resolution by the
+checker and full Pi loading parity are not implied by these static checks.
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
@@ -234,9 +235,9 @@ its output is absent. Packed-artifact validation and additional checks follow;
 do not expose a placeholder target before it works.
 
 See [[DES-NXPI-VALIDATION-TARGETS]] and [[VER-NXPI-FIRST-INCREMENT]] for the
-contract and verification plan. An initial resource-only packed target is now
-implemented without implicit pack/build/install, under
-[[DES-NXPI-PACKED-INPUT-CONTRACT]]. The initial source-target option and
+contract and verification plan. A resource and tagged-library static packed target
+is now implemented without implicit pack/build/install, under
+[[DES-NXPI-PACKED-INPUT-CONTRACT]] and [[DES-NXPI-PACKED-LIBRARY]]. The initial source-target option and
 shared-library marker are recorded in [[DES-NXPI-VALIDATION-TARGETS]]. Broader
 option contracts and compatibility remain
 to be specified; the approved initial boundary is

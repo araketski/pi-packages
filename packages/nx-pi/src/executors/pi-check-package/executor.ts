@@ -155,7 +155,85 @@ function checkImports(start: string, members: Map<string, Buffer>): void {
   visit(start);
 }
 
-/** @mara implements DES-NXPI-PACKED-INPUT-CONTRACT */
+const jsFile = /\.[cm]?js$/i;
+const declarationFile = /\.d\.[cm]?ts$/i;
+
+function checkLibrary(packed: Record<string, unknown>, members: Map<string, Buffer>): void {
+  const file = (target: unknown, field: string, dotRequired = false): string => {
+    if (typeof target !== 'string' || !target) {
+      fail(`${field} must be an explicit package-relative file target.`);
+    }
+    if (dotRequired && !target.startsWith('./')) {
+      fail(
+        `${field} has an unsafe or unsupported package-relative path "${target}" (expected ./...).`,
+      );
+    }
+    if (/[*?[\]{}]/.test(target)) fail(`${field} uses an unsupported export pattern "${target}".`);
+    const path = target.replace(/^\.\//, '');
+    if (
+      target.includes('\\') ||
+      target.includes('\0') ||
+      target.startsWith('/') ||
+      path.split('/').some((part) => !part || part === '.' || part === '..') ||
+      posix.normalize(path) !== path
+    )
+      fail(`${field} has an unsafe package path "${target}".`);
+    if (!members.has(path)) fail(`${field} declares missing packed file "${target}".`);
+    return path;
+  };
+  let rootJs = false;
+  let rootTypes = false;
+  if (packed.main !== undefined) {
+    const path = file(packed.main, 'main');
+    if (!jsFile.test(path)) fail(`main must point to compiled JavaScript, not "${path}".`);
+    if (packed.exports === undefined) rootJs = true;
+  }
+  for (const field of ['types', 'typings'] as const) {
+    if (packed[field] === undefined) continue;
+    const path = file(packed[field], field);
+    if (!declarationFile.test(path))
+      fail(`${field} must point to a declaration file, not "${path}".`);
+    rootTypes = true;
+  }
+  const visit = (value: unknown, field: string, root: boolean): void => {
+    if (value === null) return; // npm uses null to explicitly block a subpath.
+    if (typeof value === 'string') {
+      const path = file(value, field, true);
+      if (root && jsFile.test(path)) rootJs = true;
+      if (root && declarationFile.test(path)) rootTypes = true;
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const [index, item] of value.entries()) visit(item, `${field}[${index}]`, root);
+      return;
+    }
+    if (!record(value)) fail(`${field} must contain explicit package-relative file targets.`);
+    for (const [key, item] of Object.entries(value)) visit(item, `${field}.${key}`, root);
+  };
+  if (packed.exports !== undefined) {
+    const exports = packed.exports;
+    if (record(exports) && Object.keys(exports).some((key) => key.startsWith('.'))) {
+      for (const [key, value] of Object.entries(exports)) {
+        if ((key !== '.' && !key.startsWith('./')) || /[*?[\]{}]/.test(key)) {
+          fail(`exports has unsupported subpath "${key}".`);
+        }
+        visit(value, `exports["${key}"]`, key === '.');
+      }
+    } else {
+      visit(exports, 'exports', true);
+    }
+  }
+  if (!rootJs)
+    fail(
+      `${packed.exports === undefined ? 'main' : 'exports'} is missing a public root JavaScript entry.`,
+    );
+  if (!rootTypes) fail('packed library is missing a root types/typings declaration entry.');
+}
+
+/**
+ * @mara implements DES-NXPI-PACKED-INPUT-CONTRACT
+ * @mara implements DES-NXPI-PACKED-LIBRARY
+ */
 export default async function piCheckPackageExecutor(
   options: { tarball?: string },
   context: ExecutorContext,
@@ -174,7 +252,10 @@ export default async function piCheckPackageExecutor(
     fail(`cannot read ${project.root}/package.json: ${String(error)}`);
   }
   const source = manifest(sourceData, `${project.root}/package.json`);
-  if (!Object.hasOwn(source, 'pi')) fail(`${project.root} is not a Pi resource package.`);
+  const resourcePackage = Object.hasOwn(source, 'pi');
+  if (!resourcePackage && !project.tags?.includes('nx-pi:library')) {
+    fail(`${project.root} requires a pi manifest or nx-pi:library tag for packed validation.`);
+  }
   const file = isAbsolute(options.tarball)
     ? options.tarball
     : resolve(context.root, options.tarball);
@@ -184,6 +265,10 @@ export default async function piCheckPackageExecutor(
     fail(
       `packed package name ${JSON.stringify(packed.name)} does not match ${project.root} package name ${JSON.stringify(source.name)}.`,
     );
+  }
+  if (!resourcePackage) {
+    checkLibrary(packed, members);
+    return { success: true };
   }
   if (!record(packed.pi)) fail('packed package.json pi must be an object.');
   const paths = new Set<string>();
