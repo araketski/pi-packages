@@ -7,6 +7,7 @@ import {
   type StatuslineHost,
   type StatuslineStatus,
 } from '@araketski/pi-statusline-protocol';
+import { validColorValue } from './config.js';
 
 export interface StatusRegistry {
   readonly statuses: ReadonlyMap<string, StatuslineStatus>;
@@ -18,18 +19,11 @@ function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function colorValue(value: unknown): value is string | number {
-  return (
-    (typeof value === 'string' && (!value.startsWith('#') || /^#[\da-fA-F]{6}$/.test(value))) ||
-    (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255)
-  );
-}
-
 function color(value: unknown): value is StatusColor {
-  if (colorValue(value)) return true;
+  if (validColorValue(value)) return true;
   if (!record(value) || !record(value.byState)) return false;
-  if (value.default !== undefined && !colorValue(value.default)) return false;
-  return Object.values(value.byState).every(colorValue);
+  if (value.default !== undefined && !validColorValue(value.default)) return false;
+  return Object.values(value.byState).every(validColorValue);
 }
 
 function status(value: unknown): value is StatuslineStatus {

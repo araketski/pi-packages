@@ -79,6 +79,8 @@ describe('status subscriber', () => {
     const registry = createStatusRegistry(host, vi.fn());
     host.events.emit(STATUS_SET_EVENT, { source: 's', key: 'a', text: 'valid' });
     host.events.emit(STATUS_SET_EVENT, { source: 's', key: 'a', text: 42 });
+    host.events.emit(STATUS_SET_EVENT, { source: 's', key: 'a', text: 'bad color', color: 'notAThemeRole' });
+    host.events.emit(STATUS_SET_EVENT, { source: 's', key: 'a', text: 'bad state color', color: { byState: { busy: '#123' } } });
     host.events.emit(STATUS_CLEAR_EVENT, { source: 42, key: 'a' });
     host.events.emit(STATUS_SNAPSHOT_EVENT, { source: 's', statuses: [] });
     host.events.emit(STATUS_SNAPSHOT_EVENT, { source: 's', statuses: [{ source: 'elsewhere', key: 'a', text: 'bad' }] });
