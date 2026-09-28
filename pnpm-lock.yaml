@@ -9,6 +9,9 @@ catalogs:
     '@earendil-works/pi-coding-agent':
       specifier: 0.87.1
       version: 0.87.1
+    '@earendil-works/pi-tui':
+      specifier: 0.87.1
+      version: 0.87.1
     '@nx/devkit':
       specifier: 23.2.1
       version: 23.2.1
@@ -168,6 +171,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 0.87.1(supports-color@8.1.1)(ws@8.22.0)
+      '@earendil-works/pi-tui':
+        specifier: 'catalog:'
+        version: 0.87.1
 
   packages/statusline-protocol:
     dependencies:

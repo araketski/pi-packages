@@ -222,3 +222,15 @@ In a Pi event/UI fixture, start two producers with distinct keys but the same so
 
 In a temp agent directory and cwd, exercise no files (no writes, default layout/appearance), user-only and trusted/untrusted project configs, alternative agent directory and Pi reload. Check project-over-user replacement of layout/separator/separatorColor and field-wise status appearance merge against producer defaults; with producer default `muted` and states `active: success`, `waiting: warning`, override just `active` with `{ byState: { active: 'accent' } }` and assert waiting and fallback remain. Apply a scalar color after a map and a map after a scalar, including numeric `0` and empty string; assert clear-prefix and clear-color semantics. Confirm native fallback is unaffected, and changing theme or config re-renders without producer republish. Test accepted theme role, `#RRGGBB`, index 0 and 255 and empty color in the custom footer. With malformed JSON, wrong root/fields, invalid state value, invalid hex/index/theme role and unknown root fields, check warnings, valid sibling retention and lower-layer fallback. Confirm arbitrary not-yet-active keys are valid. This is a planned verification, not a test execution record.
 :::
+
+:::mara design DES-STATUSLINE-RENDER
+:mid: 01M3MCVNYHPVAEERHGAQSFH6MG
+:title: Sanitize, resolve appearance and fit the footer layout
+:status: accepted
+:kind: behavior
+:satisfies: REQ-STATUSLINE-LAYOUT
+:satisfies: REQ-STATUSLINE-SAFE-RENDER
+:satisfies: REQ-STATUSLINE-OVERRIDES
+
+Sanitize producer, native and config text before composing status items; merge status appearance with per-key config, resolve its color for the current state on each render, and apply footer-owned styling. Measure rendered columns with Pi TUI helpers, distribute spacers only between visible segments, and fall back to one token per line when a configured line cannot fit. The built-in and external status collectors supply the same structured item shape. Implementation state: pure rendering, color and safety helpers have fixture tests; the footer has not yet been installed in a Pi session, and complete UI and narrow-terminal integration remain unverified.
+:::
