@@ -145,7 +145,7 @@ Supply ANSI CSI, OSC clipboard, DCS, C0/C1, newlines and bidi format controls th
 
 Agreed direction: user config at Pi's configured <agent-dir>/statusline.json, trusted project config at <cwd>/.pi/statusline.json, loaded at session start and Pi reload, project over user over built-in defaults; missing files use defaults and do not trigger writes. Invalid JSON or invalid values produce UI warnings and leave valid lower-priority configuration in effect; untrusted project files are never read. The current protocol exports `StatusAppearance = { prefix?: string; color?: StatusColor }`, where `StatusColor = string | { default: string; byState: Record<string, string> }`. Per-key footer overrides must use this same appearance shape, not main's parallel `prefix` and `colors` maps. Existing `~/.pi/statusline.json` is not an automatic fallback.
 
-Draft JSON example (the top-level `appearance` property name is proposed, not yet agreed):
+Draft JSON example (`appearance` is the agreed top-level property name; the remaining schema details are still draft):
 
 ```json
 {
@@ -158,7 +158,7 @@ Draft JSON example (the top-level `appearance` property name is proposed, not ye
 
 The layout and separator values above are `main`'s default presentation baseline, not a requirement that an extension named `caffeinate` is installed. `layout` may be a flat string array or nested arrays of strings. `separator` is text; `separatorColor` is a semantic theme color. For now, accept only Pi theme color names (plus the empty no-color string, if supported by Pi) for footer color values. Hex and 256-color rendering are deferred to a separate protocol change and must not be claimed as supported by this extension before producer/native and footer rendering agree. Maintain key-specific prefix/color defaults for built-ins from main where compatible with the shared type. Do not assume that a future protocol change automatically alters the accepted footer schema.
 
-Open details before accepting this schema: the top-level name for per-key appearance; how an absent vs explicit empty prefix/color behaves; whether `{ default, byState }` overrides can set just one state without redefining `default` (the current shared type requires `default`); scalar-color vs state-map replacement and precedence across default, producer, user, and project layers; validation granularity for unknown keys, invalid layout tokens and malformed nested appearance values; and exact defaults for built-in prefixes and state colors. Keep the design in draft until these are resolved; do not implement a guessed public config format.
+Open details before accepting this schema: how an absent vs explicit empty prefix/color behaves; whether `{ default, byState }` overrides can set just one state without redefining `default` (the current shared type requires `default`); scalar-color vs state-map replacement and precedence across default, producer, user, and project layers; validation granularity for unknown keys, invalid layout tokens and malformed nested appearance values; and exact defaults for built-in prefixes and state colors. Keep the design in draft until these are resolved; do not implement a guessed public config format.
 :::
 
 :::mara design DES-STATUSLINE-BUILTIN-VALUES
