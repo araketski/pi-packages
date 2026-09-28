@@ -5,13 +5,19 @@ export const STATUS_CLEAR_EVENT = 'pi-statusline:status:clear';
 export const STATUS_SNAPSHOT_REQUEST_EVENT = 'pi-statusline:status:snapshot-request';
 export const STATUS_SNAPSHOT_EVENT = 'pi-statusline:status:snapshot';
 
-export interface StatuslineStatus {
+export type StatusColor = string | { default: string; byState: Record<string, string> };
+
+/** Shared appearance contract for producer defaults and per-key footer configuration. */
+export interface StatusAppearance {
+  prefix?: string;
+  color?: StatusColor;
+}
+
+export interface StatuslineStatus extends StatusAppearance {
   source: string;
   key: string;
   text: string;
   state?: string;
-  icon?: string;
-  color?: string;
 }
 
 export interface StatuslineHost {
@@ -26,11 +32,9 @@ export interface StatuslineUI {
   theme: { fg(color: string, text: string): string };
 }
 
-export interface StatusRegistration {
+export interface StatusRegistration extends StatusAppearance {
   source: string;
   key: string;
-  icon?: string;
-  color?: string;
 }
 
 export interface StatusUpdate {
@@ -44,7 +48,17 @@ export interface StatusHandle {
   dispose(): void;
 }
 
-/** Register one session-scoped producer; ANSI styling is removed from its icon and text. */
+function resolveColor(
+  color: StatusColor | undefined,
+  state: string | undefined,
+): string | undefined {
+  if (typeof color === 'string' || color === undefined) return color;
+  return state !== undefined && Object.hasOwn(color.byState, state)
+    ? color.byState[state]
+    : color.default;
+}
+
+/** Register one session-scoped producer; ANSI styling is removed from its prefix and text. */
 export function registerStatus(
   host: StatuslineHost,
   ui: StatuslineUI,
@@ -54,7 +68,8 @@ export function registerStatus(
     throw new Error('Status source and key must be nonempty');
   }
   const { source, key, color } = defaults;
-  const icon = defaults.icon === undefined ? undefined : stripVTControlCharacters(defaults.icon);
+  const prefix =
+    defaults.prefix === undefined ? undefined : stripVTControlCharacters(defaults.prefix);
   let current: StatuslineStatus | undefined;
   let disposed = false;
   const off = host.events.on(STATUS_SNAPSHOT_REQUEST_EVENT, () => {
@@ -74,9 +89,10 @@ export function registerStatus(
   return {
     update({ text, state }) {
       if (disposed) return;
-      current = { source, key, text: stripVTControlCharacters(text), state, icon, color };
-      const fallback = icon ? `${icon} ${current.text}` : current.text;
-      ui.setStatus(key, color ? ui.theme.fg(color, fallback) : fallback);
+      current = { source, key, text: stripVTControlCharacters(text), state, prefix, color };
+      const fallback = prefix ? `${prefix} ${current.text}` : current.text;
+      const selectedColor = resolveColor(color, state);
+      ui.setStatus(key, selectedColor ? ui.theme.fg(selectedColor, fallback) : fallback);
       host.events.emit(STATUS_SET_EVENT, { ...current });
     },
     clear,

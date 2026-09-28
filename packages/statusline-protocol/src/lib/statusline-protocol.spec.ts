@@ -6,6 +6,7 @@ import {
   STATUS_SNAPSHOT_EVENT,
   STATUS_SNAPSHOT_REQUEST_EVENT,
   registerStatus,
+  type StatusAppearance,
   type StatuslineHost,
   type StatuslineUI,
 } from '../index.js';
@@ -31,45 +32,52 @@ function fixture() {
   return { host, ui, setStatus };
 }
 
-// Compile against the actual Pi 0.87.1 extension interfaces, not only test doubles.
+// Compile against Pi 0.87.1 and use the same appearance type for footer configuration.
+const footerAppearance: Record<string, StatusAppearance> = {
+  example: { prefix: '◎', color: { default: 'muted', byState: { running: 'accent' } } },
+};
 function acceptsPi(pi: ExtensionAPI, ctx: ExtensionContext) {
-  return registerStatus(pi, ctx.ui, { source: 'example', key: 'example' });
+  return registerStatus(pi, ctx.ui, {
+    source: 'example',
+    key: 'example',
+    ...footerAppearance.example,
+  });
 }
 void acceptsPi;
 
 describe('registered statuses', () => {
-  it('uses producer defaults for native fallback and full structured updates without a footer', () => {
+  it('resolves per-state colors and preserves complete producer defaults in updates', () => {
     const { host, ui, setStatus } = fixture();
     const events: unknown[] = [];
     host.events.on(STATUS_SET_EVENT, (value) => events.push(value));
+    const color = { default: 'muted', byState: { enabled: 'success', disabled: 'warning' } };
     const status = registerStatus(host, ui, {
       source: 'fast-mode',
       key: 'fast',
-      icon: '⚡',
-      color: 'accent',
+      prefix: 'FAST',
+      color,
     });
 
     status.update({ text: 'on', state: 'enabled' });
     status.update({ text: 'off', state: 'disabled' });
-    expect(setStatus).toHaveBeenNthCalledWith(1, 'fast', '<accent>⚡ on</accent>');
-    expect(setStatus).toHaveBeenNthCalledWith(2, 'fast', '<accent>⚡ off</accent>');
+    status.update({ text: 'other', state: 'unrecognized' });
+    status.update({ text: 'idle' });
+    expect(setStatus).toHaveBeenNthCalledWith(1, 'fast', '<success>FAST on</success>');
+    expect(setStatus).toHaveBeenNthCalledWith(2, 'fast', '<warning>FAST off</warning>');
+    expect(setStatus).toHaveBeenNthCalledWith(3, 'fast', '<muted>FAST other</muted>');
+    expect(setStatus).toHaveBeenNthCalledWith(4, 'fast', '<muted>FAST idle</muted>');
     expect(events).toEqual([
+      { source: 'fast-mode', key: 'fast', text: 'on', state: 'enabled', prefix: 'FAST', color },
+      { source: 'fast-mode', key: 'fast', text: 'off', state: 'disabled', prefix: 'FAST', color },
       {
         source: 'fast-mode',
         key: 'fast',
-        text: 'on',
-        state: 'enabled',
-        icon: '⚡',
-        color: 'accent',
+        text: 'other',
+        state: 'unrecognized',
+        prefix: 'FAST',
+        color,
       },
-      {
-        source: 'fast-mode',
-        key: 'fast',
-        text: 'off',
-        state: 'disabled',
-        icon: '⚡',
-        color: 'accent',
-      },
+      { source: 'fast-mode', key: 'fast', text: 'idle', state: undefined, prefix: 'FAST', color },
     ]);
     const cleared: unknown[] = [];
     host.events.on(STATUS_CLEAR_EVENT, (value) => cleared.push(value));
@@ -86,17 +94,17 @@ describe('registered statuses', () => {
     const status = registerStatus(host, ui, {
       source: 'fast-mode',
       key: 'fast',
-      icon: '\u001b[33m⚡\u001b[0m',
+      prefix: '\u001b[33m⚡\u001b[0m',
       color: 'accent',
     });
-    status.update({ text: '\u001b[31mon\u001b[0m', state: 'enabled' });
+    status.update({ text: '\u001b[31mon\u001b[0m' });
     expect(events).toEqual([
       {
         source: 'fast-mode',
         key: 'fast',
         text: 'on',
-        state: 'enabled',
-        icon: '⚡',
+        state: undefined,
+        prefix: '⚡',
         color: 'accent',
       },
     ]);
@@ -106,16 +114,17 @@ describe('registered statuses', () => {
 
   it('recovers every active status after late startup and omits cleared or disposed statuses', () => {
     const { host, ui } = fixture();
+    const color = { default: 'muted', byState: { enabled: 'success' } };
     const fast = registerStatus(host, ui, {
       source: 'fast-mode',
       key: 'fast',
-      icon: '⚡',
-      color: 'accent',
+      prefix: 'FAST',
+      color,
     });
     const goal = registerStatus(host, ui, {
       source: 'goal',
       key: 'goal',
-      icon: '◎',
+      prefix: '◎',
       color: 'success',
     });
     const gone = registerStatus(host, ui, { source: 'gone', key: 'gone' });
@@ -135,8 +144,8 @@ describe('registered statuses', () => {
             key: 'fast',
             text: 'on',
             state: 'enabled',
-            icon: '⚡',
-            color: 'accent',
+            prefix: 'FAST',
+            color,
           },
         ],
       },
@@ -148,7 +157,7 @@ describe('registered statuses', () => {
             key: 'goal',
             text: 'active',
             state: 'running',
-            icon: '◎',
+            prefix: '◎',
             color: 'success',
           },
         ],
@@ -166,8 +175,8 @@ describe('registered statuses', () => {
             key: 'fast',
             text: 'on',
             state: 'enabled',
-            icon: '⚡',
-            color: 'accent',
+            prefix: 'FAST',
+            color,
           },
         ],
       },

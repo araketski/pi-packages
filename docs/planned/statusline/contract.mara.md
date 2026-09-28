@@ -5,7 +5,7 @@
 :kind: functional
 :contributes_to: GOAL-STATUSLINE-COMPAT
 
-The custom footer shall use producer-supplied icon and semantic color defaults unless its own configuration overrides them for a status key or state. Changing footer configuration or theme must be able to re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. The exact configuration-file syntax belongs to the future statusline extension contract.
+The custom footer shall use producer-supplied prefix and color definition unless its own configuration overrides them for a status key or state. Changing footer configuration or theme must be able to re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. Per-key appearance overrides use the same exported prefix/color type as producer registration. File layout and color-override precedence belong to the future statusline extension contract.
 :::
 
 :::mara requirement REQ-STATUSLINE-FOOTER
@@ -27,5 +27,5 @@ When the custom footer starts, it shall subscribe to structured status updates a
 :verifies: REQ-STATUSLINE-OVERRIDES
 :verifies: REQ-STATUSLINE-FOOTER
 
-In a real Pi 0.87.1 session, start two producers with different active statuses before the custom footer. Load the footer, request snapshots, and confirm complete current text, state, source, icon and color appear without duplicating their native fallback while unrelated native-only statuses remain visible. Update and clear producers and observe one correct entry per key. Override an icon or state color in the footer’s central configuration and change theme; verify the current structured statuses re-render without another producer event, while native fallback retains producer defaults. Exercise footer unload/reload and producer disposal. This verification is planned; the footer package has not been scaffolded.
+In a real Pi 0.87.1 session, start two producers with different active statuses before the custom footer. Load the footer, request snapshots, and confirm complete current text, state, source, prefix and resolved state color appear without duplicating their native fallback while unrelated native-only statuses remain visible. Update and clear producers and observe one correct entry per key. Override a prefix or state color in the footer’s central configuration and change theme; verify the current structured statuses re-render without another producer event, while native fallback retains producer defaults. Exercise footer unload/reload and producer disposal. This verification is planned; the footer package has not been scaffolded.
 :::

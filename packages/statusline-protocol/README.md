@@ -10,8 +10,8 @@ import { registerStatus } from '@araketski/pi-statusline-protocol';
 const status = registerStatus(pi, ctx.ui, {
   source: 'example',
   key: 'example',
-  icon: '◎',
-  color: 'accent',
+  prefix: '◎',
+  color: { default: 'muted', byState: { running: 'accent' } },
 });
 status.update({ text: 'active', state: 'running' });
 // When the status expires:
@@ -20,6 +20,6 @@ status.clear();
 status.dispose();
 ```
 
-The native fallback displays the producer's icon, text, and theme color. Structured updates and snapshots retain source, key, text, state, icon, and semantic color without ANSI styling. A custom footer can subscribe to `STATUS_SET_EVENT`, `STATUS_CLEAR_EVENT`, and `STATUS_SNAPSHOT_EVENT`, and emit `STATUS_SNAPSHOT_REQUEST_EVENT` after subscribing to recover statuses published before it started. Each active producer responds with its own snapshot; the footer must merge them. The library does not install a bridge extension or detect which footer is active.
+The native fallback displays the producer's prefix, text, and color for the current state. `color` accepts either one semantic theme color for every state or `{ default, byState }`, using `default` when the state has no mapping. The exported `StatusAppearance` type (`prefix` and `color`) is shared by producer registration and future per-key custom-footer configuration. Structured updates and snapshots retain source, key, text, state, prefix, and the complete color definition without ANSI styling. A custom footer can subscribe to `STATUS_SET_EVENT`, `STATUS_CLEAR_EVENT`, and `STATUS_SNAPSHOT_EVENT`, and emit `STATUS_SNAPSHOT_REQUEST_EVENT` after subscribing to recover statuses published before it started. Each active producer responds with its own snapshot; the footer must merge them. The library does not install a bridge extension or detect which footer is active.
 
 Support for Pi 0.87.1 is the current target; a real Pi custom-footer integration and shared-key conflict handling have not yet been verified. The repository-only canonical contract is at `packages/statusline-protocol/docs/contract.mara.md`; it is excluded from the published artifact.
