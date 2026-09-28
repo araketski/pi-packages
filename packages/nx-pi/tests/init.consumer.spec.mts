@@ -173,7 +173,9 @@ describe('packed nx-pi in independent consumers', () => {
         { cwd: root, env, encoding: 'utf8', timeout: 120_000 },
       );
       const installed = json(join(root, 'node_modules/@araketski/nx-pi/package.json'));
-      expect(JSON.stringify(installed.dependencies)).not.toMatch(/catalog:|workspace:/);
+      expect(JSON.stringify(installed.dependencies)).not.toMatch(
+        /catalog:|workspace:|@swc-node\/register|@swc\/core/,
+      );
 
       const manifest = json(join(root, 'package.json'));
       delete manifest.name;

@@ -17,7 +17,14 @@ pnpm nx typecheck nx-pi
 ```
 
 `nx-pi:test` depends on its build and runs source tests plus packed-plugin tests
-in temporary independent npm and pnpm workspaces. Each package manager covers:
+in temporary independent npm and pnpm workspaces. A separate direct local Nx
+CLI dry-run covers `init` and `package` from this workspace's TypeScript source
+without modifying root configuration or creating a package. The repository-only
+`@swc-node/register` and `@swc/core` development dependencies enable Nx's
+fallback from Node's native TypeScript stripping for the CommonJS plugin;
+`@swc/core`'s postinstall script is denied because its installed native binary
+works without it. No SWC dependency is required of packed-plugin consumers.
+Each package manager covers:
 
 - A minimal hand-authored fixture for focused failures, metadata additions,
   dry-run, unchanged reruns, and lockfile/configuration preservation. Its packed

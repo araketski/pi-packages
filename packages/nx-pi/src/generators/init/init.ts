@@ -1,6 +1,6 @@
 import { NX_VERSION, readJson, writeJson, type Tree } from '@nx/devkit';
 import { isInteractive, textPrompt } from '@nx/devkit/internal';
-import validatePackageName from 'validate-npm-package-name';
+import validatePackageName = require('validate-npm-package-name');
 import type { InitGeneratorSchema } from './schema';
 import { assertSupportedRuntime } from './runtime';
 

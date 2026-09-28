@@ -5,6 +5,7 @@ autoInstallPeers: true
 allowBuilds:
   '@google/genai': false
   '@parcel/watcher': false
+  '@swc/core': false
   esbuild: false
   nx: true
   protobufjs: false
@@ -16,6 +17,8 @@ catalog:
   '@nx/oxlint': 23.2.1
   '@nx/plugin': 23.2.1
   '@nx/vitest': 23.2.1
+  '@swc-node/register': 1.12.1
+  '@swc/core': 1.16.2
   '@swc/helpers': ~0.5.18
   '@types/node': 24.19.0
   '@types/validate-npm-package-name': 4.0.2

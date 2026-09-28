@@ -634,3 +634,23 @@ Package authors, not nx-pi, determine which license terms, notices, and third-pa
 
 Keep the existing generator contract: package and library generation require a nonblank root `license` value and copy it into the generated manifest. Initialization may leave license unset. Do not create a license file, require a specific name or location, infer obligations from the string, or add a license/attribution check to source `pi-check` or `pi-check-package`. These validators remain technical checks, not release approval. Consumer-facing instructions must make the author-owned review explicit. This agreed ownership choice avoids false assurance and a universal file layout while leaving legal responsibilities with the party publishing the package. The item remains draft while its broader linked distribution requirements remain draft.
 :::
+
+:::mara requirement REQ-NXPI-LOCAL-USAGE
+:mid: 01M3KR9TXGB8QSAPX3T1TV8T8H
+:title: Run nx-pi generators from source in this workspace
+:status: draft
+:kind: functional
+
+This development workspace shall be able to invoke its local nx-pi generators through the Nx CLI while the package is a workspace project, without installing its tarball or changing unrelated authored files. This is a repository-development prerequisite for using the tooling here before any other packages are migrated. It does not impose a TypeScript runtime loader or other development tooling on independent consumers of the packed plugin. Nx 23 resolves local plugin generators from TypeScript source, even though the published artifact uses compiled CommonJS.
+:::
+
+:::mara verification VER-NXPI-LOCAL-USAGE
+:mid: 01M3KR9X0WEX6JC89ZPDBZJ7TV
+:title: Exercise local Nx generator dry-run without workspace changes
+:status: draft
+:method: test
+:level: integration
+:verifies: REQ-NXPI-LOCAL-USAGE
+
+Run the local @araketski/nx-pi:init and package generators through this workspace's Nx CLI in noninteractive dry-run mode on both pinned Node versions. Require successful exits and previews of the nx.json registration and new package manifest, with root package.json and nx.json unchanged and no new package directory. Run the packed npm/pnpm consumer suite afterward to confirm repository-only loader dependencies are not required by installed consumers. The known pre-fix failure is Node native TypeScript stripping treating local source in the CommonJS plugin package as CommonJS and rejecting import syntax. The test must not mutate or initialize the workspace.
+:::

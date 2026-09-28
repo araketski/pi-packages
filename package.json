@@ -10,6 +10,8 @@
     "@nx/oxlint": "catalog:",
     "@nx/plugin": "catalog:",
     "@nx/vitest": "catalog:",
+    "@swc-node/register": "catalog:",
+    "@swc/core": "catalog:",
     "@swc/helpers": "catalog:",
     "@types/node": "catalog:",
     "create-nx-workspace": "catalog:",

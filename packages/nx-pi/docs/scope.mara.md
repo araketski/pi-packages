@@ -10,7 +10,9 @@ The current development slice concerns tooling, not statusline protocol behavior
 ## Current implementation state
 
 `packages/nx-pi` was scaffolded with `@nx/plugin:plugin` and compiles to CommonJS.
-`init` supports explicit missing metadata and an interactive prompt for an absent
+The first-consumer workspace can invoke local TypeScript-source generators with
+repository-only Nx SWC fallback dependencies under [[REQ-NXPI-LOCAL-USAGE]];
+packed consumers do not need that development tooling. `init` supports explicit missing metadata and an interactive prompt for an absent
 required scoped root name. It preserves safe registration, unchanged reruns,
 actionable conflicts, runtime guards, and no dependency installation. Cancellation
 leaves authored files unchanged; optional metadata is never prompted for. Exact
