@@ -41,3 +41,24 @@ Every publishable workspace project under `packages/` participates in one Nx Rel
 
 In the current workspace, inspect resolved Nx Release configuration through the installed CLI and require all publishable projects under `packages/` in a single fixed group with the `v{version}` tag pattern, excluding the root. Run Nx Release version with a disposable exact version and `--dry-run` and confirm every selected package is included, no package is omitted, and authored manifests, lockfiles, Git tags and workspace files remain unchanged. When adding another package, verify its inclusion without editing the release selection; a failed or unavailable dry run is not a pass.
 :::
+
+:::mara requirement REQ-RELEASE-IDENTITY
+:mid: 01M3MJH8GX81JS9N0NG2VC2V3J
+:title: Reject inconsistent release candidates before approval
+:status: accepted
+:kind: constraint
+:contributes_to: GOAL-RELEASE-COORDINATION
+
+Before a merged release candidate can reach protected publication, check out the captured main-branch commit and require that every publishable project under `packages/` has the same valid version, the Nx-generated root changelog has an entry for that version, and an existing `v{version}` tag (if any) points to that exact commit. Reject a missing or inconsistent identity without creating or moving a tag, modifying artifacts, or publishing. A release-labelled preparation PR is merged only after review; a changelog change on main starts candidate verification, not public publication.
+:::
+
+:::mara verification VER-RELEASE-IDENTITY
+:mid: 01M3MJHBBWY8K8J0SZQ85V10SV
+:title: Test candidate identity checks with disposable Git fixtures
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-RELEASE-IDENTITY
+
+Exercise a matching multi-package commit and changelog, plus mismatched package versions, missing changelog heading, wrong captured commit, and an existing tag pointing to another commit. Observe rejection before any public operation or mutation. Recheck against the merged commit in the workflow before and after approval.
+:::
