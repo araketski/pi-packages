@@ -1,0 +1,12 @@
+{
+  "name": "@araketski/pi-statusline",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/statusline/extensions",
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["^build"],
+      "options": { "command": "tsc --project packages/statusline/tsconfig.json --noEmit" }
+    }
+  }
+}
