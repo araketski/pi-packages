@@ -36,8 +36,12 @@ export function getModelEligibility(ctx: FastContext): Eligibility {
   return { supported: false, reason: `Current model (${model.provider}/${model.id}) does not support fast mode` };
 }
 
+function isRecord(payload: unknown): payload is Record<string, unknown> {
+  return typeof payload === 'object' && payload !== null && !Array.isArray(payload);
+}
+
 export function getFastPayload(payload: unknown, ctx: FastContext, enabled: boolean): Record<string, unknown> | undefined {
-  if (!enabled || typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined;
+  if (!enabled || !isRecord(payload)) return undefined;
   const eligibility = getModelEligibility(ctx);
   if (!eligibility.supported || !eligibility.option || payload.model !== ctx.model?.id) return undefined;
   if (eligibility.option in payload) return undefined;

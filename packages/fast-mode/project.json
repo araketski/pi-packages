@@ -1,0 +1,13 @@
+{
+  "name": "@araketski/pi-fast-mode",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/fast-mode",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    }
+  }
+}

@@ -65,6 +65,8 @@ Publish a visible status even when disabled: `fast off` (muted) when off; `fast 
 :satisfies: REQ-FAST-SESSION
 
 Register the flag, command, and shortcut at extension load. Persist `{ enabled: boolean }` as a Pi custom entry with custom type `fast` after each actual toggle or explicit state change; no entry is needed for status queries or an idempotent on/off. Restore the last valid entry from `sessionManager.getBranch()` on session start and tree changes. Apply the launch flag after branch restoration; do not rewrite the branch merely because the flag was supplied. Keep live state scoped to the current session manager. Reconstruct state on reload rather than relying on extension-process memory. If an explicit on/off happens with `--fast`, its value governs until the next restoration. A no-op explicit command should not change state or append an entry; it can still report the current state.
+
+Implementation state: command/shortcut/flag, branch restoration and the launch override are implemented and tested with a Pi API fixture. Real Pi resume and reload have not been exercised.
 :::
 
 :::mara design DES-FAST-REQUEST
@@ -77,7 +79,7 @@ Register the flag, command, and shortcut at extension load. Persist `{ enabled: 
 
 Evaluate eligibility from the event's current context for both `before_provider_headers` and `before_provider_request`, not from a cached model-selection result. The header hook adds the Claude beta tokens only when enabled and eligible; comma-separated existing beta tokens are trimmed and deduplicated in their original order, followed by required OAuth and fast-mode tokens. Find an existing `anthropic-beta` header case-insensitively; otherwise create the lowercase key. The request hook returns a shallow copy with the new field only when enabled, eligible, payload is a non-array object, its model matches exactly, and the field is absent. Otherwise return no replacement. Do not mutate `ctx.model.headers`. This matches the observed safety behavior of main, not a claim that other extensions cannot independently set conflicting headers or fields.
 
-Implementation state: eligibility, header, and payload helpers are implemented and covered by isolated unit tests. Pi event hooks have not yet been wired or exercised.
+Implementation state: eligibility, header, and payload helpers and the corresponding Pi event hooks are implemented and covered by isolated and Pi API fixture tests. Real Pi provider requests have not yet been exercised.
 :::
 
 :::mara design DES-FAST-STATUS
