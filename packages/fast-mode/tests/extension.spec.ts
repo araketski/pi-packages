@@ -1,6 +1,13 @@
-import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ExtensionCommandContext,
+} from '@earendil-works/pi-coding-agent';
 import { describe, expect, it, vi } from 'vitest';
-import { STATUS_SNAPSHOT_EVENT, STATUS_SNAPSHOT_REQUEST_EVENT } from '@araketski/pi-statusline-protocol';
+import {
+  STATUS_SNAPSHOT_EVENT,
+  STATUS_SNAPSHOT_REQUEST_EVENT,
+} from '@araketski/pi-statusline-protocol';
 import fastMode from '../extensions/fast-mode/index.ts';
 
 type EventHandler = (event: any, ctx: ExtensionContext) => any;
@@ -12,12 +19,16 @@ function fixture(flag = false) {
   const shortcuts = new Map<string, (ctx: ExtensionContext) => Promise<void> | void>();
   let branch: SessionEntry[] = [];
   let selected: { provider: string; api: string; id: string } | undefined = {
-    provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5',
+    provider: 'anthropic',
+    api: 'anthropic-messages',
+    id: 'claude-opus-5',
   };
   let oauth = false;
   const notify = vi.fn();
   const setStatus = vi.fn();
-  const appendEntry = vi.fn((customType: string, data: unknown) => branch.push({ type: 'custom', customType, data }));
+  const appendEntry = vi.fn((customType: string, data: unknown) =>
+    branch.push({ type: 'custom', customType, data }),
+  );
   const registerFlag = vi.fn();
   const listeners = new Map<string, Set<(value: unknown) => void>>();
   const emit = vi.fn((name: string, value: unknown) => {
@@ -32,15 +43,30 @@ function fixture(flag = false) {
   const sessionManager = { getBranch: () => branch };
   const ctx = {
     sessionManager,
-    get model() { return selected; },
+    get model() {
+      return selected;
+    },
     modelRegistry: { isUsingOAuth: () => oauth },
     hasUI: true,
-    ui: { notify, setStatus, theme: { fg: (color: string, value: string) => `<${color}>${value}</${color}>` } },
+    ui: {
+      notify,
+      setStatus,
+      theme: { fg: (color: string, value: string) => `<${color}>${value}</${color}>` },
+    },
   } as unknown as ExtensionCommandContext;
   const pi = {
-    on: (name: string, handler: EventHandler) => { handlers.set(name, handler); return () => handlers.delete(name); },
-    registerCommand: (name: string, options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) => commands.set(name, options.handler),
-    registerShortcut: (key: string, options: { handler: (ctx: ExtensionContext) => Promise<void> | void }) => shortcuts.set(key, options.handler),
+    on: (name: string, handler: EventHandler) => {
+      handlers.set(name, handler);
+      return () => handlers.delete(name);
+    },
+    registerCommand: (
+      name: string,
+      options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> },
+    ) => commands.set(name, options.handler),
+    registerShortcut: (
+      key: string,
+      options: { handler: (ctx: ExtensionContext) => Promise<void> | void },
+    ) => shortcuts.set(key, options.handler),
     registerFlag,
     getFlag: () => flag,
     appendEntry,
@@ -53,19 +79,46 @@ function fixture(flag = false) {
     return handler({ type: name, ...detail }, ctx);
   }
   return {
-    ctx, pi, handlers, commands, shortcuts, event, notify, setStatus, appendEntry, registerFlag, emit,
-    setBranch: (value: SessionEntry[]) => { branch = value; },
-    setModel: (model: typeof selected) => { selected = model; },
-    setOAuth: (value: boolean) => { oauth = value; },
-    command: async (args = '') => { const handler = commands.get('fast'); if (!handler) throw new Error('Missing /fast'); await handler(args, ctx); },
-    shortcut: async () => { const handler = shortcuts.get('f3'); if (!handler) throw new Error('Missing F3'); await handler(ctx); },
+    ctx,
+    pi,
+    handlers,
+    commands,
+    shortcuts,
+    event,
+    notify,
+    setStatus,
+    appendEntry,
+    registerFlag,
+    emit,
+    setBranch: (value: SessionEntry[]) => {
+      branch = value;
+    },
+    setModel: (model: typeof selected) => {
+      selected = model;
+    },
+    setOAuth: (value: boolean) => {
+      oauth = value;
+    },
+    command: async (args = '') => {
+      const handler = commands.get('fast');
+      if (!handler) throw new Error('Missing /fast');
+      await handler(args, ctx);
+    },
+    shortcut: async () => {
+      const handler = shortcuts.get('f3');
+      if (!handler) throw new Error('Missing F3');
+      await handler(ctx);
+    },
   };
 }
 
 describe('fast mode Pi extension', () => {
   it('registers flag and controls, toggles with /fast and F3, and keeps explicit commands idempotent', async () => {
     const f = fixture();
-    expect(f.registerFlag).toHaveBeenCalledWith('fast', expect.objectContaining({ type: 'boolean', default: false }));
+    expect(f.registerFlag).toHaveBeenCalledWith(
+      'fast',
+      expect.objectContaining({ type: 'boolean', default: false }),
+    );
     await f.event('session_start');
     await f.command('status');
     expect(f.appendEntry).not.toHaveBeenCalled();
@@ -80,7 +133,10 @@ describe('fast mode Pi extension', () => {
     await f.command('');
     await f.shortcut();
     expect(f.appendEntry.mock.calls.map(([, value]) => value)).toEqual([
-      { enabled: true }, { enabled: false }, { enabled: true }, { enabled: false },
+      { enabled: true },
+      { enabled: false },
+      { enabled: true },
+      { enabled: false },
     ]);
     await f.command('invalid');
     expect(f.appendEntry).toHaveBeenCalledTimes(4);
@@ -95,22 +151,35 @@ describe('fast mode Pi extension', () => {
       { type: 'custom', customType: 'fast', data: { enabled: 'invalid' } },
     ]);
     await f.event('session_start');
-    expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toEqual({ model: 'claude-opus-5', speed: 'fast' });
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
+    ).toEqual({ model: 'claude-opus-5', speed: 'fast' });
     expect(f.appendEntry).not.toHaveBeenCalled();
     await f.command('off');
-    expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toBeUndefined();
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
+    ).toBeUndefined();
     await f.event('session_tree');
-    expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toEqual({ model: 'claude-opus-5', speed: 'fast' });
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
+    ).toEqual({ model: 'claude-opus-5', speed: 'fast' });
   });
 
   it('uses branch state without --fast, ignores malformed entries, and follows a different branch', async () => {
     const f = fixture();
-    f.setBranch([{ type: 'custom', customType: 'fast', data: { enabled: true } }, { type: 'custom', customType: 'other', data: { enabled: false } }]);
+    f.setBranch([
+      { type: 'custom', customType: 'fast', data: { enabled: true } },
+      { type: 'custom', customType: 'other', data: { enabled: false } },
+    ]);
     await f.event('session_start');
-    expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toEqual({ model: 'claude-opus-5', speed: 'fast' });
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
+    ).toEqual({ model: 'claude-opus-5', speed: 'fast' });
     f.setBranch([{ type: 'custom', customType: 'fast', data: { enabled: null } }]);
     await f.event('session_tree');
-    expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toBeUndefined();
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
+    ).toBeUndefined();
   });
 
   it('publishes state-aware status in the native footer and late snapshots, and disposes on shutdown', async () => {
@@ -125,10 +194,19 @@ describe('fast mode Pi extension', () => {
     const snapshot = vi.fn();
     f.pi.events.on(STATUS_SNAPSHOT_EVENT, snapshot);
     f.emit(STATUS_SNAPSHOT_REQUEST_EVENT, undefined);
-    expect(snapshot).toHaveBeenCalledWith({ source: 'fast-mode', statuses: [{
-      source: 'fast-mode', key: 'fast', text: 'fast n/a', state: 'unsupported',
-      prefix: undefined, color: { default: 'muted', byState: { on: 'accent', unsupported: 'warning' } },
-    }] });
+    expect(snapshot).toHaveBeenCalledWith({
+      source: 'fast-mode',
+      statuses: [
+        {
+          source: 'fast-mode',
+          key: 'fast',
+          text: 'fast n/a',
+          state: 'unsupported',
+          prefix: undefined,
+          color: { default: 'muted', byState: { on: 'accent', unsupported: 'warning' } },
+        },
+      ],
+    });
     f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' });
     await f.event('model_select');
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
@@ -147,11 +225,18 @@ describe('fast mode Pi extension', () => {
     await f.event('before_provider_headers', { headers });
     expect(headers).toEqual({ 'anthropic-beta': 'fast-mode-2026-02-01' });
     f.setModel({ provider: 'openai', api: 'openai-codex-responses', id: 'gpt-5.4' });
-    expect(await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } })).toBeUndefined();
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } }),
+    ).toBeUndefined();
     f.setOAuth(true);
-    expect(await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } })).toEqual({ model: 'gpt-5.4', service_tier: 'priority' });
+    expect(await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } })).toEqual({
+      model: 'gpt-5.4',
+      service_tier: 'priority',
+    });
     f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' });
-    expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toEqual({ model: 'claude-opus-5', speed: 'fast' });
+    expect(
+      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
+    ).toEqual({ model: 'claude-opus-5', speed: 'fast' });
     expect(f.appendEntry).toHaveBeenCalledTimes(1);
   });
 });

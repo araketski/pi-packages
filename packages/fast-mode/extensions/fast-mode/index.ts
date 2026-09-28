@@ -1,13 +1,20 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { registerStatus, type StatusHandle } from '@araketski/pi-statusline-protocol';
-import { applyFastHeaders, getFastPayload, getModelEligibility, type FastContext, type FastModel } from './src/request.ts';
+import {
+  applyFastHeaders,
+  getFastPayload,
+  getModelEligibility,
+  type FastContext,
+  type FastModel,
+} from './src/request.ts';
 import { restoreFastState, type FastState } from './src/session.ts';
 
 function toFastContext(ctx: ExtensionContext): FastContext {
   return {
     model: ctx.model as FastModel | undefined,
     modelRegistry: {
-      isUsingOAuth: (model) => ctx.modelRegistry.isUsingOAuth(model as NonNullable<typeof ctx.model>),
+      isUsingOAuth: (model) =>
+        ctx.modelRegistry.isUsingOAuth(model as NonNullable<typeof ctx.model>),
     },
   };
 }
@@ -24,23 +31,33 @@ export default function fastMode(pi: ExtensionAPI): void {
     return current;
   };
   const restore = (ctx: ExtensionContext) => {
-    states.set(ctx.sessionManager, restoreFastState(ctx.sessionManager.getBranch(), pi.getFlag('fast') === true));
+    states.set(
+      ctx.sessionManager,
+      restoreFastState(ctx.sessionManager.getBranch(), pi.getFlag('fast') === true),
+    );
   };
   const updateStatus = (ctx: ExtensionContext) => {
     if (!ctx.hasUI) return;
     const enabled = state(ctx).enabled;
     const supported = getModelEligibility(toFastContext(ctx)).supported;
-    statusHandles.get(ctx.sessionManager)?.update(
-      !enabled ? { text: 'fast off', state: 'off' } : supported
-        ? { text: 'fast on', state: 'on' }
-        : { text: 'fast n/a', state: 'unsupported' },
-    );
+    statusHandles
+      .get(ctx.sessionManager)
+      ?.update(
+        !enabled
+          ? { text: 'fast off', state: 'off' }
+          : supported
+            ? { text: 'fast on', state: 'on' }
+            : { text: 'fast n/a', state: 'unsupported' },
+      );
   };
   const announce = (ctx: ExtensionContext) => {
     if (!ctx.hasUI) return;
     const enabled = state(ctx).enabled;
     const eligibility = getModelEligibility(toFastContext(ctx));
-    ctx.ui.notify(`Fast mode is ${enabled ? 'on' : 'off'}${enabled && !eligibility.supported ? ' (unavailable for current model)' : ''}.`, 'info');
+    ctx.ui.notify(
+      `Fast mode is ${enabled ? 'on' : 'off'}${enabled && !eligibility.supported ? ' (unavailable for current model)' : ''}.`,
+      'info',
+    );
   };
   const toggle = (ctx: ExtensionContext, value: boolean) => {
     const current = state(ctx);
@@ -53,23 +70,37 @@ export default function fastMode(pi: ExtensionAPI): void {
     updateStatus(ctx);
     announce(ctx);
     if (value && !getModelEligibility(toFastContext(ctx)).supported && ctx.hasUI) {
-      ctx.ui.notify('Current model does not support fast mode; it will apply after switching to a supported model.', 'warning');
+      ctx.ui.notify(
+        'Current model does not support fast mode; it will apply after switching to a supported model.',
+        'warning',
+      );
     }
   };
 
-  pi.registerFlag('fast', { description: 'Start with fast mode enabled', type: 'boolean', default: false });
+  pi.registerFlag('fast', {
+    description: 'Start with fast mode enabled',
+    type: 'boolean',
+    default: false,
+  });
   pi.on('session_start', (_event, ctx) => {
     restore(ctx);
     statusHandles.get(ctx.sessionManager)?.dispose();
     if (ctx.hasUI) {
-      statusHandles.set(ctx.sessionManager, registerStatus(pi, ctx.ui, {
-        source: 'fast-mode', key: 'fast',
-        color: { default: 'muted', byState: { on: 'accent', unsupported: 'warning' } },
-      }));
+      statusHandles.set(
+        ctx.sessionManager,
+        registerStatus(pi, ctx.ui, {
+          source: 'fast-mode',
+          key: 'fast',
+          color: { default: 'muted', byState: { on: 'accent', unsupported: 'warning' } },
+        }),
+      );
     }
     updateStatus(ctx);
   });
-  pi.on('session_tree', (_event, ctx) => { restore(ctx); updateStatus(ctx); });
+  pi.on('session_tree', (_event, ctx) => {
+    restore(ctx);
+    updateStatus(ctx);
+  });
   pi.on('model_select', (_event, ctx) => updateStatus(ctx));
   pi.on('session_shutdown', (_event, ctx) => {
     statusHandles.get(ctx.sessionManager)?.dispose();
@@ -95,5 +126,8 @@ export default function fastMode(pi: ExtensionAPI): void {
       if (ctx.hasUI) ctx.ui.notify('Usage: /fast [on|off|status]', 'warning');
     },
   });
-  pi.registerShortcut('f3', { description: 'Toggle fast mode', handler: (ctx) => toggle(ctx, !state(ctx).enabled) });
+  pi.registerShortcut('f3', {
+    description: 'Toggle fast mode',
+    handler: (ctx) => toggle(ctx, !state(ctx).enabled),
+  });
 }

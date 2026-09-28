@@ -16,11 +16,11 @@ pi -e ./packages/fast-mode
 
 Supported wire APIs and model ids:
 
-| API | Models | Outgoing request change |
-| --- | --- | --- |
-| `anthropic-messages` | Claude Opus 4.6, 4.8, 5, 5.5 | `speed: "fast"` and `anthropic-beta: fast-mode-2026-02-01` (plus Claude OAuth beta tokens for OAuth) |
-| `openai-responses` | GPT-5.4, 5.5, 5.6 Luna/Sol/Terra, 6 Astra/Sol/Luna | `service_tier: "priority"` |
-| `openai-codex-responses` with ChatGPT OAuth | Same GPT models | `service_tier: "priority"` |
+| API                                         | Models                                             | Outgoing request change                                                                              |
+| ------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `anthropic-messages`                        | Claude Opus 4.6, 4.8, 5, 5.5                       | `speed: "fast"` and `anthropic-beta: fast-mode-2026-02-01` (plus Claude OAuth beta tokens for OAuth) |
+| `openai-responses`                          | GPT-5.4, 5.5, 5.6 Luna/Sol/Terra, 6 Astra/Sol/Luna | `service_tier: "priority"`                                                                           |
+| `openai-codex-responses` with ChatGPT OAuth | Same GPT models                                    | `service_tier: "priority"`                                                                           |
 
 Proxy providers using these wire APIs are eligible when the model id matches (optionally prefixed with `anthropic/` or `openai/`). Codex API-key models are not eligible. Availability status reports eligibility, not confirmation that an individual request was changed.
 

@@ -1,20 +1,20 @@
 {
   "name": "@araketski/pi-fast-mode",
   "version": "0.1.0",
-  "type": "module",
   "license": "MIT",
   "files": [
     "extensions"
   ],
-  "pi": {
-    "extensions": [
-      "./extensions/fast-mode/index.ts"
-    ]
+  "type": "module",
+  "dependencies": {
+    "@araketski/pi-statusline-protocol": "workspace:*"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
-  "dependencies": {
-    "@araketski/pi-statusline-protocol": "workspace:*"
+  "pi": {
+    "extensions": [
+      "./extensions/fast-mode/index.ts"
+    ]
   }
 }
