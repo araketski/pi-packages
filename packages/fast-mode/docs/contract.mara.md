@@ -66,7 +66,7 @@ Publish a visible status even when disabled: `fast off` (muted) when off; `fast 
 
 Register the flag, command, and shortcut at extension load. Persist `{ enabled: boolean }` as a Pi custom entry with custom type `fast` after each actual toggle or explicit state change; no entry is needed for status queries or an idempotent on/off. Restore the last valid entry from `sessionManager.getBranch()` on session start and tree changes. Apply the launch flag after branch restoration; do not rewrite the branch merely because the flag was supplied. Keep live state scoped to the current session manager. Reconstruct state on reload rather than relying on extension-process memory. If an explicit on/off happens with `--fast`, its value governs until the next restoration. A no-op explicit command should not change state or append an entry; it can still report the current state.
 
-Implementation state: command/shortcut/flag, branch restoration and the launch override are implemented and tested with a Pi API fixture. Real Pi resume and reload have not been exercised.
+Implementation state: command/shortcut/flag, branch restoration and the launch override are implemented and tested with a Pi API fixture. A packed npm consumer has loaded the extension with Pi 0.87.1 and executed `/fast on` without a model call, confirming an enabled custom entry. Real Pi resume, reload, and branch navigation have not been exercised.
 :::
 
 :::mara design DES-FAST-REQUEST
@@ -79,7 +79,7 @@ Implementation state: command/shortcut/flag, branch restoration and the launch o
 
 Evaluate eligibility from the event's current context for both `before_provider_headers` and `before_provider_request`, not from a cached model-selection result. The header hook adds the Claude beta tokens only when enabled and eligible; comma-separated existing beta tokens are trimmed and deduplicated in their original order, followed by required OAuth and fast-mode tokens. Find an existing `anthropic-beta` header case-insensitively; otherwise create the lowercase key. The request hook returns a shallow copy with the new field only when enabled, eligible, payload is a non-array object, its model matches exactly, and the field is absent. Otherwise return no replacement. Do not mutate `ctx.model.headers`. This matches the observed safety behavior of main, not a claim that other extensions cannot independently set conflicting headers or fields.
 
-Implementation state: eligibility, header, and payload helpers and the corresponding Pi event hooks are implemented and covered by isolated and Pi API fixture tests. Real Pi provider requests have not yet been exercised.
+Implementation state: eligibility, header, and payload helpers and the corresponding Pi event hooks are implemented and covered by isolated and Pi API fixture tests. Packed Pi 0.87.1 loads the extension, but real provider requests have not been exercised.
 :::
 
 :::mara design DES-FAST-STATUS
@@ -91,7 +91,7 @@ Implementation state: eligibility, header, and payload helpers and the correspon
 
 Use the current `@araketski/pi-statusline-protocol` `registerStatus` API, not main's older `publishStatus`/`registerStatusProvider` API. Register once per session with stable source `fast-mode` and key `fast`, and register the semantic appearance `{ default: 'muted', byState: { on: 'accent', unsupported: 'warning' } }`. Publish the three agreed texts and semantic states `off`, `on`, `unsupported` through the handle's `update`; dispose on session shutdown. The protocol resolves the current state's color for native `setStatus` fallback and carries the full appearance mapping in updates and snapshots so a late custom footer can recover it. No protocol change or producer re-registration is needed. Do not infer actual request success from eligibility. See [[DES-STATUSLINE-PROTOCOL]] for the library contract.
 
-Implementation state: native fallback, state-color transitions, structured snapshot recovery, and shutdown disposal are implemented and verified in a mocked Pi API fixture; loading in a real Pi session remains unverified.
+Implementation state: native fallback, state-color transitions, structured snapshot recovery, and shutdown disposal are implemented and verified in a mocked Pi API fixture. Packed Pi 0.87.1 consumer loading and command execution succeeded; interactive footer rendering has not been directly observed.
 :::
 
 :::mara decision ADR-FAST-FLAG-PRECEDENCE
