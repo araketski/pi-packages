@@ -1,0 +1,19 @@
+{
+  "name": "@araketski/pi-statusline",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "extensions"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/statusline/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:"
+  },
+  "dependencies": {
+    "@araketski/pi-statusline-protocol": "workspace:*"
+  }
+}
