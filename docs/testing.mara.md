@@ -142,10 +142,13 @@ processes to exercise interactive input. Source tests separately verify CI and
 redirected-stream prompt suppression. These tools/settings are test prerequisites,
 not dependencies or configuration installed in consumer workspaces.
 
-CI is configured for Node 24.19.0 and 26.7.0, with pnpm 12.6.0. On each version
-it performs a frozen-lockfile install and Nx formatting and sync checks. Nx
-`run-many` runs every available build, test, lint and typecheck target across
-all workspace projects, followed by all eligible `pi-check` source targets.
+Regular CI runs for every pull request and every push to the default branch
+`main`, without a path filter; publication is reserved for the separately gated
+release workflow. CI is configured for Node 24.19.0 and 26.7.0, with pnpm
+12.6.0. On each version it performs a frozen-lockfile install and Nx formatting
+and sync checks. Nx `run-many` runs every available build, test, lint and
+typecheck target across all workspace projects, followed by all eligible
+`pi-check` source targets.
 This includes current extension load suites and future packages that declare
 an Nx test target; merely declaring an extension does not generate a test for
 it. Each package maintainer must add the load checks above when adding an
@@ -165,3 +168,24 @@ planned. Passing initialization and initial source-check tests are not evidence
 for actual library runtime/type resolution by the checker, dynamic helper
 discovery, full Pi resource-loading parity, actual registry publication, or fully
 implemented Pi resources beyond the completed disposable fixtures.
+
+:::mara requirement REQ-CI-MAIN-COVERAGE
+:mid: 01M3MKDJ82NATK3HZA1NH1CJ5Q
+:title: Run regular checks on pull requests and main pushes
+:status: accepted
+:kind: constraint
+:contributes_to: GOAL-RELEASE-COORDINATION
+
+Regular CI checks every pull request and every push to the repository default branch `main`, regardless of whether the root changelog changes. It retains the supported Node matrix, frozen-lockfile installation, Nx formatting and sync checks, and all available workspace build, test, lint, typecheck and source pi-check targets. This workflow neither publishes packages nor requests release credentials or environment approval; the separately gated release workflow owns publication.
+:::
+
+:::mara verification VER-CI-MAIN-COVERAGE
+:mid: 01M3MKDMWY56JANB4HG6MWY59Z
+:title: Inspect regular CI triggers, checks and publication boundary
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-CI-MAIN-COVERAGE
+
+Parse and lint the regular GitHub Actions workflow; assert unfiltered pull requests, pushes to main without path restriction, both supported Node versions, a frozen install and every required Nx check. Assert no release environment, write or OIDC permission, tag operation, or publication command. Execute the Nx checks locally and report remote Actions execution separately; local results do not establish remote CI success.
+:::

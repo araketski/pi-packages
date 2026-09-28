@@ -2,8 +2,10 @@
 
 ## Preparing and approving a release
 
-Use a release-labelled PR targeting `main`. Choose the version for that PR; do
-not encode a permanent next-version value here. In a clean branch, preview Nx's
+Use a release-labelled PR targeting `main`. [Regular CI](./testing.mara.md)
+checks that PR and main pushes; the separate release workflow starts only for a
+merged changelog change. Choose the version for that PR; do not encode a
+permanent next-version value here. In a clean branch, preview Nx's
 version and root changelog without publication, then generate both for the PR:
 
 ```sh
