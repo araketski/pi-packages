@@ -29,7 +29,7 @@ function fixture() {
   const setStatus = vi.fn<StatuslineUI['setStatus']>();
   const fg = vi.fn<StatuslineUI['theme']['fg']>((color, text) => `<${color}>${text}</${color}>`);
   const ui: StatuslineUI = { setStatus, theme: { fg } };
-  return { host, ui, setStatus };
+  return { host, ui, setStatus, fg };
 }
 
 // Compile against Pi 0.87.1 and use the same appearance type for footer configuration.
@@ -44,6 +44,10 @@ function acceptsPi(pi: ExtensionAPI, ctx: ExtensionContext) {
   });
 }
 void acceptsPi;
+
+// @ts-expect-error byState remains required even when default is provided.
+const invalidStateColor: StatusAppearance['color'] = { default: 'muted' };
+void invalidStateColor;
 
 describe('registered statuses', () => {
   it('resolves per-state colors and preserves complete producer defaults in updates', () => {
@@ -84,6 +88,68 @@ describe('registered statuses', () => {
     status.clear();
     expect(setStatus).toHaveBeenLastCalledWith('fast', undefined);
     expect(cleared).toEqual([{ source: 'fast-mode', key: 'fast' }]);
+    status.dispose();
+  });
+
+  it('renders state-only colors without styling unmatched states or adding a default to snapshots', () => {
+    const { host, ui, setStatus, fg } = fixture();
+    const events: unknown[] = [];
+    const snapshots: unknown[] = [];
+    host.events.on(STATUS_SET_EVENT, (value) => events.push(value));
+    host.events.on(STATUS_SNAPSHOT_EVENT, (value) => snapshots.push(value));
+    const color = { byState: { active: 'accent' } };
+    const status = registerStatus(host, ui, { source: 'example', key: 'example', color });
+
+    status.update({ text: 'working', state: 'active' });
+    status.update({ text: 'paused', state: 'unknown' });
+    status.update({ text: 'idle' });
+    expect(setStatus).toHaveBeenNthCalledWith(1, 'example', '<accent>working</accent>');
+    expect(setStatus).toHaveBeenNthCalledWith(2, 'example', 'paused');
+    expect(setStatus).toHaveBeenNthCalledWith(3, 'example', 'idle');
+    expect(fg).toHaveBeenCalledTimes(1);
+    expect(fg).toHaveBeenCalledWith('accent', 'working');
+    expect(events).toEqual([
+      {
+        source: 'example',
+        key: 'example',
+        text: 'working',
+        state: 'active',
+        prefix: undefined,
+        color: { byState: { active: 'accent' } },
+      },
+      {
+        source: 'example',
+        key: 'example',
+        text: 'paused',
+        state: 'unknown',
+        prefix: undefined,
+        color: { byState: { active: 'accent' } },
+      },
+      {
+        source: 'example',
+        key: 'example',
+        text: 'idle',
+        state: undefined,
+        prefix: undefined,
+        color: { byState: { active: 'accent' } },
+      },
+    ]);
+    host.events.emit(STATUS_SNAPSHOT_REQUEST_EVENT, undefined);
+    expect(snapshots).toEqual([
+      {
+        source: 'example',
+        statuses: [
+          {
+            source: 'example',
+            key: 'example',
+            text: 'idle',
+            state: undefined,
+            prefix: undefined,
+            color: { byState: { active: 'accent' } },
+          },
+        ],
+      },
+    ]);
     status.dispose();
   });
 

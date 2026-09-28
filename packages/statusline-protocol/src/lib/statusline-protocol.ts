@@ -8,7 +8,7 @@ export const STATUS_SNAPSHOT_EVENT = 'pi-statusline:status:snapshot';
 export type StatusColorValue = string | number;
 export type StatusColor =
   | StatusColorValue
-  | { default: StatusColorValue; byState: Record<string, StatusColorValue> };
+  | { default?: StatusColorValue; byState: Record<string, StatusColorValue> };
 
 /** Shared appearance contract for producer defaults and per-key footer configuration. */
 export interface StatusAppearance {
@@ -68,7 +68,7 @@ function validateColor(color: StatusColor | undefined): void {
     validateColorValue(color);
     return;
   }
-  validateColorValue(color.default);
+  if (color.default !== undefined) validateColorValue(color.default);
   for (const value of Object.values(color.byState)) validateColorValue(value);
 }
 
