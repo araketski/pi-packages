@@ -12,5 +12,8 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@araketski/pi-statusline-protocol": "workspace:*"
   }
 }

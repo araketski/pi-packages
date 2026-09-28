@@ -90,6 +90,8 @@ Implementation state: eligibility, header, and payload helpers and the correspon
 :satisfies: REQ-FAST-STATUS
 
 Use the current `@araketski/pi-statusline-protocol` `registerStatus` API, not main's older `publishStatus`/`registerStatusProvider` API. Register once per session with stable source `fast-mode` and key `fast`, and register the semantic appearance `{ default: 'muted', byState: { on: 'accent', unsupported: 'warning' } }`. Publish the three agreed texts and semantic states `off`, `on`, `unsupported` through the handle's `update`; dispose on session shutdown. The protocol resolves the current state's color for native `setStatus` fallback and carries the full appearance mapping in updates and snapshots so a late custom footer can recover it. No protocol change or producer re-registration is needed. Do not infer actual request success from eligibility. See [[DES-STATUSLINE-PROTOCOL]] for the library contract.
+
+Implementation state: native fallback, state-color transitions, structured snapshot recovery, and shutdown disposal are implemented and verified in a mocked Pi API fixture; loading in a real Pi session remains unverified.
 :::
 
 :::mara decision ADR-FAST-FLAG-PRECEDENCE

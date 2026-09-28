@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import { describe, expect, it, vi } from 'vitest';
+import { STATUS_SNAPSHOT_EVENT, STATUS_SNAPSHOT_REQUEST_EVENT } from '@araketski/pi-statusline-protocol';
 import fastMode from '../extensions/fast-mode/index.ts';
 
 type EventHandler = (event: any, ctx: ExtensionContext) => any;
@@ -18,6 +19,16 @@ function fixture(flag = false) {
   const setStatus = vi.fn();
   const appendEntry = vi.fn((customType: string, data: unknown) => branch.push({ type: 'custom', customType, data }));
   const registerFlag = vi.fn();
+  const listeners = new Map<string, Set<(value: unknown) => void>>();
+  const emit = vi.fn((name: string, value: unknown) => {
+    for (const handler of listeners.get(name) ?? []) handler(value);
+  });
+  const on = vi.fn((name: string, handler: (value: unknown) => void) => {
+    const set = listeners.get(name) ?? new Set();
+    set.add(handler);
+    listeners.set(name, set);
+    return () => set.delete(handler);
+  });
   const sessionManager = { getBranch: () => branch };
   const ctx = {
     sessionManager,
@@ -33,10 +44,7 @@ function fixture(flag = false) {
     registerFlag,
     getFlag: () => flag,
     appendEntry,
-    events: {
-      on: vi.fn(() => () => undefined),
-      emit: vi.fn(),
-    },
+    events: { on, emit },
   } as unknown as ExtensionAPI;
   fastMode(pi);
   async function event(name: string, detail: object = {}) {
@@ -45,7 +53,7 @@ function fixture(flag = false) {
     return handler({ type: name, ...detail }, ctx);
   }
   return {
-    ctx, pi, handlers, commands, shortcuts, event, notify, setStatus, appendEntry, registerFlag,
+    ctx, pi, handlers, commands, shortcuts, event, notify, setStatus, appendEntry, registerFlag, emit,
     setBranch: (value: SessionEntry[]) => { branch = value; },
     setModel: (model: typeof selected) => { selected = model; },
     setOAuth: (value: boolean) => { oauth = value; },
@@ -103,6 +111,32 @@ describe('fast mode Pi extension', () => {
     f.setBranch([{ type: 'custom', customType: 'fast', data: { enabled: null } }]);
     await f.event('session_tree');
     expect(await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } })).toBeUndefined();
+  });
+
+  it('publishes state-aware status in the native footer and late snapshots, and disposes on shutdown', async () => {
+    const f = fixture();
+    await f.event('session_start');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<muted>fast off</muted>');
+    await f.command('on');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
+    f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-sonnet-5' });
+    await f.event('model_select');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    const snapshot = vi.fn();
+    f.pi.events.on(STATUS_SNAPSHOT_EVENT, snapshot);
+    f.emit(STATUS_SNAPSHOT_REQUEST_EVENT, undefined);
+    expect(snapshot).toHaveBeenCalledWith({ source: 'fast-mode', statuses: [{
+      source: 'fast-mode', key: 'fast', text: 'fast n/a', state: 'unsupported',
+      prefix: undefined, color: { default: 'muted', byState: { on: 'accent', unsupported: 'warning' } },
+    }] });
+    f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' });
+    await f.event('model_select');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
+    await f.event('session_shutdown');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', undefined);
+    snapshot.mockClear();
+    f.emit(STATUS_SNAPSHOT_REQUEST_EVENT, undefined);
+    expect(snapshot).not.toHaveBeenCalled();
   });
 
   it('only changes outgoing requests for an eligible current model; model switches preserve enabled state', async () => {

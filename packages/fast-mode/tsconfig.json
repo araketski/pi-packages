@@ -8,5 +8,10 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["extensions/**/*.ts", "tests/**/*.ts", "vitest.config.mts"]
+  "include": ["extensions/**/*.ts", "tests/**/*.ts", "vitest.config.mts"],
+  "references": [
+    {
+      "path": "../statusline-protocol"
+    }
+  ]
 }
