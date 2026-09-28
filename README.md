@@ -7,7 +7,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 
 - [Plugin usage and current limitations](packages/nx-pi/README.md)
 - [Statusline protocol library and current limitations](packages/statusline-protocol/README.md)
-- [Planned custom statusline contract](docs/planned/statusline/contract.mara.md)
+- [Custom statusline](packages/statusline/README.md) and [contract](packages/statusline/docs/contract.mara.md)
 - [Plugin scope](packages/nx-pi/docs/scope.mara.md) and [structured contract](packages/nx-pi/docs/contract.mara.md)
 - [Workspace layout](docs/workspace-layout.mara.md)
 - [Testing and consumer fixtures](docs/testing.mara.md)
@@ -20,13 +20,15 @@ This workspace uses pnpm. With dependencies installed, run the Nx project checks
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm nx run-many -t build test lint typecheck --projects=nx-pi
+pnpm nx run-many -t build test lint typecheck
+pnpm nx run-many -t pi-check
 pnpm nx format:check --all
 pnpm nx sync:check
 ```
 
-The test target builds the plugin and exercises its packed artifact in disposable
-npm and pnpm workspaces. Installation in those fixtures may use the registry or
+The `nx-pi` test target builds the plugin and exercises its packed artifact in disposable
+npm and pnpm workspaces. Extension packages also run source and packed Pi load checks
+under their own test targets. Installation in those fixtures may use the registry or
 package-manager cache. Interactive fixtures need Linux `script`, `stty`, and
 `/bin/sh`; on systems with a small `/tmp`, see [testing](docs/testing.mara.md)
 for temporary-directory settings. Neither local checks nor Nx Release dry-runs

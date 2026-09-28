@@ -37,4 +37,5 @@ jobs:
 
       - run: pnpm nx format:check --all
       - run: pnpm nx sync:check
-      - run: pnpm nx run-many -t build test lint typecheck --projects=nx-pi
+      - run: pnpm nx run-many -t build test lint typecheck
+      - run: pnpm nx run-many -t pi-check

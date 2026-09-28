@@ -10,6 +10,39 @@ adopted because the installed Nx integration declares support for Vitest 3/4.
 Tests use explicit imports rather than global test APIs. Coverage tooling and
 thresholds are not configured in this increment.
 
+## Pi extension package load checks
+
+For every completed extension package in this development workspace, keep
+package-owned automated checks reachable through its Nx `test` target:
+
+- Load the source package with Pi's pinned `DefaultResourceLoader` in an isolated
+  agent directory. Require no loader errors and confirm every declared extension
+  entrypoint is discovered; when useful, also assert its registered command or
+  flag. This tests execution of the extension factory, not just manifest paths.
+- Pack the extension and its workspace runtime dependencies, install their
+  tarballs plus the pinned Pi SDK into a temporary consumer **outside** the
+  development workspace, and load that installed package with Pi's resource
+  loader. Require no loader errors and confirm each discovered entrypoint comes
+  from the installed artifact, not a workspace source path or symlink. Clean up
+  the consumer. A package with several extensions must check each entrypoint.
+- Run the eligible project's `pi-check` source target and explicitly pack and
+  supply its archive to `pi-check-package --tarball=<path>` separately. These
+  static checks do not load an extension or prove dependency resolution. Load
+  checks do not replace behavioral tests, and SDK/loader checks do not exercise
+  TUI-only APIs such as `setFooter()`; use a real Pi pseudo-terminal check for
+  those interactions. RPC can provide additional process-level checks but its
+  `setFooter()` is a no-op.
+
+Here `packages/fast-mode/tests/load.spec.ts` and `distribution.spec.ts` cover
+source and isolated packed loading, respectively; `packages/statusline/tests/load.spec.ts`
+and `packed-check.spec.ts` cover the same baseline. The latter loads an installed
+archive in addition to running the static packed checker. Shared libraries
+such as `statusline-protocol` are not extensions; verify their compiled runtime
+exports and declarations from an isolated consumer instead. This is a
+repository-maintainer testing rule, not tooling or dependencies injected by
+`nx-pi` into independent consumer workspaces. Pin a supported Pi version for
+these checks and update the reference version intentionally at release time.
+
 ```sh
 pnpm nx test nx-pi
 pnpm nx lint nx-pi
@@ -110,13 +143,21 @@ redirected-stream prompt suppression. These tools/settings are test prerequisite
 not dependencies or configuration installed in consumer workspaces.
 
 CI is configured for Node 24.19.0 and 26.7.0, with pnpm 12.6.0. On each version
-it performs a frozen-lockfile install, Nx formatting and sync checks, then the
-nx-pi build, test, lint and typecheck targets. It does not require Nx Cloud;
-Mara validation remains a separate repository check, not a CI step. These Node
-releases bundle npm 11.17.0 and 11.19.0 respectively. Consumer tests record
-the actual tool versions on every run; changing the pins requires deliberate
-compatibility verification. Configuring the matrix is not evidence that remote
-CI has run.
+it performs a frozen-lockfile install and Nx formatting and sync checks. Nx
+`run-many` runs every available build, test, lint and typecheck target across
+all workspace projects, followed by all eligible `pi-check` source targets.
+This includes current extension load suites and future packages that declare
+an Nx test target; merely declaring an extension does not generate a test for
+it. Each package maintainer must add the load checks above when adding an
+extension and ensure the project participates in the workspace test target.
+Packed `pi-check-package` runs within current package distribution tests after
+an explicit pack, not as an implicit CI target without a tarball. CI does not
+run the real interactive Pi pseudo-terminal smoke. It does not require Nx
+Cloud; Mara validation remains a separate repository check, not a CI step.
+These Node releases bundle npm 11.17.0 and 11.19.0 respectively. Consumer tests
+record the actual tool versions on every run; changing the pins requires
+deliberate compatibility verification. Configuring the matrix is not evidence
+that remote CI has run.
 
 See [[DES-NXPI-INIT-CONTRACT]] for current initialization rules and
 [[VER-NXPI-INIT]] for the broader verification method, portions of which remain
