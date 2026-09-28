@@ -5,7 +5,7 @@
 :kind: functional
 :contributes_to: GOAL-STATUSLINE-COMPAT
 
-The custom footer shall use producer-supplied prefix and color definition unless its own configuration overrides them for a status key or state. Changing footer configuration or theme must be able to re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. Per-key appearance overrides use the same exported prefix/color type as producer registration. File layout and color-override precedence belong to the future statusline extension contract.
+The custom footer shall use producer-supplied prefix and color definition unless its own configuration overrides them for a status key or state. Changing footer configuration or theme must be able to re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. Per-key appearance overrides use the same exported prefix/color type as producer registration, including theme roles, six-digit hex, 256-color indices, and terminal-default values. File layout and color-override precedence belong to the future statusline extension contract.
 :::
 
 :::mara requirement REQ-STATUSLINE-FOOTER

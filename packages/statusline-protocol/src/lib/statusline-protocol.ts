@@ -5,7 +5,10 @@ export const STATUS_CLEAR_EVENT = 'pi-statusline:status:clear';
 export const STATUS_SNAPSHOT_REQUEST_EVENT = 'pi-statusline:status:snapshot-request';
 export const STATUS_SNAPSHOT_EVENT = 'pi-statusline:status:snapshot';
 
-export type StatusColor = string | { default: string; byState: Record<string, string> };
+export type StatusColorValue = string | number;
+export type StatusColor =
+  | StatusColorValue
+  | { default: StatusColorValue; byState: Record<string, StatusColorValue> };
 
 /** Shared appearance contract for producer defaults and per-key footer configuration. */
 export interface StatusAppearance {
@@ -48,14 +51,47 @@ export interface StatusHandle {
   dispose(): void;
 }
 
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+function validateColorValue(value: StatusColorValue): void {
+  if (typeof value === 'number') {
+    if (Number.isInteger(value) && value >= 0 && value <= 255) return;
+  } else if (!value.startsWith('#') || HEX_COLOR.test(value)) {
+    return;
+  }
+  throw new Error(`Invalid status color: ${String(value)}`);
+}
+
+function validateColor(color: StatusColor | undefined): void {
+  if (color === undefined) return;
+  if (typeof color === 'string' || typeof color === 'number') {
+    validateColorValue(color);
+    return;
+  }
+  validateColorValue(color.default);
+  for (const value of Object.values(color.byState)) validateColorValue(value);
+}
+
 function resolveColor(
   color: StatusColor | undefined,
   state: string | undefined,
-): string | undefined {
-  if (typeof color === 'string' || color === undefined) return color;
+): StatusColorValue | undefined {
+  if (typeof color !== 'object' || color === null) return color;
   return state !== undefined && Object.hasOwn(color.byState, state)
     ? color.byState[state]
     : color.default;
+}
+
+function renderColor(color: StatusColorValue | undefined, text: string, ui: StatuslineUI): string {
+  if (color === undefined || color === '') return text;
+  if (typeof color === 'number') return `\u001b[38;5;${color}m${text}\u001b[0m`;
+  if (color.startsWith('#')) {
+    const r = Number.parseInt(color.slice(1, 3), 16);
+    const g = Number.parseInt(color.slice(3, 5), 16);
+    const b = Number.parseInt(color.slice(5, 7), 16);
+    return `\u001b[38;2;${r};${g};${b}m${text}\u001b[0m`;
+  }
+  return ui.theme.fg(color, text);
 }
 
 /** Register one session-scoped producer; ANSI styling is removed from its prefix and text. */
@@ -68,6 +104,7 @@ export function registerStatus(
     throw new Error('Status source and key must be nonempty');
   }
   const { source, key, color } = defaults;
+  validateColor(color);
   const prefix =
     defaults.prefix === undefined ? undefined : stripVTControlCharacters(defaults.prefix);
   let current: StatuslineStatus | undefined;
@@ -92,7 +129,7 @@ export function registerStatus(
       current = { source, key, text: stripVTControlCharacters(text), state, prefix, color };
       const fallback = prefix ? `${prefix} ${current.text}` : current.text;
       const selectedColor = resolveColor(color, state);
-      ui.setStatus(key, selectedColor ? ui.theme.fg(selectedColor, fallback) : fallback);
+      ui.setStatus(key, renderColor(selectedColor, fallback, ui));
       host.events.emit(STATUS_SET_EVENT, { ...current });
     },
     clear,
