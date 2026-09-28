@@ -160,6 +160,12 @@ importers:
         specifier: 'catalog:'
         version: 4.0.2
 
+  packages/statusline-protocol:
+    dependencies:
+      tslib:
+        specifier: 'catalog:'
+        version: 2.8.1
+
 packages:
 
   '@anthropic-ai/sdk@0.124.0':

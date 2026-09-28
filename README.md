@@ -6,6 +6,7 @@ tooling, not a Pi resource package; generated resource packages and shared
 libraries can be checked here and in independent npm/pnpm consumer fixtures.
 
 - [Plugin usage and current limitations](packages/nx-pi/README.md)
+- [Statusline protocol library and current limitations](packages/statusline-protocol/README.md)
 - [Plugin scope](packages/nx-pi/docs/scope.mara.md) and [structured contract](packages/nx-pi/docs/contract.mara.md)
 - [Workspace layout](docs/workspace-layout.mara.md)
 - [Testing and consumer fixtures](docs/testing.mara.md)
