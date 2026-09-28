@@ -1,5 +1,46 @@
 # Release workflow notes
 
+## Preparing and approving a release
+
+Use a release-labelled PR targeting `main`. Choose the version for that PR; do
+not encode a permanent next-version value here. In a clean branch, preview Nx's
+version and root changelog without publication, then generate both for the PR:
+
+```sh
+pnpm nx release <chosen-version> --dry-run --skip-publish
+pnpm nx release version <chosen-version> --no-stage-changes --no-git-commit --no-git-tag
+pnpm nx release changelog <chosen-version> --no-stage-changes --no-git-commit --no-git-tag
+pnpm install
+```
+
+Review the resulting manifests, lockfile and `CHANGELOG.md`, including the
+previous `v*` tag used as the changelog boundary. Run the workspace checks and
+Mara validation, and review the package archives and required license and
+attribution material. Commit those release artifacts in the PR. **Neither the
+PR label nor GitHub's environment protection is created or enforced by Nx.**
+The release label is a review convention, not an automated workflow gate.
+
+Before merging a release PR, a repository administrator must configure the
+GitHub `release` environment with required reviewers (and access limited to
+`main`) and register `.github/workflows/release.yml` as an npm trusted
+publisher for _each_ package under `packages/`. Without protected reviewers,
+GitHub may create the environment automatically without an approval gate. Do
+not merge a release PR until these external protections have been checked.
+
+A merged push to `main` that changes the root changelog runs the workflow at
+the captured SHA. Its verification jobs do not publish: they check shared
+identity, frozen install, source tests, packed resources, and the latest npm Pi
+version used by integration tests. The job behind the protected environment
+rechecks the same commit and latest Pi version, creates or verifies the one
+Git tag, then uses `pnpm nx release publish` via Nx's inferred publish targets
+with npm OIDC. It waits for all selected packages to appear on npm, installs
+them in a fresh external directory, and only then publishes the draft GitHub
+release. The versioned package files are rebuilt from the verified commit
+after approval; this workflow does not prove byte-for-byte equivalence with
+the earlier packed previews. Pi compatibility claims, license obligations,
+and npm trusted-publisher settings still require author review. Local dry runs
+do not prove protected-environment behavior or public publication.
+
 ## Deferred retry safeguard
 
 A future release workflow may compare a prepared package tarball's digest with the
@@ -10,8 +51,8 @@ not provide the same digest comparison when it skips an existing version.
 
 This is a **nice-to-have, deferred** option, not a requirement for the next
 release or a claim that it is implemented. Decide whether it is worth adding
-when specifying retry behavior for this workspace's Nx Release workflow. No
-public-release workflow is implemented in this repository yet.
+when specifying retry behavior for this workspace's Nx Release workflow. The
+configured workflow does not perform this digest comparison.
 
 :::mara goal GOAL-RELEASE-COORDINATION
 :mid: 01M3MJ4TD2MNJZCPA8DTRVNC43
@@ -61,4 +102,25 @@ Before a merged release candidate can reach protected publication, check out the
 :verifies: REQ-RELEASE-IDENTITY
 
 Exercise a matching multi-package commit and changelog, plus mismatched package versions, missing changelog heading, wrong captured commit, and an existing tag pointing to another commit. Observe rejection before any public operation or mutation. Recheck against the merged commit in the workflow before and after approval.
+:::
+
+:::mara requirement REQ-RELEASE-PROTECTED-PUBLICATION
+:mid: 01M3MJVQH609Y7CSW92K1NE337
+:title: Gate Nx publication behind verified merged release commit and approval
+:status: accepted
+:kind: constraint
+:contributes_to: GOAL-RELEASE-COORDINATION
+
+A release-labelled preparation PR carries Nx-generated shared versions and root changelog. After it is merged into main, a changelog-changing push verifies the captured commit, current sources and packed packages without public side effects. Only after those checks and approval through a protected release environment may Nx publish the selected packages to npm, create a single v{version} tag on the verified commit, and confirm installability from the public registry. Recheck the commit after approval; a failed check must not proceed to publication. Keep public credentials out of verification jobs. Registry digest equivalence on retries remains deferred; never assert it has been verified.
+:::
+
+:::mara verification VER-RELEASE-PROTECTED-PUBLICATION
+:mid: 01M3MJVT9QQ0EKZEKFG800WTGV
+:title: Inspect release workflow gating and exercise non-publishing Nx path
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-RELEASE-PROTECTED-PUBLICATION
+
+Assert that the release workflow only starts for a main push changing the root changelog, verifies the captured SHA before publication, includes source and packed checks, and declares an approved release environment before any tag push or Nx publish. Preview Nx publication for the resolved group with --dry-run and confirm no registry write or new tag. Remote GitHub environment approval, OIDC authentication, and actual public installation are not proven by a local dry run.
 :::

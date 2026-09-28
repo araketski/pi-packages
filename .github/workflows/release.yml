@@ -1,0 +1,201 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.identity.outputs.sha }}
+      version: ${{ steps.identity.outputs.version }}
+      tag: ${{ steps.identity.outputs.tag }}
+      npm-tag: ${{ steps.identity.outputs.npm-tag }}
+      prerelease: ${{ steps.identity.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26.7.0'
+          package-manager-cache: false
+      - name: Verify release identity before candidate checks
+        id: identity
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: node tools/release/identity.mjs >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['24.19.0', '26.7.0']
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Require release-time latest Pi for integration checks
+        run: |
+          set -euo pipefail
+          latest=$(npm view @earendil-works/pi-coding-agent dist-tags.latest --json | tr -d '"[:space:]')
+          installed=$(node -p 'JSON.parse(require("node:fs").readFileSync("node_modules/@earendil-works/pi-coding-agent/package.json")).version')
+          test -n "$latest" && test "$installed" == "$latest"
+      - name: Recheck release identity
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: node tools/release/identity.mjs
+      - run: pnpm nx format:check --all
+      - run: pnpm nx sync:check
+      - run: pnpm nx run-many -t build test lint typecheck
+      - run: pnpm nx run-many -t pi-check
+      - name: Check packed Pi packages
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-packs"
+          for manifest in packages/*/package.json; do
+            if [[ $(node -p 'require(process.cwd()+"/"+process.argv[1]).private === true' "$manifest") == true ]]; then
+              continue
+            fi
+            directory=${manifest%/package.json}
+            if [[ "$directory" == packages/nx-pi ]]; then
+              # The Nx plugin is tooling, not a Pi resource; its consumer tests pack it.
+              continue
+            fi
+            project=$(node -e 'const fs=require("node:fs");const p=process.argv[1];const config=p+"/project.json";process.stdout.write(fs.existsSync(config)?require(process.cwd()+"/"+config).name:require(process.cwd()+"/"+p+"/package.json").name)' "$directory")
+            archive=$(pnpm --dir "$directory" pack --json --pack-destination "$RUNNER_TEMP/release-packs" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>process.stdout.write(JSON.parse(s).filename))')
+            pnpm nx run "$project:pi-check-package" --tarball="$archive"
+          done
+      - run: git diff --exit-code
+
+  publish:
+    needs: [prepare, verify]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      NPM_TAG: ${{ needs.prepare.outputs.npm-tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26.7.0'
+          package-manager-cache: false
+      - name: Recheck approved commit and trusted publisher environment
+        run: |
+          set -euo pipefail
+          node tools/release/identity.mjs
+          if [[ -n "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo 'NODE_AUTH_TOKEN must be unset for trusted publishing' >&2
+            exit 1
+          fi
+          for variable in ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN; do
+            if [[ -z "${!variable:-}" ]]; then
+              echo "$variable is not available" >&2
+              exit 1
+            fi
+          done
+      - run: pnpm install --frozen-lockfile
+      - name: Recheck latest Pi after approval
+        run: |
+          set -euo pipefail
+          latest=$(npm view @earendil-works/pi-coding-agent dist-tags.latest --json | tr -d '"[:space:]')
+          installed=$(node -p 'JSON.parse(require("node:fs").readFileSync("node_modules/@earendil-works/pi-coding-agent/package.json")).version')
+          test -n "$latest" && test "$installed" == "$latest"
+      - run: pnpm nx run-many -t build
+      - name: Create or verify release tag
+        run: |
+          set -euo pipefail
+          if ! git show-ref --verify --quiet "refs/tags/$TAG"; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag --annotate "$TAG" --message "Release $VERSION" "$RELEASE_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+          node tools/release/identity.mjs
+      - name: Create draft GitHub release
+        run: |
+          set -euo pipefail
+          awk -v heading="## $VERSION (" '
+            index($0, heading) == 1 { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --verify-tag --title "Release $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+      - name: Publish through Nx Release
+        run: pnpm nx release publish --tag="$NPM_TAG" --access=public --registry=https://registry.npmjs.org/ --parallel=1 --outputStyle=static
+      - name: Confirm public installation outside the workspace
+        run: |
+          set -euo pipefail
+          packages=()
+          for manifest in packages/*/package.json; do
+            if [[ $(node -p 'require(process.cwd()+"/"+process.argv[1]).private === true' "$manifest") == true ]]; then
+              continue
+            fi
+            name=$(node -p 'require(process.cwd()+"/"+process.argv[1]).name' "$manifest")
+            packages+=("$name@$VERSION")
+          done
+          for attempt in $(seq 1 60); do
+            missing=0
+            for package in "${packages[@]}"; do
+              npm view "$package" version >/dev/null 2>&1 || missing=1
+            done
+            if [[ $missing == 0 ]]; then break; fi
+            if [[ $attempt == 60 ]]; then
+              echo 'packages did not become visible on npm within 20 minutes' >&2
+              exit 1
+            fi
+            sleep 20
+          done
+          temporary=$(mktemp -d)
+          trap 'rm -rf -- "$temporary"' EXIT
+          cd "$temporary"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "$temporary" "${packages[@]}"
+          node --input-type=module -e 'await import("@araketski/pi-statusline-protocol")'
+      - name: Publish GitHub release after installation succeeds
+        env:
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          if [[ "$PRERELEASE" == true ]]; then
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+          fi
