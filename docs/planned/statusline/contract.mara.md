@@ -112,3 +112,45 @@ A configured token matching an active external status key shall render that stat
 
 Configure direct external-key and aggregate `statuses` tokens with two distinct structured keys, one matching native fallback and one native-only key. Assert the direct structured item uses effective prefix and state color, the aggregate contains `key: text` once for each active key with ` • ` delimiters and not the native duplicate, and no built-ins are included. Remove, clear or dispose statuses and assert stale entries disappear; absent keys and empty aggregate leave no placeholder separator. Check an explicit layout containing both direct and aggregate preserves both slots. Planned test, not execution evidence.
 :::
+
+:::mara requirement REQ-STATUSLINE-SAFE-RENDER
+:mid: 01M3M8A8S01FSWD1WNMS6VQ7SZ
+:title: Keep untrusted footer data from controlling the terminal
+:status: accepted
+:kind: quality
+:contributes_to: GOAL-STATUSLINE-PRESENTATION
+
+The custom footer shall prevent values read from the working directory, session metadata, native status text, structured status text or prefix, and config text or prefix from injecting terminal controls or changing text direction. It strips terminal escape/control sequences and bidi format controls from these inputs before composing the footer, then applies only footer-owned presentation styling. Rendering of ordinary printable Unicode, including wide and combining characters, remains usable and width-safe. This includes malformed ANSI sequences, OSC and other control strings; do not treat a producer's pre-rendered ANSI as trusted color metadata.
+:::
+
+:::mara verification VER-STATUSLINE-SAFE-RENDER
+:mid: 01M3M8A9MMX0WKRNS3DYYZ72H6
+:title: Inject terminal controls through each footer input
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-STATUSLINE-SAFE-RENDER
+
+Supply ANSI CSI, OSC clipboard, DCS, C0/C1, newlines and bidi format controls through native/structured status text, structured/configured prefixes, separator, cwd, package name and session title. Render with and without a theme color at narrow and wide terminal widths; assert payloads cannot issue terminal commands or alter display direction, printable suffixes survive, user-facing content stays within width, and footer-owned theme styling still applies. Include a producer value with pre-rendered ANSI and ordinary wide/combining Unicode. Planned test; no passing execution is asserted.
+:::
+
+:::mara design DES-STATUSLINE-CONFIG-PROPOSAL
+:mid: 01M3M8AAFGSF3PHEDG0XWA10J1
+:title: Draft JSON configuration and presentation defaults
+:status: draft
+:kind: data
+:satisfies: REQ-STATUSLINE-OVERRIDES
+:satisfies: REQ-STATUSLINE-LAYOUT
+
+Proposal for confirmation, not an accepted schema. At startup or Pi reload, overlay trusted project JSON on user JSON on built-in defaults. Main uses `layout` (array of tokens or nested arrays), `separator` (text), `separatorColor` (color), `prefix` (key-to-string map), and `colors` (key-to-color/state map), with diagnostics and fallback for invalid values. Retain `layout`, `separator` and `separatorColor` conceptually; for per-key appearance choose either main's separate `prefix`/`colors` maps or a single key-to-`StatusAppearance` map using the protocol's exported `{ prefix?, color? }` shape. The latter would not read main's old config shape without an explicit compatibility rule. Single semantic colors and state maps already use the protocol's `StatusColor = string | { default: string; byState: Record<string, string> }`; determine whether main's hex and 0–255 palette options remain supported and how they fit a shared producer type before acceptance. Keep invalid-file handling, unknown keys, replacement vs merging at each config layer, empty prefix/color semantics and default layout/palette as open until the schema is agreed. No default config file is written; no automatic legacy `~/.pi/statusline.json` fallback is specified. This item must not be used as an implementation contract while draft.
+:::
+
+:::mara design DES-STATUSLINE-BUILTIN-VALUES-PROPOSAL
+:mid: 01M3M8ABAWA6SZXCX074H45YCW
+:title: Draft values and refresh behavior for built-in tokens
+:status: draft
+:kind: behavior
+:satisfies: REQ-STATUSLINE-BUILTINS
+
+Reference proposal from `main`, for confirmation rather than accepted behavior: `cwd` displays a home-relative path (`~` at home), otherwise the current directory name; `project` uses `package.json` name or directory name; `title` uses an assigned session name or is absent; `model` shows model id or `unknown`; `thinking` shows the current Pi thinking level as text and state. `branch` shows the current Git branch and clean/dirty state; `changes` shows only nonzero `!conflicts +staged ~unstaged ?untracked ↑ahead ↓behind` counts in that order (untracked counts files); `pr` shows `PR #N` when a PR number is available. `context` uses usage percent and context window with normal (<70%), warning (70–<90%) and full (>=90%) states; it is absent when usage is unavailable. `tokens` shows cumulative input/output as `<input>↑ <output>↓`; `cache` shows `<cacheRead>/<cacheWrite> <cacheHitPercent>%`; `cost` shows `$<total>` from assistant usage on the active session branch. Main formats quantities in k/M notation and cost with two decimals. Main polls git/gh asynchronously while the requested tokens are active and suppresses absent results. Confirm details such as non-home cwd display, divergence's effect on dirty state, rounding, refresh cadence, no-Git/no-gh fallback and exact default layout before accepting this design. Built-ins remain internal providers, not protocol registrations.
+:::
