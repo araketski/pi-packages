@@ -76,6 +76,8 @@ Register the flag, command, and shortcut at extension load. Persist `{ enabled: 
 :satisfies: REQ-FAST-REQUEST
 
 Evaluate eligibility from the event's current context for both `before_provider_headers` and `before_provider_request`, not from a cached model-selection result. The header hook adds the Claude beta tokens only when enabled and eligible; comma-separated existing beta tokens are trimmed and deduplicated in their original order, followed by required OAuth and fast-mode tokens. Find an existing `anthropic-beta` header case-insensitively; otherwise create the lowercase key. The request hook returns a shallow copy with the new field only when enabled, eligible, payload is a non-array object, its model matches exactly, and the field is absent. Otherwise return no replacement. Do not mutate `ctx.model.headers`. This matches the observed safety behavior of main, not a claim that other extensions cannot independently set conflicting headers or fields.
+
+Implementation state: eligibility, header, and payload helpers are implemented and covered by isolated unit tests. Pi event hooks have not yet been wired or exercised.
 :::
 
 :::mara design DES-FAST-STATUS
