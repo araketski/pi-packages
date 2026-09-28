@@ -23,18 +23,9 @@ A producer can register its status defaults once, then update text and state or 
 :kind: functional
 :contributes_to: GOAL-STATUSLINE-COMPAT
 
-A custom statusline starting after producers have published shall recover every active producer status with its source identity, key, current text and state, default icon and semantic color. Subsequent updates and clears keep its view current; disposed producers no longer appear. Recovery must not depend on native setStatus text or on a prior event subscription. Structured values must remain free of pre-rendered ANSI styling.
+On a snapshot request from a late-starting custom footer, each active producer shall supply its current status with source identity, key, text, state, default icon and semantic color. Structured updates and clears shall carry enough data for a subscriber to track current state; disposed producers no longer appear in responses. Recovery must not depend on native setStatus text or on a prior event subscription. Structured values must remain free of pre-rendered ANSI styling.
 :::
 
-:::mara requirement REQ-STATUSLINE-OVERRIDES
-:mid: 01M3KZM4VJ895WKPMRMK7N9MH3
-:title: Permit central presentation overrides
-:status: accepted
-:kind: functional
-:contributes_to: GOAL-STATUSLINE-COMPAT
-
-The custom footer shall use producer-supplied icon and semantic color defaults unless its own configuration overrides them for a status key or state. Changing footer configuration or theme must be able to re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. The exact configuration-file syntax belongs to the later statusline extension contract, not this shared library.
-:::
 
 :::mara design DES-STATUSLINE-PROTOCOL
 :mid: 01M3KZNSR3N25VFSS1V79JWX13
@@ -43,11 +34,10 @@ The custom footer shall use producer-supplied icon and semantic color defaults u
 :kind: interface
 :satisfies: REQ-STATUSLINE-NATIVE
 :satisfies: REQ-STATUSLINE-RECOVERY
-:satisfies: REQ-STATUSLINE-OVERRIDES
 
-The compiled npm library exports a producer registration interface. A producer registers its stable key, source identity, optional default icon and semantic color, and a way to read its current status once per session. Its handle accepts changing text and state, supports clear, and disposes its snapshot participation. Calls derive native setStatus text (icon plus text with producer default color) and emit unstyled structured updates/clears. Structured updates carry enough current fields to be interpreted without a previously observed registration; the producer does not repeat defaults on each call. The custom footer subscribes to updates, requests snapshots when it starts, and renders the returned complete status values with its own optional key/state overrides. Snapshot requests return each currently active registered producer status; they do not infer missing fields from native footer text. A separate always-loaded fallback bridge and conditional detection of the custom footer are not required. The custom footer owns override file syntax, layout and render precedence; those are not library concerns. For the initial slice, test distinct producer keys; shared-key arbitration is not specified by this contract.
+The compiled npm library exports a producer registration interface. A producer registers its stable key, source identity, optional default icon and semantic color, and a way to read its current status once per session. Its handle accepts changing text and state, supports clear, and disposes its snapshot participation. Calls derive native setStatus text (icon plus text with producer default color) and emit unstyled structured updates/clears. Structured updates carry enough current fields to be interpreted without a previously observed registration; the producer does not repeat defaults on each call. A consumer can subscribe to updates and request snapshots when it starts; footer rendering and overrides belong to [[REQ-STATUSLINE-FOOTER]] and [[REQ-STATUSLINE-OVERRIDES]]. Snapshot requests return each currently active registered producer status; they do not infer missing fields from native footer text. A separate always-loaded fallback bridge and conditional detection of the custom footer are not required. The library does not own footer layout or rendering. For the initial slice, test distinct producer keys; shared-key arbitration is not specified by this contract.
 
-Implementation state: `registerStatus` currently provides session-scoped updates, native fallback, clear/dispose, and per-producer snapshot responses for distinct keys. The custom statusline subscriber, central override rendering, integration with real Pi 0.87.1 and shared-key arbitration are not implemented here. Status text and icon are normalized with Node’s stripVTControlCharacters before native publication and structured events.
+Implementation state: `registerStatus` currently provides session-scoped updates, native fallback, clear/dispose, and per-producer snapshot responses for distinct keys. Real Pi 0.87.1 producer integration remains to be verified; shared-key arbitration is not specified. The custom subscriber and overrides are planned separately in [statusline](../../../docs/planned/statusline/contract.mara.md). Status text and icon are normalized with Node’s stripVTControlCharacters before native publication and structured events.
 :::
 
 :::mara verification VER-STATUSLINE-PROTOCOL
@@ -58,8 +48,7 @@ Implementation state: `registerStatus` currently provides session-scoped updates
 :level: integration
 :verifies: REQ-STATUSLINE-NATIVE
 :verifies: REQ-STATUSLINE-RECOVERY
-:verifies: REQ-STATUSLINE-OVERRIDES
 :verifies: DES-STATUSLINE-PROTOCOL
 
-Use an event bus and Pi UI fixture on Pi 0.87.1. Register a producer once with default icon and semantic color, then publish changing text/state without resupplying defaults. Without a custom subscriber, observe native setStatus text with icon and default styling and a clear on removal/disposal. With a custom subscriber, observe unstyled complete structured values, an update and clear; no duplicate display of native and structured copies. Start the custom subscriber after updates from two distinct producers, request a snapshot and assert recovery of both current texts, states, source identities, icons and semantic colors, excluding cleared/disposed statuses. Check that a change to central rendering overrides or theme re-renders recovered values without a producer event and leaves native fallback unaffected; the custom-footer integration portion remains pending until that package exists. Build and pack the library and resolve runtime exports and declarations from an isolated consumer, without workspace links. Record actual test execution separately; this definition alone is not a passing result.
+Use an event bus and Pi UI fixture on Pi 0.87.1. Register a producer once with default icon and semantic color, then publish changing text/state without resupplying defaults. Without a custom subscriber, observe native setStatus text with icon and default styling and a clear on removal/disposal. With a test subscriber, observe unstyled complete structured updates and clears. Start a test subscriber after updates from two distinct producers, request a snapshot and assert recovery of both current texts, states, source identities, icons and semantic colors, excluding cleared/disposed statuses. Footer merge, deduplication and centralized overrides are checked separately under [[VER-STATUSLINE-FOOTER]]. Build and pack the library and resolve runtime exports and declarations from an isolated consumer, without workspace links. Record actual test execution separately; this definition alone is not a passing result.
 :::
