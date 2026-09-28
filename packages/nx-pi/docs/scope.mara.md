@@ -192,8 +192,10 @@ without bundling dependencies. Pi resource packages continue to ship source.
   vendoring workflow. Adapters and original implementations are the intended
   approaches; reused material still carries applicable licensing obligations.
 
-Exact metadata fields, their authoritative inputs, and missing-input behavior
-remain to be specified before implementing metadata generation.
+The initial metadata fields, authoritative inputs, and missing-input behavior
+are specified in [[DES-NXPI-INIT-CONTRACT]], [[DES-NXPI-PACKAGE-CONTRACT]] and
+[[DES-NXPI-LIBRARY-CONTRACT]]. Broader publication metadata and license policy
+remain separate decisions.
 
 ## Scaffolding and validation guarantees
 

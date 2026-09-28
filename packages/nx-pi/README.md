@@ -6,6 +6,14 @@ generator, an Nx JS-backed compiled `library` generator, `skill`, `prompt`,
 `pi-check-package` for resource packages and tagged libraries. This package has
 not been released by this change.
 
+Commands below use `pnpm nx` for illustration. In npm workspaces, use the local
+Nx CLI through `npx nx` instead; the plugin does not require pnpm or catalogs.
+Install `@araketski/nx-pi` with the consumer's package manager before invoking
+its generators. The plugin peers Nx 23.2.1 and requires Node >=24.15.0 <25 or
+
+> =26.0.0 <27; npm/pnpm fixtures were exercised on Node 24.19.0 and 26.7.0.
+> Those runs do not verify every permitted Node version.
+
 ## Initialization
 
 Once the plugin is installed in an existing Nx workspace:
@@ -45,8 +53,8 @@ Resource packages and tagged libraries also receive `pi-check-package`. It
 needs a caller-supplied npm tarball from the consumer's own pack workflow:
 
 ```sh
-nx run @acme/pi-example:pi-check-package --tarball=dist/pi-example-1.0.0.tgz
-nx run shared:pi-check-package --tarball=dist/pi-shared-1.0.0.tgz
+pnpm nx run @acme/pi-example:pi-check-package --tarball=dist/pi-example-1.0.0.tgz
+pnpm nx run shared:pi-check-package --tarball=dist/pi-shared-1.0.0.tgz
 ```
 
 Relative tarball paths are resolved from the workspace root. No build, pack,
