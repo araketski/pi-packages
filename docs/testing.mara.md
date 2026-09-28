@@ -102,10 +102,14 @@ processes to exercise interactive input. Source tests separately verify CI and
 redirected-stream prompt suppression. These tools/settings are test prerequisites,
 not dependencies or configuration installed in consumer workspaces.
 
-CI is configured for Node 24.19.0 and 26.7.0, with pnpm 12.6.0. These Node releases
-bundle npm 11.17.0 and 11.19.0 respectively. Consumer tests record the actual tool
-versions on every run; changing the pins requires deliberate compatibility
-verification. Configuring the matrix is not evidence that remote CI has run.
+CI is configured for Node 24.19.0 and 26.7.0, with pnpm 12.6.0. On each version
+it performs a frozen-lockfile install, Nx formatting and sync checks, then the
+nx-pi build, test, lint and typecheck targets. It does not require Nx Cloud;
+Mara validation remains a separate repository check, not a CI step. These Node
+releases bundle npm 11.17.0 and 11.19.0 respectively. Consumer tests record
+the actual tool versions on every run; changing the pins requires deliberate
+compatibility verification. Configuring the matrix is not evidence that remote
+CI has run.
 
 See [[DES-NXPI-INIT-CONTRACT]] for current initialization rules and
 [[VER-NXPI-INIT]] for the broader verification method, portions of which remain
