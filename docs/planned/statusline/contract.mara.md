@@ -179,3 +179,30 @@ Built-in modules produce the same structured `{ source, key, text, state?, prefi
 
 Git status and PR queries happen asynchronously outside `render`; start/refresh only when the relevant tokens are configured. Update on branch changes and periodic refresh, rerender on changed results, and stop work on footer disposal. If Git is unavailable or cwd is not a repository, omit Git-dependent entries; if `gh` is unavailable or has no PR, omit `pr` while keeping other tokens. A transient lookup failure must not crash or block the footer. Exact subprocess command flags, cache cadence and timeout lengths are implementation choices, not promises. See [[DES-STATUSLINE-BUILTIN-SOURCES]] for provider structure. This accepted baseline does not assert implementation or passing tests.
 :::
+
+:::mara design DES-STATUSLINE-REGISTRY
+:mid: 01M3M9VJ429KX3FKKTV4VTTEVE
+:title: Merge per-producer snapshots with live footer statuses
+:status: accepted
+:kind: behavior
+:satisfies: REQ-STATUSLINE-FOOTER
+:satisfies: REQ-STATUSLINE-EXTERNAL-TOKENS
+
+For an active TUI footer, register handlers for the current protocol's set, clear and snapshot events before emitting its snapshot request. Keep raw, unstyled structured statuses separate from native Pi footer data; a set event carries the complete current `{ source, key, text, state?, prefix?, color? }` value and may initialize a key without a prior snapshot. Snapshots are per producer registration, not authoritative replacements for an entire `source`: incorporate each supplied status by `(source, key)` and never remove another registration merely because one producer responds with an empty list. A matching clear removes only that producer's entry. Disposal of a producer emits a clear; footer disposal unsubscribes all handlers and discards its registry. A later footer startup builds a new registry via another request.
+
+For distinct active producer keys, render one structured value per key. If Pi's `footerData.getExtensionStatuses()` also contains that key, suppress only its native duplicate, leaving native-only keys available for direct or aggregate rendering. Never parse native styled text to reconstruct structured state. Preserve raw status values so a theme change or reloaded configuration can resolve effective prefix and color on render without a producer update. Ignore malformed event payloads rather than destroying previously valid state. If an update or clear for a key arrives after requesting a snapshot but before a delayed snapshot response for that same key, the later snapshot cannot resurrect or roll back that observed event; the protocol currently provides no sequence numbers, so no broader conflict-order guarantee is claimed. Arbitration between two simultaneously active producers using the same key is outside this design.
+
+The footer is installed only in interactive TUI mode and releases its subscriptions on footer/session teardown. Snapshot recovery is not inferred from native status values. This describes intended subscriber behavior, not an already implemented package.
+:::
+
+:::mara verification VER-STATUSLINE-REGISTRY
+:mid: 01M3M9VK0B0AR9SJRPS6MN3R0V
+:title: Check snapshot merging, event ordering and cleanup
+:status: accepted
+:method: test
+:level: integration
+:verifies: DES-STATUSLINE-REGISTRY
+:verifies: REQ-STATUSLINE-FOOTER
+
+In a Pi event/UI fixture, start two producers with distinct keys but the same source before creating the footer; after subscribing and requesting snapshots, both must appear with their complete current text, state, prefix and color. Give each a matching native setStatus entry plus an unrelated native-only key; only the two native duplicates are suppressed. Confirm that one empty per-producer snapshot does not erase a sibling, and that clearing/disposal removes only the matching registration. Exercise a live set without a preceding snapshot, a malformed payload, a changed theme and footer reload without republishing. Delay a snapshot until after a set or clear for its key and assert that it cannot overwrite or resurrect the newer event. Tear down and recreate the footer; assert no stale entries, leaked listeners or duplicate callbacks. Verify no footer is installed for non-TUI modes. This is a planned verification, not passing execution evidence.
+:::
