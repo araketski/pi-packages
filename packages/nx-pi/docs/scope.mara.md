@@ -187,15 +187,18 @@ without bundling dependencies. Pi resource packages continue to ship source.
   owner, repository URL, or default branch in generator implementation. Missing
   required configuration is an actionable error; optional metadata is omitted.
   Do not consult GitHub CLI, SSH configuration, or network services for metadata.
-- Include applicable license and attribution material in distributed packages.
+- The publishing author reviews applicable license and attribution obligations
+  and includes required material in each artifact; nx-pi does not enforce legal
+  compliance. See [[ADR-NXPI-LICENSE-OWNERSHIP]].
 - Do not introduce a separate provenance-tracking system, import history, or
   vendoring workflow. Adapters and original implementations are the intended
   approaches; reused material still carries applicable licensing obligations.
 
 The initial metadata fields, authoritative inputs, and missing-input behavior
 are specified in [[DES-NXPI-INIT-CONTRACT]], [[DES-NXPI-PACKAGE-CONTRACT]] and
-[[DES-NXPI-LIBRARY-CONTRACT]]. Broader publication metadata and license policy
-remain separate decisions.
+[[DES-NXPI-LIBRARY-CONTRACT]]. Broader publication metadata remains a separate
+decision. License and attribution ownership is recorded in
+[[ADR-NXPI-LICENSE-OWNERSHIP]].
 
 ## Scaffolding and validation guarantees
 
@@ -211,8 +214,9 @@ remain separate decisions.
   test runner. Concrete integration choices remain to be specified. Do not add
   compilation or unit-test targets without corresponding code; resource validation
   still applies.
-- Include runtime helpers, assets, and attribution in distribution. Exclude tests,
-  test configuration, caches, and development-only files.
+- Include runtime helpers and assets in distribution; the publishing author
+  reviews any required attribution separately. Exclude tests, test configuration,
+  caches, and development-only files.
 - Validate actual packed artifacts outside the development workspace, not only
   generated files or workspace-linked packages. Check Pi discovery for resource
   packages and runtime exports and declarations for shared libraries.

@@ -77,7 +77,7 @@ option `packageTargetName`, distinct from `sourceTargetName`.
 This bounded check does not verify artifact freshness, computed dynamic imports,
 skill prose references, external runtime dependencies, Pi execution, theme
 contents, actual Node/TypeScript resolution, comprehensive development-file
-selection, license compliance, or publication. Ordinary source and consumer
+selection, license or attribution compliance, or publication. Ordinary source and consumer
 documentation are not rejected. It limits decoded member bodies to 8 MiB each
 and 64 MiB total, and archives to 10,000 members.
 Packed npm/pnpm consumer tests separately verify positive Pi SDK discovery.
@@ -99,8 +99,11 @@ metadata when present, and `pi: {}`. Existing destinations and invalid or
 missing inputs fail without authored changes; `--dry-run` previews the creation.
 `--packageVersion` is used because Nx reserves `--version`. This generator does
 not create resources, a license file, tooling configuration, dependencies, or
-publication defaults. A license declaration alone does not establish publication
-readiness; the initial packed resource check is only a partial validation.
+publication defaults. The package author determines licensing and third-party
+notice obligations, ensures required material is in the packed artifact, and
+reviews it before publishing. Neither a manifest license value nor a passing
+`pi-check`/`pi-check-package` establishes legal compliance or publication
+readiness.
 
 ## Scaffold a Pi skill
 
