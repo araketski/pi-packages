@@ -264,3 +264,47 @@ describe('explicit packed shared-library check', () => {
     await expect(check(await pack(), libraryTags)).rejects.toThrow(/name/);
   });
 });
+
+// @mara implements VER-NXPI-PACKED-HYGIENE
+describe('packed development-file hygiene', () => {
+  it.each([
+    'tests/runner.spec.ts',
+    'src/feature.test.mjs',
+    'src/feature.spec.jsx',
+    'src/feature.test.cts',
+    'vitest.config.mts',
+    'jest.config.js',
+    'tsconfig.spec.json',
+    'tsconfig.test.json',
+    'dist/tsconfig.lib.tsbuildinfo',
+    'docs/contract.mara.md',
+  ])('rejects packed development-only member %s for resource packages', async (path) => {
+    packaged(path, 'development only');
+    const tarball = await pack();
+    const before = readFileSync(join(root, 'packages/resource/package.json'), 'utf8');
+    await expect(check(tarball)).rejects.toThrow(new RegExp(path.replaceAll('.', '\\.')));
+    expect(readFileSync(join(root, 'packages/resource/package.json'), 'utf8')).toBe(before);
+    expect(readFileSync(join(root, 'payload/package', path), 'utf8')).toBe('development only');
+  });
+
+  it('rejects all obvious extra files from a tagged-library archive', async () => {
+    library();
+    packaged('dist/example.spec.js', 'development only');
+    packaged('docs/repo.mara.md', 'repository knowledge');
+    await expect(check(await pack(), libraryTags)).rejects.toThrow(
+      /dist\/example\.spec\.js.*docs\/repo\.mara\.md|docs\/repo\.mara\.md.*dist\/example\.spec\.js/,
+    );
+  });
+
+  it('does not reject ordinary documentation, source, helper data, or compiler configuration', async () => {
+    packaged('README.md', 'consumer documentation');
+    packaged('src/entry.ts', 'source intentionally published');
+    packaged('tsconfig.json', '{}');
+    packaged('skills/review/scripts/helper.test-data.mjs', 'consumer data');
+    packaged('prompts/example.test.md', 'consumer-facing prompt');
+    expect(await check(await pack())).toEqual({ success: true });
+    library();
+    packaged('docs/README.md', 'consumer documentation');
+    expect(await check(await pack(), libraryTags)).toEqual({ success: true });
+  });
+});

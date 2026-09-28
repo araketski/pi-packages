@@ -59,14 +59,19 @@ checks that the packed manifest declares a root JavaScript file and a declaratio
 file, and that explicit `main`, `types`/`typings`, and `exports` file targets are
 present in the archive, including conditional and subpath exports. This catches
 forgotten build output without importing the library or running a TypeScript
-consumer. It rejects unsafe archive members and authored target-name collisions;
-configure another inferred name with plugin option `packageTargetName`, distinct
-from `sourceTargetName`.
+consumer. For both package kinds it rejects obvious packed development files:
+JS/TS `*.spec.*` and `*.test.*`, Vitest/Jest configuration, `tsconfig.spec.json`,
+`tsconfig.test.json`, `*.tsbuildinfo`, and repository `*.mara.md`. It reports
+archive paths without removing files. It also rejects unsafe archive members
+and authored target-name collisions; configure another inferred name with plugin
+option `packageTargetName`, distinct from `sourceTargetName`.
 
 This bounded check does not verify artifact freshness, computed dynamic imports,
 skill prose references, external runtime dependencies, Pi execution, theme
-contents, actual Node/TypeScript resolution, or publication. It limits decoded
-member bodies to 8 MiB each and 64 MiB total, and archives to 10,000 members.
+contents, actual Node/TypeScript resolution, comprehensive development-file
+selection, license compliance, or publication. Ordinary source and consumer
+documentation are not rejected. It limits decoded member bodies to 8 MiB each
+and 64 MiB total, and archives to 10,000 members.
 Packed npm/pnpm consumer tests separately verify positive Pi SDK discovery.
 
 Nx conventionally calls `init` after `nx add` installs a plugin. A plain

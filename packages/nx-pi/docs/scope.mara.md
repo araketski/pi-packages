@@ -34,8 +34,11 @@ under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. The inferred `pi-check-package`
 checks caller-supplied tarballs for declared resources, missing static extension
 helpers, and tagged-library JS/declaration export files under
 [[DES-NXPI-PACKED-INPUT-CONTRACT]], [[VER-NXPI-PACKED-STATIC]] and
-[[DES-NXPI-PACKED-LIBRARY]]. Actual library runtime/type resolution by the
-checker and full Pi loading parity are not implied by these static checks.
+[[DES-NXPI-PACKED-LIBRARY]]. A narrowly scoped artifact-hygiene rule now
+rejects obvious packed tests, test configuration, compiler state and Mara
+repository knowledge under [[DES-NXPI-PACKED-HYGIENE]]. Actual library
+runtime/type resolution, license obligations and full Pi loading parity are
+not implied by these static checks.
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use

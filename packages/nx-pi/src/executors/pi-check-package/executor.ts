@@ -155,6 +155,32 @@ function checkImports(start: string, members: Map<string, Buffer>): void {
   visit(start);
 }
 
+/** @mara implements DES-NXPI-PACKED-HYGIENE */
+function checkHygiene(members: Map<string, Buffer>): void {
+  const sourceSuffix = '(?:[cm]?[jt]s|[jt]sx)';
+  const testFile = new RegExp(`\\.(?:spec|test)\\.${sourceSuffix}$`);
+  const testConfig = new RegExp(`^(?:vitest|jest)\\.config\\.${sourceSuffix}$`);
+  const unwanted = [...members.keys()].filter((path) => {
+    const name = posix.basename(path);
+    return (
+      testFile.test(name) ||
+      testConfig.test(name) ||
+      /^tsconfig\.(?:spec|test)\.json$/.test(name) ||
+      name.endsWith('.tsbuildinfo') ||
+      name.endsWith('.mara.md')
+    );
+  });
+  if (unwanted.length) {
+    const sample = unwanted
+      .slice(0, 10)
+      .map((path) => `"${path}"`)
+      .join(', ');
+    fail(
+      `tarball contains development-only files: ${sample}${unwanted.length > 10 ? ` (and ${unwanted.length - 10} more)` : ''}. Adjust the package's pack selection; authored files were not changed.`,
+    );
+  }
+}
+
 const jsFile = /\.[cm]?js$/i;
 const declarationFile = /\.d\.[cm]?ts$/i;
 
@@ -266,6 +292,7 @@ export default async function piCheckPackageExecutor(
       `packed package name ${JSON.stringify(packed.name)} does not match ${project.root} package name ${JSON.stringify(source.name)}.`,
     );
   }
+  checkHygiene(members);
   if (!resourcePackage) {
     checkLibrary(packed, members);
     return { success: true };

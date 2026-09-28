@@ -145,6 +145,7 @@ afterAll(() => {
 // @mara checks DES-NXPI-EXTENSION-CONTRACT
 // @mara implements VER-NXPI-PACKED-RESOURCE-DISCOVERY
 // @mara implements VER-NXPI-PACKED-LIBRARY
+// @mara implements VER-NXPI-PACKED-HYGIENE
 describe('packed nx-pi in independent consumers', () => {
   it.each(['npm', 'pnpm'])(
     '%s: minimal fixture covers init, generators, source checks, and release dry-runs',
@@ -667,6 +668,38 @@ describe('packed nx-pi in independent consumers', () => {
       );
       expect(packedFail.status, packedFail.stdout + packedFail.stderr).not.toBe(0);
       expect(packedFail.stdout + packedFail.stderr).toMatch(/status-line.*helpers\/format\.ts/);
+      const leakedResource = join(temporaryRoot, `resource-with-tests-${manager}`);
+      cpSync(join(root, 'packages/example'), leakedResource, { recursive: true });
+      const leakedResourceManifest = json(join(leakedResource, 'package.json'));
+      leakedResourceManifest.files = [
+        ...(leakedResourceManifest.files as string[]),
+        'notes.spec.ts',
+      ];
+      save(join(leakedResource, 'package.json'), leakedResourceManifest);
+      const leakedResourceDestination = join(temporaryRoot, `resource-test-pack-${manager}`);
+      mkdirSync(leakedResourceDestination);
+      const leakedResourcePackOutput = JSON.parse(
+        execFileSync(manager, ['pack', '--pack-destination', leakedResourceDestination, '--json'], {
+          cwd: leakedResource,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        }),
+      ) as
+        | Array<{ filename: string; files: Array<{ path: string }> }>
+        | {
+            filename: string;
+            files: Array<{ path: string }>;
+          };
+      const leakedResourcePack = Array.isArray(leakedResourcePackOutput)
+        ? leakedResourcePackOutput[0]
+        : leakedResourcePackOutput;
+      expect(leakedResourcePack.files.map(({ path }) => path)).toContain('notes.spec.ts');
+      const resourceHygiene = runPacked(
+        `--tarball=${isAbsolute(leakedResourcePack.filename) ? leakedResourcePack.filename : join(leakedResourceDestination, leakedResourcePack.filename)}`,
+      );
+      expect(resourceHygiene.status, resourceHygiene.stdout + resourceHygiene.stderr).not.toBe(0);
+      expect(resourceHygiene.stdout + resourceHygiene.stderr).toContain('notes.spec.ts');
       expect(authoredFiles(root)).toEqual(beforePackedCheck);
 
       const isolatedResources = join(temporaryRoot, `resource-consumer-${manager}`);
@@ -858,6 +891,35 @@ describe('packed nx-pi in independent consumers', () => {
         expect(invalidLibrary.status, invalidLibrary.stdout + invalidLibrary.stderr).not.toBe(0);
         expect(invalidLibrary.stdout + invalidLibrary.stderr).toContain(missing);
       }
+      const leakedLibrary = join(temporaryRoot, `library-with-tests-${manager}`);
+      cpSync(join(root, 'packages/shared'), leakedLibrary, { recursive: true });
+      writeFileSync(join(leakedLibrary, 'dist/forgotten.spec.js'), 'not for publication\n');
+      const leakedLibraryDestination = join(temporaryRoot, `library-test-pack-${manager}`);
+      mkdirSync(leakedLibraryDestination);
+      const leakedLibraryPackOutput = JSON.parse(
+        execFileSync(manager, ['pack', '--pack-destination', leakedLibraryDestination, '--json'], {
+          cwd: leakedLibrary,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        }),
+      ) as
+        | Array<{ filename: string; files: Array<{ path: string }> }>
+        | {
+            filename: string;
+            files: Array<{ path: string }>;
+          };
+      const leakedLibraryPack = Array.isArray(leakedLibraryPackOutput)
+        ? leakedLibraryPackOutput[0]
+        : leakedLibraryPackOutput;
+      expect(leakedLibraryPack.files.map(({ path }) => path)).toContain('dist/forgotten.spec.js');
+      const libraryHygiene = runLibraryCheck(
+        isAbsolute(leakedLibraryPack.filename)
+          ? leakedLibraryPack.filename
+          : join(leakedLibraryDestination, leakedLibraryPack.filename),
+      );
+      expect(libraryHygiene.status, libraryHygiene.stdout + libraryHygiene.stderr).not.toBe(0);
+      expect(libraryHygiene.stdout + libraryHygiene.stderr).toContain('dist/forgotten.spec.js');
       const sourceLibrary = spawnSync(process.execPath, [cli[0], 'run', 'shared:pi-check'], {
         cwd: root,
         env,
