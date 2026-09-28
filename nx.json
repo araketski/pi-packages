@@ -61,6 +61,7 @@
       "options": {
         "targetName": "lint"
       }
-    }
+    },
+    "@araketski/nx-pi"
   ]
 }
