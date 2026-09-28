@@ -30,9 +30,11 @@ terminal-default palette scaffold under [[DES-NXPI-THEME-CONTRACT]]. The first
 `extension` generator adds a typed no-op extension and an explicit Pi peer
 declaration under [[DES-NXPI-EXTENSION-CONTRACT]]. An isolated positive test
 now checks Pi 0.87.1 SDK discovery from packed, installed resource fixtures
-under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. Missing-artifact diagnostics,
-full Pi loading parity, and an inferred packed-validation target remain
-unimplemented; see [[DES-NXPI-VALIDATION-TARGETS]].
+under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. The initial inferred,
+resource-only `pi-check-package` checks caller-supplied tarballs and missing
+static helpers under [[DES-NXPI-PACKED-INPUT-CONTRACT]] and
+[[VER-NXPI-PACKED-STATIC]]. Shared-library packed checks and full Pi loading
+parity remain future work; see [[DES-NXPI-VALIDATION-TARGETS]].
 
 Repository-local Vitest tests run through the inferred Nx `test` target. Source
 checks cover initialization and runtime guards. Isolated npm/pnpm consumers use
@@ -232,8 +234,11 @@ its output is absent. Packed-artifact validation and additional checks follow;
 do not expose a placeholder target before it works.
 
 See [[DES-NXPI-VALIDATION-TARGETS]] and [[VER-NXPI-FIRST-INCREMENT]] for the
-contract and verification plan. The initial source-target option and shared-library marker are recorded in
-[[DES-NXPI-VALIDATION-TARGETS]]. Broader option contracts and compatibility remain
+contract and verification plan. An initial resource-only packed target is now
+implemented without implicit pack/build/install, under
+[[DES-NXPI-PACKED-INPUT-CONTRACT]]. The initial source-target option and
+shared-library marker are recorded in [[DES-NXPI-VALIDATION-TARGETS]]. Broader
+option contracts and compatibility remain
 to be specified; the approved initial boundary is
 [[DES-NXPI-IMPLEMENTATION-BASELINE]].
 

@@ -24,6 +24,7 @@ catalog:
   oxfmt: ^0.60.0
   oxlint: 1.85.0
   oxlint-tsgolint: 7.0.2003
+  tar: 7.5.22
   tslib: ^2.3.0
   typescript: ~6.0.3
   validate-npm-package-name: 8.0.0

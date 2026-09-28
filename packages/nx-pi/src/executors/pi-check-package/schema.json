@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "type": "object",
+  "properties": {
+    "tarball": {
+      "type": "string",
+      "description": "Explicit npm .tgz archive to inspect, relative to the workspace root or absolute"
+    }
+  },
+  "required": ["tarball"],
+  "additionalProperties": false
+}

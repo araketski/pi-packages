@@ -47,16 +47,20 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 // @mara checks REQ-NXPI-VALIDATION-TARGET-NAMES
 // @mara checks DES-NXPI-VALIDATION-TARGETS
 describe('source target inference', () => {
-  it('targets only manifested resources and tagged libraries without a packed placeholder', async () => {
+  it('targets manifested resources and tagged libraries without a library packed placeholder', async () => {
     const nodes = await createNodes[1](files, undefined, context());
     const projects: Record<string, { targets?: Record<string, unknown> }> = Object.assign(
       {},
       ...nodes.map(([, result]) => result.projects),
     );
     expect(Object.keys(projects)).toEqual(['packages/resource', 'packages/library']);
-    for (const project of Object.values(projects)) {
-      expect(project.targets).toEqual({ 'pi-check': { executor: '@araketski/nx-pi:pi-check' } });
-    }
+    expect(projects['packages/resource'].targets).toEqual({
+      'pi-check': { executor: '@araketski/nx-pi:pi-check' },
+      'pi-check-package': { executor: '@araketski/nx-pi:pi-check-package' },
+    });
+    expect(projects['packages/library'].targets).toEqual({
+      'pi-check': { executor: '@araketski/nx-pi:pi-check' },
+    });
   });
 
   it('recognizes a library tag authored in package.json nx.tags alongside project tags', async () => {
@@ -70,11 +74,16 @@ describe('source target inference', () => {
     expect(projects).toHaveProperty('packages/library');
   });
 
-  it('uses a configured source name without inferring a packed target', async () => {
-    const nodes = await createNodes[1](files, { sourceTargetName: 'validate-pi' }, context());
+  it('uses configured source and packed names only for eligible project kinds', async () => {
+    const nodes = await createNodes[1](
+      files,
+      { sourceTargetName: 'validate-pi', packageTargetName: 'inspect-tarball' },
+      context(),
+    );
     const projects = Object.assign({}, ...nodes.map(([, result]) => result.projects));
     expect(projects['packages/resource'].targets).toHaveProperty('validate-pi');
-    expect(projects['packages/resource'].targets).not.toHaveProperty('pi-check-package');
+    expect(projects['packages/resource'].targets).toHaveProperty('inspect-tarball');
+    expect(projects['packages/library'].targets).not.toHaveProperty('inspect-tarball');
   });
 
   it.each(['project', 'nx', 'script'])(
@@ -127,6 +136,50 @@ describe('source target inference', () => {
     save('packages/resource/package.json', { name: '@fixture/pi-resource', pi: null });
     const nodes = await createNodes[1](files, undefined, context());
     expect(nodes[0][1].projects?.['packages/resource']?.targets).toHaveProperty('pi-check');
+  });
+});
+
+// @mara checks DES-NXPI-PACKED-INPUT-CONTRACT
+describe('packed resource target inference', () => {
+  it('infers an explicit-input executor only for manifested resource packages', async () => {
+    const nodes = await createNodes[1](files, undefined, context());
+    const projects = Object.assign({}, ...nodes.map(([, result]) => result.projects));
+    expect(projects['packages/resource'].targets['pi-check-package']).toEqual({
+      executor: '@araketski/nx-pi:pi-check-package',
+    });
+    expect(projects['packages/library'].targets).not.toHaveProperty('pi-check-package');
+  });
+
+  it.each(['project.json', 'package.json nx.targets', 'package.json scripts'])(
+    'rejects an authored packed-target collision in %s',
+    (source) => {
+      if (source === 'project.json')
+        save('packages/resource/project.json', {
+          name: 'resource',
+          targets: { 'pi-check-package': { command: 'echo mine' } },
+        });
+      if (source === 'package.json nx.targets')
+        save('packages/resource/package.json', {
+          name: '@fixture/pi-resource',
+          pi: {},
+          nx: { targets: { 'pi-check-package': { command: 'echo mine' } } },
+        });
+      if (source === 'package.json scripts')
+        save('packages/resource/package.json', {
+          name: '@fixture/pi-resource',
+          pi: {},
+          scripts: { 'pi-check-package': 'echo mine' },
+        });
+      expect(() => createNodes[1](files, undefined, context())).toThrow(
+        /resource.*pi-check-package.*(project|package)\.json/,
+      );
+    },
+  );
+
+  it('requires distinct source and packed target names', () => {
+    expect(() => createNodes[1](files, { packageTargetName: 'pi-check' }, context())).toThrow(
+      /packageTargetName|distinct/,
+    );
   });
 });
 

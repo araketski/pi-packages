@@ -22,7 +22,9 @@
   "dependencies": {
     "@nx/devkit": "catalog:",
     "@nx/js": "catalog:",
+    "tar": "catalog:",
     "tslib": "catalog:",
+    "typescript": "catalog:",
     "validate-npm-package-name": "catalog:"
   },
   "devDependencies": {

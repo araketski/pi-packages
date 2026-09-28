@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   mkdtempSync,
   mkdirSync,
+  cpSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -107,6 +108,8 @@ beforeAll(() => {
   expect(contents).toContain('executors.json');
   expect(contents).toContain('dist/executors/pi-check/executor.js');
   expect(contents).toContain('dist/executors/pi-check/schema.json');
+  expect(contents).toContain('dist/executors/pi-check-package/executor.js');
+  expect(contents).toContain('dist/executors/pi-check-package/schema.json');
   expect(
     contents.some((path) =>
       /(^src\/|^docs\/|^tests\/|\.spec\.|tsbuildinfo|\.map$|\.mara\.md$)/.test(path),
@@ -614,6 +617,57 @@ describe('packed nx-pi in independent consumers', () => {
       expect(resourceFiles).not.toContain('notes.spec.ts');
       expect(resourceFiles).not.toContain('tsconfig.test.json');
 
+      // The source remains valid even when the distributed artifact omits a helper.
+      const negativePackage = join(temporaryRoot, `missing-helper-${manager}`);
+      cpSync(join(root, 'packages/example'), negativePackage, { recursive: true });
+      rmSync(join(negativePackage, 'extensions/status-line/helpers/format.ts'));
+      const badDestination = join(temporaryRoot, `missing-helper-pack-${manager}`);
+      mkdirSync(badDestination);
+      const badPackOutput = JSON.parse(
+        execFileSync(manager, ['pack', '--pack-destination', badDestination, '--json'], {
+          cwd: negativePackage,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        }),
+      ) as Array<{ filename: string }> | { filename: string };
+      const badTarball = Array.isArray(badPackOutput)
+        ? badPackOutput[0].filename
+        : badPackOutput.filename;
+      const runPacked = (...args: string[]) =>
+        spawnSync(
+          process.execPath,
+          [cli[0], 'run', '@terminal/pi-example:pi-check-package', ...args],
+          {
+            cwd: root,
+            env,
+            encoding: 'utf8',
+            timeout: 60_000,
+          },
+        );
+      const beforePackedCheck = authoredFiles(root);
+      const sourceOnly = spawnSync(
+        process.execPath,
+        [cli[0], 'run', '@terminal/pi-example:pi-check'],
+        {
+          cwd: root,
+          env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      expect(sourceOnly.status, sourceOnly.stdout + sourceOnly.stderr).toBe(0);
+      const packedPass = runPacked(
+        `--tarball=${isAbsolute(resourceTarball.filename) ? resourceTarball.filename : join(temporaryRoot, resourceTarball.filename)}`,
+      );
+      expect(packedPass.status, packedPass.stdout + packedPass.stderr).toBe(0);
+      const packedFail = runPacked(
+        `--tarball=${isAbsolute(badTarball) ? badTarball : join(badDestination, badTarball)}`,
+      );
+      expect(packedFail.status, packedFail.stdout + packedFail.stderr).not.toBe(0);
+      expect(packedFail.stdout + packedFail.stderr).toMatch(/status-line.*helpers\/format\.ts/);
+      expect(authoredFiles(root)).toEqual(beforePackedCheck);
+
       const isolatedResources = join(temporaryRoot, `resource-consumer-${manager}`);
       mkdirSync(isolatedResources);
       save(join(isolatedResources, 'package.json'), {
@@ -905,7 +959,8 @@ describe('packed nx-pi in independent consumers', () => {
       const beforeChecks = authoredFiles(root);
       for (const name of ['resource', 'library']) {
         expect(show(name).targets).toHaveProperty('pi-check');
-        expect(show(name).targets).not.toHaveProperty('pi-check-package');
+        if (name === 'resource') expect(show(name).targets).toHaveProperty('pi-check-package');
+        else expect(show(name).targets).not.toHaveProperty('pi-check-package');
         const check = runNx('run', `${name}:pi-check`);
         expect(check.status, check.stdout + check.stderr).toBe(0);
       }
@@ -938,10 +993,17 @@ describe('packed nx-pi in independent consumers', () => {
       save(join(root, 'packages/resource/project.json'), { name: 'resource' });
 
       const configuredNx = json(join(root, 'nx.json'));
-      configuredNx.plugins = [{ plugin, options: { sourceTargetName: 'validate-pi' } }];
+      configuredNx.plugins = [
+        {
+          plugin,
+          options: { sourceTargetName: 'validate-pi', packageTargetName: 'inspect-tarball' },
+        },
+      ];
       save(join(root, 'nx.json'), configuredNx);
       const beforeConfiguredCheck = authoredFiles(root);
       expect(show('resource').targets).toHaveProperty('validate-pi');
+      expect(show('resource').targets).toHaveProperty('inspect-tarball');
+      expect(show('library').targets).not.toHaveProperty('inspect-tarball');
       expect(show('resource').targets).not.toHaveProperty('pi-check');
       const configuredFailure = runNx('run', 'resource:validate-pi');
       expect(

@@ -15,20 +15,33 @@ function read(path: string): JsonObject | undefined {
   return value;
 }
 
-function targetName(options: { sourceTargetName?: string } | undefined): string {
+type Options = { sourceTargetName?: string; packageTargetName?: string };
+
+function targetNames(options: Options | undefined): { source: string; packed: string } {
   if (
     options &&
-    (!object(options) || Object.keys(options).some((key) => key !== 'sourceTargetName'))
+    (!object(options) ||
+      Object.keys(options).some((key) => !['sourceTargetName', 'packageTargetName'].includes(key)))
   ) {
-    throw new Error('nx-pi: plugin options must contain only sourceTargetName in this increment.');
-  }
-  const name = options?.sourceTargetName ?? 'pi-check';
-  if (typeof name !== 'string' || !name.trim() || name !== name.trim() || /[\s/:]/.test(name)) {
     throw new Error(
-      'nx-pi: options.sourceTargetName must be a nonblank target name without whitespace, /, or :.',
+      'nx-pi: plugin options may contain only sourceTargetName and packageTargetName.',
     );
   }
-  return name;
+  const source = options?.sourceTargetName ?? 'pi-check';
+  const packed = options?.packageTargetName ?? 'pi-check-package';
+  for (const [key, name] of [
+    ['sourceTargetName', source],
+    ['packageTargetName', packed],
+  ] as const) {
+    if (typeof name !== 'string' || !name.trim() || name !== name.trim() || /[\s/:]/.test(name)) {
+      throw new Error(
+        `nx-pi: options.${key} must be a nonblank target name without whitespace, /, or :.`,
+      );
+    }
+  }
+  if (source === packed)
+    throw new Error('nx-pi: options.packageTargetName must be distinct from sourceTargetName.');
+  return { source, packed };
 }
 
 function ownsTarget(
@@ -44,10 +57,10 @@ function ownsTarget(
 }
 
 /** @mara implements DES-NXPI-VALIDATION-TARGETS */
-export const createNodes: CreateNodes<{ sourceTargetName?: string }> = [
+export const createNodes: CreateNodes<Options> = [
   '**/{package,project}.json',
   (paths, options, context) => {
-    const name = targetName(options);
+    const names = targetNames(options);
     const roots = new Set(paths.map((path) => dirname(path)));
     const results: Array<
       readonly [
@@ -63,11 +76,17 @@ export const createNodes: CreateNodes<{ sourceTargetName?: string }> = [
         (pkg && Object.hasOwn(pkg, 'pi')) ||
         tags.some((value) => Array.isArray(value) && value.includes('nx-pi:library'));
       if (!eligible) continue;
-      const collision = ownsTarget(project, pkg, name);
-      if (collision) {
-        throw new Error(
-          `nx-pi: ${root} already defines target "${name}" in ${collision}; choose a different options.sourceTargetName or remove that authored target.`,
-        );
+      const packed = Boolean(pkg && Object.hasOwn(pkg, 'pi'));
+      for (const [name, option] of [
+        [names.source, 'sourceTargetName'],
+        ...(packed ? [[names.packed, 'packageTargetName']] : []),
+      ]) {
+        const collision = ownsTarget(project, pkg, name);
+        if (collision) {
+          throw new Error(
+            `nx-pi: ${root} already defines target "${name}" in ${collision}; choose a different options.${option} or remove that authored target.`,
+          );
+        }
       }
       const config =
         paths.find((path) => dirname(path) === root && basename(path) === 'package.json') ??
@@ -75,7 +94,16 @@ export const createNodes: CreateNodes<{ sourceTargetName?: string }> = [
       results.push([
         config,
         {
-          projects: { [root]: { targets: { [name]: { executor: '@araketski/nx-pi:pi-check' } } } },
+          projects: {
+            [root]: {
+              targets: {
+                [names.source]: { executor: '@araketski/nx-pi:pi-check' },
+                ...(packed
+                  ? { [names.packed]: { executor: '@araketski/nx-pi:pi-check-package' } }
+                  : {}),
+              },
+            },
+          },
         },
       ]);
     }

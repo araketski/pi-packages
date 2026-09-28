@@ -4,6 +4,11 @@
       "implementation": "./dist/executors/pi-check/executor",
       "schema": "./dist/executors/pi-check/schema.json",
       "description": "Check Pi package source without installing or executing package code"
+    },
+    "pi-check-package": {
+      "implementation": "./dist/executors/pi-check-package/executor",
+      "schema": "./dist/executors/pi-check-package/schema.json",
+      "description": "Inspect an explicitly supplied npm tarball for declared resources and static extension helpers"
     }
   }
 }
