@@ -5,7 +5,7 @@
 :kind: functional
 :contributes_to: GOAL-STATUSLINE-COMPAT
 
-The custom footer shall use producer-supplied prefix and color definition unless its own configuration overrides them for a status key or state. Per-key appearance overrides use the same exported prefix/color type as producer registration, including theme roles, six-digit hex, 256-color indices, and terminal-default values. When config supplies only one state color, other producer state colors remain available; the override replaces only the matching state. Changing footer configuration and reloading Pi, or changing the theme, must re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. The footer shall load user overrides from <agent-dir>/statusline.json (Pi's configured agent directory, normally ~/.pi/agent), then project overrides from <cwd>/.pi/statusline.json only when the project is trusted. It reads configuration at session startup or Pi reload, not on every render or through a file watcher. If no user file exists, built-in defaults apply without creating one. The remaining JSON layout and color precedence details belong to the future statusline extension contract.
+The custom footer shall use producer-supplied prefix and color definition unless its own configuration overrides them for a status key or state. Per-key appearance overrides use the same exported prefix/color type as producer registration, including theme roles, six-digit hex, 256-color indices, and terminal-default values. When config supplies a state-specific color, other producer state colors remain available; the override replaces only matching state entries. Changing footer configuration and reloading Pi, or changing the theme, must re-render the current structured status without asking producers to publish again. Native fallback uses producer defaults, not custom-footer configuration. The footer shall load user overrides from <agent-dir>/statusline.json (Pi’s configured agent directory, normally ~/.pi/agent), then project overrides from <cwd>/.pi/statusline.json only when the project is trusted. It reads configuration at session startup or Pi reload, not on every render or through a file watcher. A missing or invalid config uses valid lower-priority settings and defaults; invalid JSON or values elicit a warning without preventing the footer from rendering. A missing user file is not created. The remaining JSON layout and color precedence details belong to the future statusline extension contract.
 :::
 
 :::mara requirement REQ-STATUSLINE-FOOTER
@@ -27,7 +27,7 @@ When the custom footer starts, it shall subscribe to structured status updates a
 :verifies: REQ-STATUSLINE-OVERRIDES
 :verifies: REQ-STATUSLINE-FOOTER
 
-In a real Pi 0.87.1 session, start two producers with different active statuses before the custom footer. Load the footer, request snapshots, and confirm complete current text, state, source, prefix and resolved state color appear without duplicating their native fallback while unrelated native-only statuses remain visible. Update and clear producers and observe one correct entry per key. Override a prefix or one state color in <agent-dir>/statusline.json; verify current structured statuses re-render after Pi reload or theme change without another producer event, and that other producer state colors still apply while native fallback retains producer defaults. Check that <cwd>/.pi/statusline.json overrides the user file only for a trusted project, that an alternate configured agent directory is used, and that starting without either file uses defaults without writing a config file. Exercise footer unload/reload and producer disposal. This verification is planned; the footer package has not been scaffolded.
+In a real Pi 0.87.1 session, start two producers with different active statuses before the custom footer. Load the footer, request snapshots, and confirm complete current text, state, source, prefix and resolved state color appear without duplicating their native fallback while unrelated native-only statuses remain visible. Update and clear producers and observe one correct entry per key. Override a prefix or one state color in <agent-dir>/statusline.json; verify current structured statuses re-render after Pi reload or theme change without another producer event, and that other producer state colors still apply while native fallback retains producer defaults. Check that <cwd>/.pi/statusline.json overrides the user file only for a trusted project, that an alternate configured agent directory is used, and that starting without either file uses defaults without writing a config file. Test malformed JSON and invalid values at either layer: warn, retain valid lower-priority settings and keep the footer usable. Exercise footer unload/reload and producer disposal. This verification is planned; the footer package has not been scaffolded.
 :::
 
 :::mara design DES-STATUSLINE-BUILTIN-SOURCES
@@ -56,7 +56,7 @@ In an interactive Pi session, the user can arrange current built-in and extensio
 :kind: functional
 :contributes_to: GOAL-STATUSLINE-PRESENTATION
 
-The TUI footer shall render ordered layout tokens in one or more lines. A `spacer` token divides a line into independently separated segments and distributes leftover width between visible segments; a configurable separator appears only between visible tokens in the same segment. Missing or empty items do not leave stray separators, and lines without visible items are omitted. When a configured line cannot fit, the entire footer falls back to one visible token per line in configured order, omitting spacers and segment separators. Every output line is limited to its available terminal-column width, including narrow widths and wide Unicode or styled text. If no visible item exists, the footer produces no visible lines. Built-in defaults provide a usable layout without a config file. This is a rendering contract; the exact default ordering is not yet fixed.
+The TUI footer shall render ordered layout tokens in one or more lines. A `spacer` token divides a line into independently separated segments and distributes leftover width between visible segments; a configurable separator appears only between visible tokens in the same segment. Missing or empty items do not leave stray separators, and lines without visible items are omitted. When a configured line cannot fit, the entire footer falls back to one visible token per line in configured order, omitting spacers and segment separators. Every output line is limited to its available terminal-column width, including narrow widths and wide Unicode or styled text. If no visible item exists, the footer produces no visible lines. Without config, the default layout has four rows: `branch changes pr spacer project`; `context cache cost spacer model thinking caffeinate`; `title`; `cwd`. An absent `caffeinate` producer does not create an empty placeholder.
 :::
 
 :::mara verification VER-STATUSLINE-LAYOUT
@@ -67,7 +67,7 @@ The TUI footer shall render ordered layout tokens in one or more lines. A `space
 :level: unit
 :verifies: REQ-STATUSLINE-LAYOUT
 
-Render a single-line and a nested multi-line layout with two visible segments separated by `spacer`; assert configured order, separators only within segments, space allocation, and empty-line omission. With missing items, repeated spacers and an all-empty layout, assert no stray separators or visible blank lines. Render the same layout just below its content width and assert one visible token per line in order, without spacers or segment separators. Exercise widths 0 and 1, styled strings, combining characters and wide Unicode; assert no rendered line exceeds available visible terminal columns and no text from one token leaks into another. Check that a missing config produces a useful default layout. Planned test, not execution evidence.
+Render a single-line and a nested multi-line layout with two visible segments separated by `spacer`; assert configured order, separators only within segments, space allocation, and empty-line omission. With missing items, repeated spacers and an all-empty layout, assert no stray separators or visible blank lines. Render the same layout just below its content width and assert one visible token per line in order, without spacers or segment separators. Exercise widths 0 and 1, styled strings, combining characters and wide Unicode; assert no rendered line exceeds available visible terminal columns and no text from one token leaks into another. With no config assert the four default rows and that missing title or caffeinate statuses omit only their visible content. Planned test, not execution evidence.
 :::
 
 :::mara requirement REQ-STATUSLINE-BUILTINS
@@ -77,7 +77,7 @@ Render a single-line and a nested multi-line layout with two visible segments se
 :kind: functional
 :contributes_to: GOAL-STATUSLINE-PRESENTATION
 
-The footer shall offer direct layout tokens `cwd`, `project`, `title`, `model`, `thinking`, `branch`, `changes`, `pr`, `context`, `tokens`, `cache`, and `cost`. Each built-in is collected only when its token is requested, exposes text and applicable state to the same rendering path as external statuses, and is omitted when its data is unavailable unless a specified fallback exists. Collecting git or pull-request data must not block footer rendering; unavailable git or `gh` data does not prevent other tokens from displaying. Specific values and failure behavior remain to be confirmed in the built-in value proposal. Built-ins are footer-owned and do not create native setStatus publications.
+The footer shall offer direct layout tokens `cwd`, `project`, `title`, `model`, `thinking`, `branch`, `changes`, `pr`, `context`, `tokens`, `cache`, and `cost`. Each built-in is collected only when its token is requested, exposes text and applicable state to the same rendering path as external statuses, and is omitted when its data is unavailable unless a specified fallback exists. Collecting git or pull-request data must not block footer rendering; unavailable git or `gh` data does not prevent other tokens from displaying. The accepted value and failure-case baseline is [[DES-STATUSLINE-BUILTIN-VALUES]]. Built-ins are footer-owned and do not create native setStatus publications.
 :::
 
 :::mara verification VER-STATUSLINE-BUILTINS
@@ -87,6 +87,7 @@ The footer shall offer direct layout tokens `cwd`, `project`, `title`, `model`, 
 :method: test
 :level: integration
 :verifies: REQ-STATUSLINE-BUILTINS
+:verifies: DES-STATUSLINE-BUILTIN-VALUES
 
 Using a Pi context fixture and controllable git/gh results, render each built-in token independently and together. Assert path, project, session, model and thinking values; context threshold boundaries; branch cleanliness, change-count ordering and PR number; branch-scoped token, cache and cost totals. Exercise missing session name, no model, absent context usage, non-repository, missing gh command and transient git/gh failures. Assert unrelated tokens still display and the footer does not wait for subprocesses during render. Confirm built-in collection does not publish native statuses. Planned verification, not execution evidence.
 :::
@@ -136,21 +137,45 @@ Supply ANSI CSI, OSC clipboard, DCS, C0/C1, newlines and bidi format controls th
 
 :::mara design DES-STATUSLINE-CONFIG-PROPOSAL
 :mid: 01M3M8AAFGSF3PHEDG0XWA10J1
-:title: Draft JSON configuration and presentation defaults
+:title: Draft JSON schema using shared status appearance
 :status: draft
 :kind: data
 :satisfies: REQ-STATUSLINE-OVERRIDES
 :satisfies: REQ-STATUSLINE-LAYOUT
 
-Proposal for confirmation, not an accepted schema. At startup or Pi reload, overlay trusted project JSON on user JSON on built-in defaults. Main uses `layout` (array of tokens or nested arrays), `separator` (text), `separatorColor` (color), `prefix` (key-to-string map), and `colors` (key-to-color/state map), with diagnostics and fallback for invalid values. Retain `layout`, `separator` and `separatorColor` conceptually; for per-key appearance choose either main's separate `prefix`/`colors` maps or a single key-to-`StatusAppearance` map using the protocol's exported `{ prefix?, color? }` shape. The latter would not read main's old config shape without an explicit compatibility rule. Single semantic colors and state maps already use the protocol's `StatusColor = string | { default: string; byState: Record<string, string> }`; determine whether main's hex and 0–255 palette options remain supported and how they fit a shared producer type before acceptance. Keep invalid-file handling, unknown keys, replacement vs merging at each config layer, empty prefix/color semantics and default layout/palette as open until the schema is agreed. No default config file is written; no automatic legacy `~/.pi/statusline.json` fallback is specified. This item must not be used as an implementation contract while draft.
+Agreed direction: user config at Pi's configured <agent-dir>/statusline.json, trusted project config at <cwd>/.pi/statusline.json, loaded at session start and Pi reload, project over user over built-in defaults; missing files use defaults and do not trigger writes. Invalid JSON or invalid values produce UI warnings and leave valid lower-priority configuration in effect; untrusted project files are never read. The current protocol exports `StatusAppearance = { prefix?: string; color?: StatusColor }`, where `StatusColor = string | { default: string; byState: Record<string, string> }`. Per-key footer overrides must use this same appearance shape, not main's parallel `prefix` and `colors` maps. Existing `~/.pi/statusline.json` is not an automatic fallback.
+
+Draft JSON example (the top-level `appearance` property name is proposed, not yet agreed):
+
+```json
+{
+  "layout": [["branch", "changes", "pr", "spacer", "project"], ["context", "cache", "cost", "spacer", "model", "thinking", "caffeinate"], ["title"], ["cwd"]],
+  "separator": " • ",
+  "separatorColor": "dim",
+  "appearance": { "caffeinate": { "prefix": "☕", "color": { "default": "muted", "byState": { "active": "accent" } } } }
+}
+```
+
+The layout and separator values above are `main`'s default presentation baseline, not a requirement that an extension named `caffeinate` is installed. `layout` may be a flat string array or nested arrays of strings. `separator` is text; `separatorColor` is a semantic theme color. For now, accept only Pi theme color names (plus the empty no-color string, if supported by Pi) for footer color values. Hex and 256-color rendering are deferred to a separate protocol change and must not be claimed as supported by this extension before producer/native and footer rendering agree. Maintain key-specific prefix/color defaults for built-ins from main where compatible with the shared type. Do not assume that a future protocol change automatically alters the accepted footer schema.
+
+Open details before accepting this schema: the top-level name for per-key appearance; how an absent vs explicit empty prefix/color behaves; whether `{ default, byState }` overrides can set just one state without redefining `default` (the current shared type requires `default`); scalar-color vs state-map replacement and precedence across default, producer, user, and project layers; validation granularity for unknown keys, invalid layout tokens and malformed nested appearance values; and exact defaults for built-in prefixes and state colors. Keep the design in draft until these are resolved; do not implement a guessed public config format.
 :::
 
-:::mara design DES-STATUSLINE-BUILTIN-VALUES-PROPOSAL
+:::mara design DES-STATUSLINE-BUILTIN-VALUES
 :mid: 01M3M8ABAWA6SZXCX074H45YCW
-:title: Draft values and refresh behavior for built-in tokens
-:status: draft
+:title: Built-in status values and availability
+:status: accepted
 :kind: behavior
 :satisfies: REQ-STATUSLINE-BUILTINS
+:refines: DES-STATUSLINE-BUILTIN-SOURCES
 
-Reference proposal from `main`, for confirmation rather than accepted behavior: `cwd` displays a home-relative path (`~` at home), otherwise the current directory name; `project` uses `package.json` name or directory name; `title` uses an assigned session name or is absent; `model` shows model id or `unknown`; `thinking` shows the current Pi thinking level as text and state. `branch` shows the current Git branch and clean/dirty state; `changes` shows only nonzero `!conflicts +staged ~unstaged ?untracked ↑ahead ↓behind` counts in that order (untracked counts files); `pr` shows `PR #N` when a PR number is available. `context` uses usage percent and context window with normal (<70%), warning (70–<90%) and full (>=90%) states; it is absent when usage is unavailable. `tokens` shows cumulative input/output as `<input>↑ <output>↓`; `cache` shows `<cacheRead>/<cacheWrite> <cacheHitPercent>%`; `cost` shows `$<total>` from assistant usage on the active session branch. Main formats quantities in k/M notation and cost with two decimals. Main polls git/gh asynchronously while the requested tokens are active and suppresses absent results. Confirm details such as non-home cwd display, divergence's effect on dirty state, rounding, refresh cadence, no-Git/no-gh fallback and exact default layout before accepting this design. Built-ins remain internal providers, not protocol registrations.
+Built-in modules produce the same structured `{ source, key, text, state?, prefix?, color? }` shape as external protocol statuses for requested layout keys, with statusline-owned source identity. They are internal to the footer; none is a protocol producer or a native `setStatus` publisher. Observable behavior derived from `main` and accepted as the rewrite baseline:
+
+- `cwd`: use `~` for the home directory, `~/...` for paths within home, otherwise the current directory's basename. `project`: the current directory's `package.json` name if it is a nonempty string, otherwise its basename, including when package metadata cannot be read or parsed. `title`: the current session name, omitted when absent.
+- `model`: current model ID, `unknown` if there is no model. `thinking`: Pi's current thinking level as text and state (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`).
+- `branch`: current Git branch if available, with `clean` or `dirty` state. Stage/unstage/untracked/conflict and ahead/behind counts all mark it dirty; absent branch omits the token. `changes`: list only nonzero counts in the order `!<conflicts> +<staged> ~<unstaged> ?<untracked> ↑<ahead> ↓<behind>` separated by spaces; untracked files count individually. Omit it for zero changes or absent Git data. `pr`: `PR #<positive number>` when an open PR number for the branch is available; omit otherwise.
+- `context`: from Pi's context usage as `<percent>%/<contextWindow>`, omit if tokens or percent are unavailable. `normal` below 70%, `warning` from 70% up to but excluding 90%, `full` from 90% upward. Remove a trailing `.0` in percentage formatting; abbreviate context window in k/M units.
+- `tokens`: total branch-history assistant input/output usage as `<input>↑ <output>↓`. `cache`: branch-history assistant cache read/write usage as `<cacheRead>/<cacheWrite> <rounded cache-hit percent>%`; 0% with no cache usage. `cost`: total assistant cost as `$<value>` with two decimals. Usage amounts have rounded integer form below 1000 and one decimal k/M above that threshold; absent usage contributes zero. Only the active session branch is counted.
+
+Git status and PR queries happen asynchronously outside `render`; start/refresh only when the relevant tokens are configured. Update on branch changes and periodic refresh, rerender on changed results, and stop work on footer disposal. If Git is unavailable or cwd is not a repository, omit Git-dependent entries; if `gh` is unavailable or has no PR, omit `pr` while keeping other tokens. A transient lookup failure must not crash or block the footer. Exact subprocess command flags, cache cadence and timeout lengths are implementation choices, not promises. See [[DES-STATUSLINE-BUILTIN-SOURCES]] for provider structure. This accepted baseline does not assert implementation or passing tests.
 :::
