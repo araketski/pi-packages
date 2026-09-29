@@ -144,6 +144,12 @@ importers:
         specifier: '*'
         version: 0.87.1(supports-color@8.1.1)(ws@8.22.0)
 
+  packages/gates-protocol:
+    dependencies:
+      tslib:
+        specifier: 'catalog:'
+        version: 2.8.1
+
   packages/nx-pi:
     dependencies:
       '@nx/devkit':

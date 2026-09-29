@@ -1,8 +1,8 @@
-# Planned `pi-gates-protocol`
+# `@araketski/pi-gates-protocol`
 
-This is specification work for a future library, not an implemented package. The
-legacy continuation-gate package is reference material; this rework may change
-its API, events, and architecture. `pi-gates` is the separately planned,
+This is the intended contract for a newly scaffolded library; gate coordination
+is not implemented yet. The legacy continuation-gate package is reference
+material, not its API or architecture. `pi-gates` is the separately planned,
 optional visibility extension. The protocol is not itself a Pi resource.
 
 ## Motivation and boundary
