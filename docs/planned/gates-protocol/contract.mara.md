@@ -15,13 +15,21 @@ became idle. The extension that owns the work remains responsible for its
 completion, result delivery, and any offline recovery. A gate is coordination
 state, not an instruction to continue or a substitute for a result message.
 
+Pi custom session entries can keep a historical record of gate lifecycle events
+without adding them to model context. Restoring that history is not proof that
+an external job is still live; the work owner must reconcile it with its own
+state. A visibility extension may render selected entries in the interactive
+chat for the user, but visibility and state reconstruction are separate
+concerns. Ephemeral Pi sessions have no durable history after Pi exits.
+
 ## Open design questions
 
 Before implementation, decide how concurrent gates are identified and scoped,
-how a late observer learns current state, and how owners' unclosed gates are
-handled after shutdown or restart. Neither automatic expiry nor indefinite
-blocking is implied by the legacy implementation. Specify and test the chosen
-policy before relying on it in `goal` or `caffeinate`.
+how a late observer learns current state, how a session branch change affects
+recorded gate intent, and how owners' unclosed gates are handled after shutdown
+or restart. Neither automatic expiry nor indefinite blocking is implied by the
+legacy implementation. Specify and test the chosen policy before relying on it
+in `goal` or `caffeinate`.
 
 :::mara goal GOAL-GATES-COORDINATION
 :mid: 01M3P1VQ7C1W8PV36ZXWJ6BD6B
@@ -71,4 +79,25 @@ Announcing, observing, or clearing a gate does not run a job, deliver its result
 :verifies: REQ-GATES-SIGNAL-ONLY
 
 Acquire, observe, and clear a gate with a host that records model-message and continuation calls. Assert no job execution, message queueing, or continuation is initiated by gate operations. In an integration fixture, confirm gate clearance creates no extra agent turn beyond a result that the integrating extension explicitly queues.
+:::
+
+:::mara requirement REQ-GATES-SESSION-HISTORY
+:mid: 01M3P41PZR8K1S9GX1GRKZKJGC
+:title: Keep gate transitions in Pi session history
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-GATES-COORDINATION
+
+For a Pi session with persistent storage, record gate acquisition, clearance, and state-changing reconciliation as append-only custom session entries, separate from model context. These entries preserve historical intent across reload or restart; they do not prove the external work is still running. Restored history must remain distinguishable from owner-confirmed current state until the work-owning extension reconciles it. Ephemeral Pi sessions provide no durability across process exit.
+:::
+
+:::mara verification VER-GATES-SESSION-HISTORY
+:mid: 01M3P41SRTJ5BWMEJ39B5P2BYJ
+:title: Replay gate history without treating intent as confirmed work
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-GATES-SESSION-HISTORY
+
+In a persistent Pi session fixture, acquire and end a gate, then reopen the session and inspect custom entries on the active branch. Confirm their order and that they do not appear in model context. Simulate a restart with an acquired gate but no clearance: the history remains visible, yet current work is not reported as owner-confirmed until that owner reconciles and records its corrected state. In an in-memory session, do not claim durability after process exit.
 :::
