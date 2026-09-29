@@ -245,7 +245,7 @@ With a Pi-compatible host, assert a successful acquisition, release, and verifie
 :verifies: REQ-GATES-RECONCILIATION
 :verifies: REQ-GATES-PERSIST-BEFORE-SIGNAL
 
-Using independent owner and observer instances with a shared Pi-compatible event bus, assert a late observer recovers current gates, a restarted observer treats journal replay as unconfirmed until the work owner reconciles, and owner registration alone does not erase historical intent. Acquire and release append before live publication. If appending an acquire, release, or reconciliation fails, no new state is published. Session tree reads use full session history while session replacement does not leak old gates. This fixture does not yet verify a real Pi process or owner timeout behavior.
+Using independent owner and observer instances with a shared Pi-compatible event bus, assert a late observer recovers current gates, a restarted observer treats journal replay as unconfirmed until the work owner reconciles, and owner registration alone does not erase historical intent. Acquire and release append before live publication. If appending an acquire, release, or reconciliation fails, no new state is published. Concurrent gates with overlapping local IDs remain independent by owner; a sample autonomous consumer does not continue while any gate or unconfirmed owner exists, and a sample awake-hold consumer retains its hold. These are fixture policies, not tests of the actual goal or caffeinate packages. Session tree reads use full session history while session replacement does not leak old gates.
 :::
 
 :::mara risk RISK-GATES-EARLY-SESSION-NOT-DURABLE
