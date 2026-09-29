@@ -121,6 +121,25 @@ its required checks have passed on that integration. Then dependent work can sta
 from available code, rather than from an unmerged promise. Do not close the root
 merely because worker processes appear idle or all package aggregates appear done.
 
+## Project-local MCP access
+
+The tracked `.pi/mcp.json` registers the installed `mara mcp` and `work mcp`
+stdio servers for Pi 0.99.1. Both use `cwd: "."`, relative to the Pi session's
+working directory, rather than a fixed checkout path. Worktrees inherit this
+configuration through Git; start campaign sessions from their assigned worktree
+roots and still select the intended project/worktree explicitly in tool calls.
+The `mara` and `work` executables must be available on PATH; this configuration
+does not install them or add requirements to published packages or generated
+consumer workspaces.
+
+Both use native `codemode` exposure, allowing structured calls without declaring
+the entire tool catalog. `pi mcp list --json` verified both project servers connected
+with no errors during setup; it does not establish a completed domain operation.
+Project trust is required. Run `/reload` or start a new Pi session after changes,
+and use the MCP tools when available, retaining the skills' CLI fallback otherwise.
+Do not change global MCP settings or hardcode the coordinator checkout into this
+shared file.
+
 ## Foundation and ownership
 
 Read `AGENTS.md`, the Work/Mara skills, and applicable Nx/generator guidance before
