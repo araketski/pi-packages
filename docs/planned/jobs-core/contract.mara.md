@@ -71,7 +71,8 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 Shared contracts cover [lifecycle and recovery](./lifecycle.mara.md),
 [delivery modes and receipts](./delivery.mara.md), and
 [persistence and bounded output](./storage.mara.md). Consumer-specific knowledge lives
-in each owning plan: [pi-jobs execution](../jobs/execution.mara.md),
+in each owning plan: [pi-jobs execution](../jobs/execution.mara.md) and
+[controls](../jobs/controls.mara.md),
 [goal continuation](../goal/jobs-integration.mara.md),
 [caffeinate sleep inhibition](../caffeinate/jobs-integration.mara.md), and
 [Herdr integration](../herdr/scope.mara.md). Exact APIs and wire envelopes, storage
@@ -88,8 +89,9 @@ tasks; agent messaging and parent-child orchestration are not prerequisites.
 :status: accepted
 :kind: structure
 :satisfies: REQ-HERDR-JOBS-MODULE
+:satisfies: REQ-JOBS-PRODUCER-IDENTITY
 
-Use three packages: pi-jobs owns the replacement bash tool, local execution adapter, and unified job tools/UI; pi-herdr owns Herdr execution and full workspace, worktree, tab, and pane integration; pi-jobs-core supplies reusable job policy and an explicit owner/observer contract. Keep backend execution and ownership/liveness evidence in adapters, and lifecycle, reconciliation policy, waiting, output/result bookkeeping, completion delivery, and gate integration in the core. The observer UI does not independently redeliver owner results or take ownership of observed work. Independently loaded copies of the core must communicate through the explicit contract rather than an assumed package singleton. Herdr job tracking must not require pi-jobs UI registration. No separate jobs-protocol package or agent messaging system is required.
+Use three packages: pi-jobs owns the replacement bash tool, local execution adapter, and unified job tools/UI; pi-herdr owns Herdr execution and full workspace, worktree, tab, and pane integration; pi-jobs-core supplies reusable job policy and an explicit owner/observer contract. Keep backend execution and ownership/liveness evidence in adapters, and lifecycle, reconciliation policy, waiting, output/result bookkeeping, completion delivery, and gate integration in the core. The observer UI does not independently redeliver owner results or take ownership of observed work. Independently loaded copies of the core must communicate through the explicit contract rather than an assumed package singleton. Herdr job tracking must not require pi-jobs UI registration. The core contract preserves each job's producer identity through observation, persistence, and results, separately from job/session identity, ownership, and contract version. No separate jobs-protocol package or agent messaging system is required.
 :::
 
 :::mara requirement REQ-JOBS-RELEASE-COMPAT
@@ -123,8 +125,9 @@ Independently loaded copies, including those used by external extensions, can id
 :verifies: DES-JOBS-PACKAGE-BOUNDARY
 :verifies: REQ-JOBS-RELEASE-COMPAT
 :verifies: REQ-JOBS-VERSION-DIAGNOSTICS
+:verifies: REQ-JOBS-PRODUCER-IDENTITY
 
-Use separately loaded core copies with local and Herdr owner fixtures and an independent observer. Confirm job visibility without a shared singleton, library-supplied contract metadata without consumer version declarations, and no duplicate result delivery from observer registration. Different consumer/core package releases with the same hardcoded contract version must not emit contract-mismatch warnings. Add an external-extension fixture importing the same contract without repository release metadata. Introduce a different hardcoded contract version, including through a late participant, and require a warning identifying the revisions rather than silent isolation. Missing version data is not classified as a confirmed match; malformed or unsupported records leave valid job/wait state intact.
+Use separately loaded core copies with local and Herdr owner fixtures and an independent observer. Confirm job visibility without a shared singleton, library-supplied contract metadata without consumer version declarations, and no duplicate result delivery from observer registration. Different consumer/core package releases with the same hardcoded contract version must not emit contract-mismatch warnings. Add an external-extension fixture importing the same contract without repository release metadata. Preserve distinct local, Herdr, and external producer identities through observation, persistence/recovery, and results, without treating producer labels as control authority or compatibility markers. Introduce a different hardcoded contract version, including through a late participant, and require a warning identifying the revisions rather than silent isolation. Missing version data is not classified as a confirmed match; malformed or unsupported records leave valid job/wait state intact.
 
 Exercise an illustrative release sequence: core 0.4.0 and compatible releases through 0.4.11 report contract 0.4.0; a breaking change first shipped in 0.4.12 reports contract 0.4.12; subsequent compatible releases retain 0.4.12. Require exact marker equality: neither direction of a 0.4.0/0.4.12 comparison counts as a match. Check that adding required data/capabilities or changing lifecycle semantics requires a new release stamp, while safely ignorable optional additions retain it. A disposable ordinary package-version bump must leave the contract constant unchanged. Check that matching contract language is not advertised as broader end-to-end support beyond the same-release repository guarantee. These are future checks, not passing execution evidence.
 :::
@@ -137,4 +140,35 @@ Exercise an illustrative release sequence: core 0.4.0 and compatible releases th
 :justifies: REQ-JOBS-RELEASE-COMPAT
 
 Local bash commands that continue in the background and explicitly visible Herdr executions now provide two concrete consumers of the same job machinery. Place that machinery and its in-runtime observation contract in pi-jobs-core instead of keeping it internal to Herdr. This supersedes the packaging choice in [[ADR-HERDR-INTERNAL-JOBS-MODULE]], while preserving separation of job policy from terminal operations and exclusion of agent messaging infrastructure. Initial repository consumers are maintained and released together, so the end-to-end support guarantee targets matching releases. Separately, the core reports a hardcoded contract revision, bumped for incompatible changes, so third-party extensions can speak the same language without matching our package versions. Warn on contract-version mismatches, not merely release differences; preserve mixed-release compatibility where practical without promising a support matrix.
+:::
+
+:::mara requirement REQ-JOBS-PRODUCER-IDENTITY
+:mid: 01M3PZW86CG6HDM5FWHH94G3X0
+:title: Preserve the producer identity of each participating job
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+
+Every job preserves a stable producer identity identifying the originating extension or API consumer, such as pi-jobs, pi-herdr, or an external tool. Carry that identity through observation, persisted records, recovery, listings, and results rather than relabelling all jobs as belonging to the unified UI. Keep producer identity distinct from job identity, originating Pi session, control ownership, and the library-reported contract version. Producer metadata alone does not grant control authority or replace core-owned compatibility reporting. Participation must not require a hardcoded whitelist of repository producers.
+:::
+
+:::mara requirement REQ-JOBS-CONFIGURATION
+:mid: 01M3PZWB4BT34QXDQDG9F9BCW1
+:title: Resolve explicit job settings without allowing local quota escalation
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+
+Repository jobs consumers support user-level defaults, project-level behavioral overrides, and explicit per-job overrides for the agreed execution, awaiting, and delivery options. Let the calling agent select how to run instead of classifying command names or text. Reuse Pi facilities where applicable rather than adding competing session or turn machinery. The total storage ceiling remains user-scoped under [[REQ-JOBS-STORAGE-QUOTA]]; a project or job cannot silently raise it. Exact settings locations and schemas must be specified before implementing configuration loading.
+:::
+
+:::mara verification VER-JOBS-CONFIGURATION
+:mid: 01M3PZWE459J4G9YQZVF6KMZ0F
+:title: Check settings precedence and storage ceiling scope
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-JOBS-CONFIGURATION
+
+For repository local and Herdr consumer fixtures, exercise user defaults, project behavioral overrides, and explicit per-job awaiting/delivery choices. Show that command text alone does not select a different execution mode, lifetime, await setting, or delivery mode. Preserve the user-scoped total quota when a project or call requests more capacity. Verify the selected settings mechanism uses relevant Pi capabilities without reimplementing sessions or turn scheduling. These are future tests, not verified runtime behavior.
 :::

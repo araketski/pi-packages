@@ -94,3 +94,13 @@ With jobs from active and inactive sessions still running, exit Pi normally and 
 
 Commands have no hard execution deadline by default. Allow an explicit per-job hard timeout that requests termination through the normal stop/escalation policy rather than merely backgrounding the command. Foreground budget expiry alone preserves the execution. A hard-timeout or cancellation request is not verified termination; retain an honest outcome if stopping cannot be confirmed. A command already completed when the request arrives keeps its actual exit result.
 :::
+
+:::mara requirement REQ-JOBS-WAIT-SELECTION
+:mid: 01M3PZWWVCNGPRK9BD9YQJ4CEJ
+:title: Wait for one, any, or all selected jobs without changing their lifetime
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+
+Support explicit waiting for one job, any selected job, or all selected jobs. A wait timeout returns current status; it does not stop the jobs or cancel their eventual delivery. Do not satisfy a completion wait from unconfirmed execution state. Explicit final-result retrieval through a wait result follows the normal delivery-receipt contract; merely checking status does not consume a final result. These wait operations do not add an implicit execution queue or process-count scheduler.
+:::
