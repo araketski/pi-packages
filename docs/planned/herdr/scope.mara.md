@@ -12,7 +12,12 @@ to visible running work. Those agents may themselves launch further agents.
 Spawning terminals is sufficient initially: it does not require an additional
 agent messaging or delegation service.
 
-| Herdr integration | Separate jobs module |
+The separate jobs module is now planned as `pi-jobs-core`, shared by the local
+`pi-jobs` bash execution path and `pi-herdr`. The
+[jobs-core contract](../jobs-core/contract.mara.md) owns the three-package boundary
+and distinguishes package releases from the library-reported contract version.
+
+| Herdr integration | Shared jobs module |
 | --- | --- |
 | Worktrees, workspaces, tabs, and panes | Managed execution identity and lifecycle |
 | Launching, inspecting, and controlling backend processes | Reconciliation of running, completed, and unknown state |
@@ -39,12 +44,13 @@ consumer tests; this document does not claim those integrations work.
 - No initial requirement for agent messaging, delegation graphs, automatic
   parent-child wait propagation, result synthesis, or a cross-process agent
   orchestration service. A thin agent-specific layer may be added later if needed.
-- Do not require a new public jobs protocol, scheduler, or separately published
-  jobs package just to implement this workflow. Separate module means a code and
-  responsibility boundary inside the future Herdr package initially.
-- Consider a reusable library when another extension needs the implementation;
-  consider a public jobs protocol when independent extensions need to exchange
-  job records. Neither is a prerequisite now.
+- The original internal-to-Herdr packaging decision is superseded: local bash
+  backgrounding and Herdr executions now both need the shared `pi-jobs-core`
+  implementation. Backgrounding a local command preserves its process; it does
+  not require opening or migrating execution into a Herdr pane.
+- The core exports the owner/observer contract for the unified jobs view. A
+  separate `pi-jobs-protocol` package, generic scheduler, and agent messaging
+  service remain unnecessary for the initial workflow.
 - The future of the legacy tmux extension remains undecided. This direction does
   not authorize its removal or require tmux/Herdr parity before Herdr is useful.
 
@@ -65,7 +71,7 @@ Support a workflow in which Pi and its user create Herdr worktrees and terminal 
 :kind: constraint
 :contributes_to: GOAL-HERDR-VISIBLE-WORKFLOW
 
-The Herdr integration must have a separate jobs module for managed execution tracking, outcome reconciliation, output/result bookkeeping, completion delivery, timeouts, explicit waits, and gate integration. Herdr resource management and backend-specific launch, inspection, input, and termination remain outside that module. Job policy must be reviewable and testable without real Herdr operations. This requires a module boundary, not a standalone package or public jobs event protocol, and does not require automatic agent-to-agent coordination.
+The Herdr integration must use a separate jobs module for managed execution tracking, outcome reconciliation, output/result bookkeeping, completion delivery, timeouts, explicit waits, and gate integration. Herdr resource management and backend-specific launch, inspection, input, and termination remain outside that module. Job policy must be reviewable and testable without real Herdr operations. The shared module is supplied by pi-jobs-core for both the local bash and Herdr execution paths, as specified in [[DES-JOBS-PACKAGE-BOUNDARY]]. Its owner/observer contract does not require a separate jobs-protocol package or automatic agent-to-agent coordination.
 :::
 
 :::mara verification VER-HERDR-JOBS-MODULE
@@ -75,14 +81,14 @@ The Herdr integration must have a separate jobs module for managed execution tra
 :method: inspection
 :verifies: REQ-HERDR-JOBS-MODULE
 
-When implementation exists, inspect the module dependencies and responsibilities: execution identity, reconciliation policy, output/result bookkeeping, delivery, waits, and gate integration reside in the jobs module; Herdr CLI/API calls and worktree/layout operations reside outside it. Confirm job policy has a test seam for supplying execution observations without starting Herdr, and no public jobs protocol or agent messaging service is necessary for launching and tracking a command. This defines future verification; no implementation inspection or runtime test has passed yet.
+When implementation exists, inspect dependencies and responsibilities: execution identity, reconciliation policy, output/result bookkeeping, delivery, waits, and gate integration reside in pi-jobs-core; local process and Herdr CLI/API operations reside in their respective adapters; worktree/layout operations remain in pi-herdr. Confirm job policy has a test seam for execution observations without starting Herdr, the two extensions use the shared implementation, and no agent messaging service is necessary for launching and tracking a command. The in-runtime owner/observer contract is specified in [[DES-JOBS-PACKAGE-BOUNDARY]]. This defines future verification; no implementation inspection or runtime test has passed yet.
 :::
 
 :::mara decision ADR-HERDR-INTERNAL-JOBS-MODULE
 :mid: 01M3PF1ZA5XKR3VWJGW6JDTPJC
 :title: Start with an internal jobs module rather than a public jobs protocol
-:status: accepted
+:status: retired
 :justifies: REQ-HERDR-JOBS-MODULE
 
-Keep a separate jobs module inside the future Herdr extension package. This preserves reusable, testable job policy without mixing it into terminal-control code, while avoiding a generic job platform or agent communication layer that the initial workflow does not need. Treat other interactive agents as launched processes initially, not automatically coordinated delegated tasks. Extract a shared library if another extension needs the implementation; introduce a public jobs protocol only if independent extensions need to exchange job records. The earlier standalone pi-jobs-protocol proposal is not a prerequisite for this work.
+The original choice was a separate jobs module inside the future Herdr extension package, with extraction deferred until another extension needed the implementation. The purpose was to preserve reusable, testable job policy without mixing it into terminal-control code or requiring a generic job platform and agent communication layer. This packaging choice is superseded by [[ADR-JOBS-SHARED-CORE]] after local bash backgrounding and explicitly visible Herdr executions established two concrete consumers. The separate jobs responsibility remains required; the implementation now belongs in pi-jobs-core with its in-runtime owner/observer contract. Automatic agent-to-agent coordination remains outside the initial scope.
 :::

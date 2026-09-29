@@ -15,6 +15,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Release preparation and protected publication](docs/release.mara.md)
 - [Pi release compatibility policy](docs/pi-compatibility.mara.md)
 - [Planned Herdr workflow and separate jobs module](docs/planned/herdr/scope.mara.md)
+- [Planned jobs-core package boundary and contract compatibility](docs/planned/jobs-core/contract.mara.md)
 
 ## Development
 
