@@ -4,10 +4,11 @@ import { GateProjection, type GateIdentity, type SessionGateView } from './proje
 export const GATE_ENTRY_TYPE = 'araketski.pi-gates/v1';
 const CHANNEL = 'araketski.pi-gates/v1';
 
-type JournalEntry =
+type JournalEntry = (
   | { version: 1; kind: 'reconcile'; sessionId: string; owner: string; gates: GateIdentity[] }
   | { version: 1; kind: 'acquire'; sessionId: string; owner: string; gate: GateIdentity }
-  | { version: 1; kind: 'release'; sessionId: string; owner: string; gateId: string };
+  | { version: 1; kind: 'release'; sessionId: string; owner: string; gateId: string }
+) & { suppressNotice?: true };
 type Signal =
   | { kind: 'request' | 'announce'; sessionId: string; owner?: string }
   | { kind: 'snapshot'; sessionId: string; owner: string; gates: GateIdentity[] };
@@ -86,8 +87,12 @@ function sessionId(ctx: GateContext): string {
 
 // @mara implements REQ-GATES-PENDING-STATE
 // @mara implements REQ-GATES-PERSIST-BEFORE-SIGNAL
-export function createGateOwner(pi: GateHost, owner: string) {
+export function createGateOwner(pi: GateHost, owner: string, options: { suppressNotice?: boolean } = {}) {
   if (!validId(owner)) throw new Error('Invalid gate owner ID.');
+  if (options.suppressNotice !== undefined && typeof options.suppressNotice !== 'boolean') {
+    throw new Error('Invalid gate notice preference.');
+  }
+  const notice = options.suppressNotice ? { suppressNotice: true as const } : {};
   let activeSession: string | undefined;
   let ready = false;
   let gates = new Map<string, GateIdentity>();
@@ -121,7 +126,7 @@ export function createGateOwner(pi: GateHost, owner: string) {
       const id = assertSession(ctx);
       if (!validGates(verified)) throw new Error('Invalid verified gate snapshot.');
       const next = new Map(verified.map((gate) => [gate.id, copyGate(gate)] as const));
-      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'reconcile', sessionId: id, owner, gates: verified.map(copyGate) } satisfies JournalEntry);
+      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'reconcile', sessionId: id, owner, gates: verified.map(copyGate), ...notice } satisfies JournalEntry);
       gates = next;
       ready = true;
       send(snapshot());
@@ -131,7 +136,7 @@ export function createGateOwner(pi: GateHost, owner: string) {
       if (!ready) throw new Error('Reconcile this gate owner before acquisition.');
       if (!validGate(gate)) throw new Error('Invalid gate.');
       if (gates.has(gate.id)) return;
-      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'acquire', sessionId: id, owner, gate: copyGate(gate) } satisfies JournalEntry);
+      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'acquire', sessionId: id, owner, gate: copyGate(gate), ...notice } satisfies JournalEntry);
       gates.set(gate.id, copyGate(gate));
       send(snapshot());
     },
@@ -140,7 +145,7 @@ export function createGateOwner(pi: GateHost, owner: string) {
       if (!ready) throw new Error('Reconcile this gate owner before clearance.');
       if (!validId(gateId)) throw new Error('Invalid gate ID.');
       if (!gates.has(gateId)) return;
-      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'release', sessionId: id, owner, gateId } satisfies JournalEntry);
+      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'release', sessionId: id, owner, gateId, ...notice } satisfies JournalEntry);
       gates.delete(gateId);
       send(snapshot());
     },

@@ -5,7 +5,9 @@ current state; it is not yet implemented. Its coordination dependency is
 specified in [the protocol contract](../../../packages/gates-protocol/docs/contract.mara.md).
 Pi custom session entries can appear in the interactive chat through an entry
 renderer without becoming model-visible messages. The extension does not need
-to generate model turns merely to announce gate transitions.
+to generate model turns merely to announce gate transitions. Protocol entries
+with `suppressNotice: true` are still journalled but do not get a generic
+lifecycle notice; live health warnings are independent of that preference.
 
 :::mara requirement REQ-GATES-USER-VISIBILITY
 :mid: 01M3P42KSQ751ZF67NFS9DQAN3

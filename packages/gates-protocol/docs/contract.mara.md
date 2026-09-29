@@ -34,6 +34,16 @@ and neither silently clears a gate or starts a turn. Custom session entries
 are appended before their live announcements; bounded identities make repeated
 delivery and reconciliation safe. Gate entries must not contain raw job commands or output.
 
+## Visibility metadata
+
+Owner-created custom entries contain only bounded gate identity and optional
+lease metadata. By default they are eligible for an interactive user notice.
+`createGateOwner(..., { suppressNotice: true })` writes `suppressNotice: true`
+on each lifecycle entry when the owner already presents equivalent notices.
+This flag never prevents journaling, changes no live gate, and does not hide
+stale or unresponsive-owner diagnostics. The optional `pi-gates` extension
+will interpret it; the protocol itself does not render messages or start turns.
+
 ## Open design questions
 
 The initial interface uses session ID, owner ID, and owner-local gate ID; a

@@ -52,6 +52,7 @@ describe('gate coordination across Pi extension instances', () => {
     expect(f.entries.map((entry) => entry.customType)).toEqual([
       GATE_ENTRY_TYPE, GATE_ENTRY_TYPE,
     ]);
+    expect(f.entries.every(({ data }) => !Object.hasOwn(data as object, 'suppressNotice'))).toBe(true);
     owner.close();
     observer.close();
   });
@@ -182,6 +183,24 @@ describe('gate coordination across Pi extension instances', () => {
     expect(observer.view().owners[0]).toEqual({
       owner: 'tmux-bash', state: 'confirmed', gates: [{ id: 'running', leaseUntil: 2_000 }],
     });
+    owner.close();
+    observer.close();
+  });
+
+  it('marks duplicate owner notices as hidden without suppressing journal or live gates', () => {
+    const f = fixture();
+    const owner = createGateOwner(f.pi, 'tmux-bash', { suppressNotice: true });
+    const observer = createGateObserver(f.pi);
+    owner.start(f.ctx);
+    observer.start(f.ctx);
+    owner.reconcile(f.ctx, []);
+    owner.acquire(f.ctx, { id: 'job' });
+    owner.release(f.ctx, 'job');
+    expect(f.entries).toHaveLength(3);
+    expect(f.entries.every(({ data }) => (data as { suppressNotice?: boolean }).suppressNotice === true)).toBe(true);
+    expect(observer.view().owners).toEqual([
+      { owner: 'tmux-bash', state: 'confirmed', gates: [] },
+    ]);
     owner.close();
     observer.close();
   });
