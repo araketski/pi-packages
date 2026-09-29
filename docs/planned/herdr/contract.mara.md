@@ -116,3 +116,35 @@ In an isolated local Herdr session on Linux, create a managed command while an e
 
 Use controlled JSON-socket fixtures for subscription acknowledgement, events arriving during snapshot bootstrap, pane movement, disconnects, unsupported methods, invalid responses, and ambiguous mutation replies. Require resnapshot reconciliation after reconnect and preserve unknown state rather than fabricating completion or assuming event replay. Drop a mutation response after applying it: no blind resubmission or automatic CLI/local fallback. Confirm explicit IDs and inherited endpoint selection cannot drift with UI focus. Then test the adapter against a supported real Herdr server in an isolated session; inspect that it uses public JSON RPC, not the private binary protocol. CLI help/schema reads alone are insufficient. Do not stop the live user server for tests. These verification definitions have not been executed.
 :::
+
+:::mara requirement REQ-HERDR-RESOURCE-CONTROLS
+:mid: 01M3Q64SHX624KRP1RH6RPCM1V
+:title: Expose current-local Herdr resource and terminal controls through its native capabilities
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-HERDR-VISIBLE-WORKFLOW
+
+Provide Pi-facing controls for the agreed local workflow: create/list/inspect and explicitly navigate or manage worktrees, workspaces, tabs, and panes; launch explicit commands or agents; read terminal output; send explicit input; and revisit/control the selected running resources. Use the public supported Herdr capability surface and explicit IDs, not inferred UI focus. Preserve caller focus unless navigation/focus was explicitly requested. Existing-pane input remains terminal control, not proof of a managed job launch or outcome. Keep backend resource operations in pi-herdr and managed job policy in pi-jobs-core. Specify concrete tool arguments and supported native operations before implementing each slice; unsupported capabilities fail clearly rather than being invented or silently substituted.
+:::
+
+:::mara requirement REQ-HERDR-NO-APPROVAL-LAYER
+:mid: 01M3Q64WGEZZNX9QWHKJF2XT2D
+:title: Do not add an extension-specific approval policy to Herdr operations
+:status: accepted
+:kind: constraint
+:contributes_to: GOAL-HERDR-VISIBLE-WORKFLOW
+
+Do not invent a permission store, approval policy, or extra confirmation layer around explicit Herdr tool operations. Execute supported explicit resource requests through the native backend and surface its errors, including native destructive-operation safeguards. Do not silently turn a failed request into a forced mutation, retarget/restart a server, or retry an ambiguous mutation. Explicit backend-supported options belong to the requested operation, not a new extension authorization framework. This does not weaken the separate automatic job-cleanup contract: normal-exit cleanup still must not delete worktrees, close parent workspaces, or terminate merely observed work. Development/test agents also remain subject to their own harness instructions and isolated-test boundaries.
+:::
+
+:::mara verification VER-HERDR-RESOURCE-CONTROLS
+:mid: 01M3Q64ZDR89J07THEJP6Y5X5F
+:title: Verify explicit resource operations without an invented approval framework
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-HERDR-RESOURCE-CONTROLS
+:verifies: REQ-HERDR-NO-APPROVAL-LAYER
+
+Use structured adapter fixtures and an isolated real local Herdr session for worktree/workspace/tab/pane management, explicit navigation, command/agent launch, output reads, and input controls. Verify explicit identifiers and preserved focus by default. Exercise supported explicit closing/removal requests without extension approval prompts, and native refusal/error paths without automatic force escalation or blind retries. Keep existing-pane input distinct from managed execution evidence. Separately verify that automatic job cleanup never performs these parent-resource removals. Do not mutate the live user server or unrelated worktrees. These are future checks, not executed tests.
+:::
