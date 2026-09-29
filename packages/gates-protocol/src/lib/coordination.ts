@@ -160,6 +160,7 @@ export function createGateOwner(pi: GateHost, owner: string, options: { suppress
 }
 
 // @mara implements REQ-GATES-RECONCILIATION
+// @mara implements REQ-GATES-SCOPED-STATE
 // @mara implements REQ-GATES-HEALTH-DIAGNOSTICS
 // @mara implements REQ-GATES-SESSION-HISTORY
 export function createGateObserver(
@@ -175,6 +176,10 @@ export function createGateObserver(
   const send = (signal: Signal) => pi.events.emit(CHANNEL, signal);
   return {
     start(ctx: GateContext): void {
+      unsubscribe?.();
+      unsubscribe = undefined;
+      projection = undefined;
+      pending.clear();
       const id = sessionId(ctx);
       const history = new Map<string, Map<string, GateIdentity>>();
       for (const entry of ctx.sessionManager.getEntries()) {
@@ -191,12 +196,10 @@ export function createGateObserver(
         }
       }
       projection = new GateProjection(id);
-      pending.clear();
       for (const [owner, gates] of history) {
         projection.remember(owner, [...gates.values()]);
         pending.set(owner, now());
       }
-      unsubscribe?.();
       unsubscribe = pi.events.on(CHANNEL, (raw) => {
         const message = parseSignal(raw);
         if (!projection || !message || message.sessionId !== projection.sessionId) return;

@@ -31,6 +31,7 @@ function fixture() {
 
 // @mara checks REQ-GATES-PENDING-STATE
 // @mara checks REQ-GATES-RECONCILIATION
+// @mara checks REQ-GATES-SCOPED-STATE
 // @mara checks REQ-GATES-SESSION-HISTORY
 // @mara checks REQ-GATES-PERSIST-BEFORE-SIGNAL
 // @mara checks REQ-GATES-HEALTH-DIAGNOSTICS
@@ -223,6 +224,21 @@ describe('gate coordination across Pi extension instances', () => {
       { owner: 'tmux-bash', state: 'confirmed', gates: [] },
     ]);
     owner.close();
+    observer.close();
+  });
+
+  it('fails closed if reading a replacement session journal throws', () => {
+    const f = fixture();
+    const observer = createGateObserver(f.pi);
+    observer.start(f.ctx);
+    observer.finishDiscovery();
+    expect(observer.view().readiness).toBe('confirmed');
+    f.setSession('session-b');
+    expect(() => observer.start({ sessionManager: {
+      getSessionId: () => 'session-b',
+      getEntries: () => { throw new Error('unreadable session'); },
+    } })).toThrow('unreadable session');
+    expect(() => observer.view()).toThrow('not started');
     observer.close();
   });
 

@@ -146,7 +146,7 @@ In a Pi session that has been written to disk, acquire and end a gate, then reop
 :kind: functional
 :contributes_to: GOAL-GATES-COORDINATION
 
-A live gate is scoped to a Pi session, a work owner, and a gate identity. Separate gates may coexist; clearing one must not erase another owner's gate or another awaited operation. Navigating the session tree must not by itself claim that an external job started, ended, or moved to a different branch; the work owner reconciles current state.
+A live gate is scoped to a Pi session, a work owner, and a gate identity. Separate gates may coexist; clearing one must not erase another owner's gate or another awaited operation. Navigating the session tree must not by itself claim that an external job started, ended, or moved to a different branch; the work owner reconciles current state. If reading a replacement session's history fails, a former session's confirmed state must not be exposed as current.
 :::
 
 :::mara verification VER-GATES-SCOPED-STATE
@@ -157,7 +157,7 @@ A live gate is scoped to a Pi session, a work owner, and a gate identity. Separa
 :level: integration
 :verifies: REQ-GATES-SCOPED-STATE
 
-Announce two gates with the same local ID from distinct owners in one session and another in a different session. Confirm each observer sees only its session and each owner affects only its own gate. Clear one, then navigate the session tree; the remaining external work must not disappear or reappear solely because the active branch changed. Confirm owner reconciliation determines the live projection.
+Announce two gates with the same local ID from distinct owners in one session and another in a different session. Confirm each observer sees only its session and each owner affects only its own gate. Clear one, then navigate the session tree; the remaining external work must not disappear or reappear solely because the active branch changed. Confirm owner reconciliation determines the live projection. Simulate failure reading a replacement session: the observer must fail closed instead of returning a confirmed state from the former session.
 :::
 
 :::mara requirement REQ-GATES-RECONCILIATION
