@@ -35,10 +35,11 @@ Two distinct versions have different purposes:
   [fixed-version release policy](../../release.mara.md). The end-to-end integration
   guarantee covers our extensions released together, not every third-party or
   mixed-release combination.
-- **Jobs contract version:** a hardcoded version supplied and reported by the
-  imported core implementation, bumped for incompatible public-contract changes.
-  It is independent of package releases; extensions do not manually report their
-  own package versions as the protocol compatibility marker.
+- **Jobs contract version:** a hardcoded release stamp supplied and reported by
+  the imported core implementation. Its value is the first core package release
+  shipping that contract revision. It changes for incompatible public-contract
+  changes, not automatically with ordinary package releases; extensions do not
+  manually report their own versions as the protocol compatibility marker.
 
 External extensions can import the core and speak the same contract language.
 Different package releases with the same contract version do not cause a mismatch
@@ -48,6 +49,22 @@ version is not itself proof of a tested end-to-end integration.
 Cross-release compatibility remains best-effort. No automatic downgrade,
 negotiation framework, or compatibility shim is required. This does not expand the
 separately specified [Pi runtime support policy](../../pi-compatibility.mara.md).
+
+### Release-stamped revision example
+
+If the first shipping release is `0.4.0`, and the first incompatible change ships
+in `0.4.12`, the markers are:
+
+| Core package release | Jobs contract version |
+| --- | --- |
+| `0.4.0` through compatible `0.4.11` | `0.4.0` |
+| `0.4.12` with the incompatible change | `0.4.12` |
+| Later releases compatible with that revision | Still `0.4.12` |
+
+This is an illustrative sequence, not a claim those releases exist. Compare
+markers by exact equality, never a version range or newer-than test. Even a small
+incompatible change requires a new stamp; safely ignorable optional additions do
+not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 
 ## Still to specify
 
@@ -86,7 +103,9 @@ The guaranteed integration configuration consists of repository-owned jobs consu
 :kind: functional
 :derives_from: REQ-JOBS-RELEASE-COMPAT
 
-pi-jobs-core defines and reports a hardcoded jobs contract version through its imported owner/observer implementation. Extensions do not manually supply their package versions as the compatibility marker. Bump the contract version when making incompatible changes to the public jobs contract; compatible changes and ordinary package releases do not by themselves require a bump. Independently loaded copies, including those used by external extensions, can identify whether they speak the same contract language. Differing contract versions produce a warning identifying the observed revisions and relevant owners/observers, rather than silently remaining invisible to one another. Equal contract versions do not produce a mismatch warning merely because consumer or core package releases differ. Missing or unreadable contract versions are not a confirmed match. Mismatch reporting does not promise translation or negotiation; best-effort handling must still reject malformed or unrecognized data without fabricating completion, clearing waits, or overwriting valid state. Exact envelope and warning presentation remain to be specified.
+pi-jobs-core defines and reports a hardcoded jobs contract version through its imported owner/observer implementation. Extensions do not manually supply their package versions as the compatibility marker. The marker is the exact core package version of the first release shipping that contract revision: use 0.4.0 initially if that is the first shipping release. For any incompatible public-contract change, stamp the release introducing it; never ship an incompatible change under an existing marker. Incompatibility includes newly required data or capabilities and changed lifecycle semantics, not only large redesigns. Compatible changes, including optional additions older participants can safely ignore, retain the marker. Ordinary package/Nx release versioning must not automatically update it. Compare markers by exact equality, not semantic-version ranges or newer-than ordering.
+
+Independently loaded copies, including those used by external extensions, can identify whether they speak the same contract language. Differing contract versions produce a warning identifying the observed revisions and relevant owners/observers, rather than silently remaining invisible to one another. Equal contract versions do not produce a mismatch warning merely because consumer or core package releases differ. Missing or unreadable contract versions are not a confirmed match. Mismatch reporting does not promise translation or negotiation; best-effort handling must still reject malformed or unrecognized data without fabricating completion, clearing waits, or overwriting valid state. Exact envelope and warning presentation remain to be specified.
 :::
 
 :::mara verification VER-JOBS-PARTICIPANT-COMPAT
@@ -99,7 +118,9 @@ pi-jobs-core defines and reports a hardcoded jobs contract version through its i
 :verifies: REQ-JOBS-RELEASE-COMPAT
 :verifies: REQ-JOBS-VERSION-DIAGNOSTICS
 
-Use separately loaded core copies with local and Herdr owner fixtures and an independent observer. Confirm job visibility without a shared singleton, library-supplied contract metadata without consumer version declarations, and no duplicate result delivery from observer registration. Different consumer/core package releases with the same hardcoded contract version must not emit contract-mismatch warnings. Add an external-extension fixture importing the same contract without repository release metadata. Introduce a different hardcoded contract version, including through a late participant, and require a warning identifying the revisions rather than silent isolation. Missing version data is not classified as a confirmed match; malformed or unsupported records leave valid job/wait state intact. Inspect a breaking-contract-change fixture for a version bump and a compatible-release fixture for unchanged contract version. Check that matching contract language is not advertised as broader end-to-end support beyond the same-release repository guarantee. These are future checks, not passing execution evidence.
+Use separately loaded core copies with local and Herdr owner fixtures and an independent observer. Confirm job visibility without a shared singleton, library-supplied contract metadata without consumer version declarations, and no duplicate result delivery from observer registration. Different consumer/core package releases with the same hardcoded contract version must not emit contract-mismatch warnings. Add an external-extension fixture importing the same contract without repository release metadata. Introduce a different hardcoded contract version, including through a late participant, and require a warning identifying the revisions rather than silent isolation. Missing version data is not classified as a confirmed match; malformed or unsupported records leave valid job/wait state intact.
+
+Exercise an illustrative release sequence: core 0.4.0 and compatible releases through 0.4.11 report contract 0.4.0; a breaking change first shipped in 0.4.12 reports contract 0.4.12; subsequent compatible releases retain 0.4.12. Require exact marker equality: neither direction of a 0.4.0/0.4.12 comparison counts as a match. Check that adding required data/capabilities or changing lifecycle semantics requires a new release stamp, while safely ignorable optional additions retain it. A disposable ordinary package-version bump must leave the contract constant unchanged. Check that matching contract language is not advertised as broader end-to-end support beyond the same-release repository guarantee. These are future checks, not passing execution evidence.
 :::
 
 :::mara decision ADR-JOBS-SHARED-CORE
