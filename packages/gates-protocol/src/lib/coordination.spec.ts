@@ -35,6 +35,23 @@ function fixture() {
 // @mara checks REQ-GATES-PERSIST-BEFORE-SIGNAL
 // @mara checks REQ-GATES-HEALTH-DIAGNOSTICS
 describe('gate coordination across Pi extension instances', () => {
+  it('distinguishes an unfinished owner-discovery phase from confirmed no work', () => {
+    const f = fixture();
+    const observer = createGateObserver(f.pi);
+    observer.start(f.ctx);
+    expect(observer.view().readiness).toBe('unconfirmed');
+    expect(observer.view().owners).toEqual([]);
+    observer.finishDiscovery();
+    expect(observer.view().readiness).toBe('confirmed');
+    const owner = createGateOwner(f.pi, 'tmux-bash');
+    owner.start(f.ctx);
+    expect(observer.view().readiness).toBe('unconfirmed');
+    owner.reconcile(f.ctx, []);
+    expect(observer.view().readiness).toBe('confirmed');
+    owner.close();
+    observer.close();
+  });
+
   it('keeps a late observer unconfirmed until its owner verifies live work', () => {
     const f = fixture();
     const owner = createGateOwner(f.pi, 'tmux-bash');
@@ -123,8 +140,11 @@ describe('gate coordination across Pi extension instances', () => {
     owner.start(f.ctx);
     owner.reconcile(f.ctx, [{ id: 'running' }]);
     observer.start(f.ctx);
+    observer.finishDiscovery();
+    expect(observer.view().readiness).toBe('confirmed');
     owner.close();
     observer.refresh();
+    expect(observer.view().readiness).toBe('unconfirmed');
     expect(observer.view().owners[0]).toEqual({
       owner: 'tmux-bash', state: 'unconfirmed', gates: [{ id: 'running' }],
     });
@@ -137,6 +157,7 @@ describe('gate coordination across Pi extension instances', () => {
     resumed.start(f.ctx);
     expect(observer.view().owners[0].state).toBe('unconfirmed');
     resumed.reconcile(f.ctx, [{ id: 'running' }]);
+    expect(observer.view().readiness).toBe('confirmed');
     expect(observer.view().owners[0]).toEqual({
       owner: 'tmux-bash', state: 'confirmed', gates: [{ id: 'running' }],
     });

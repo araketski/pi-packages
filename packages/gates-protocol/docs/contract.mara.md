@@ -281,3 +281,25 @@ Pi may accept custom entries in memory before it creates a new session file. If 
 
 Use the actual Pi 0.87.1 SessionManager and EventBus in a temporary file-backed session. After Pi creates a resumable file, reconcile and acquire a gate; verify custom entries exist without becoming model-context messages. Move to another branch without the gate entry, reopen the session from disk, and confirm a late observer still sees unconfirmed historical intent. Only an owner-verified reconciliation changes it to confirmed empty. This local SDK test does not prove extension loading, remote Pi versions, or a consumer response.
 :::
+
+:::mara design DES-GATES-DISCOVERY-BOUNDARY
+:mid: 01M3P7RY2B63WVYRKPBE9PJ72Y
+:title: Require explicit post-registration owner discovery before confirmed emptiness
+:status: accepted
+:kind: interface
+:satisfies: REQ-GATES-RECONCILIATION
+
+An observer starts a session by replaying journalled intent and requesting current owner state. Its session readiness stays unconfirmed, including when no owner is yet known, until its integrating extension calls finishDiscovery after relevant Pi extensions have registered their owners. Readiness is confirmed only when discovery is complete and every known owner has confirmed current state. A newly announced owner or refresh returns that owner to unconfirmed without clearing its known gates. Integrations must not call finishDiscovery from an early session_start handler if other owners might register later; the owner-registration boundary belongs to the integrating consumer.
+:::
+
+:::mara verification VER-GATES-DISCOVERY-BOUNDARY
+:mid: 01M3P7S11AA4VAMMVRTQ0CYFD3
+:title: Keep an empty initial observer unconfirmed until discovery finishes
+:status: accepted
+:method: test
+:level: integration
+:verifies: DES-GATES-DISCOVERY-BOUNDARY
+:verifies: REQ-GATES-RECONCILIATION
+
+With an observer started before any owner, assert empty owners and unconfirmed readiness. After explicit discovery completion assert confirmed empty; register a late owner and assert readiness becomes unconfirmed until the owner reconciles with an empty or pending snapshot. Refresh a known owner without a response, preserving its last gates and returning readiness to unconfirmed until it responds.
+:::

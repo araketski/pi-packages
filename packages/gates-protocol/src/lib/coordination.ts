@@ -211,6 +211,11 @@ export function createGateObserver(
       });
       send({ kind: 'request', sessionId: id });
     },
+    /** Call only after the current Pi session's extensions have finished owner registration. */
+    finishDiscovery(): void {
+      if (!projection) throw new Error('Gate observer has not started.');
+      projection.finishDiscovery();
+    },
     /** Ask every known owner again; unknown state never implies completion. */
     refresh(): void {
       if (!projection) throw new Error('Gate observer has not started.');

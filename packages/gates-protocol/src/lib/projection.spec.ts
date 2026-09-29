@@ -7,11 +7,14 @@ describe('session gate projection', () => {
   it('keeps restored intent unconfirmed until its owner reports even an empty set', () => {
     const state = new GateProjection('session-a');
     state.remember('tmux-bash', [{ id: 'job-a' }]);
+    state.finishDiscovery();
     expect(state.view()).toEqual({
       sessionId: 'session-a',
+      readiness: 'unconfirmed',
       owners: [{ owner: 'tmux-bash', state: 'unconfirmed', gates: [{ id: 'job-a' }] }],
     });
     state.confirm('tmux-bash', []);
+    expect(state.view().readiness).toBe('confirmed');
     expect(state.view().owners).toEqual([
       { owner: 'tmux-bash', state: 'confirmed', gates: [] },
     ]);

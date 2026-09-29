@@ -13,6 +13,8 @@ export interface OwnerView {
 
 export interface SessionGateView {
   sessionId: string;
+  /** Confirmed empty only after owner discovery finishes and every known owner responds. */
+  readiness: 'unconfirmed' | 'confirmed';
   owners: OwnerView[];
 }
 
@@ -46,6 +48,7 @@ function validatedGates(gates: readonly GateIdentity[]): Map<string, number | un
 /** Session-local projection; historic gates are not proof of live external work. */
 export class GateProjection {
   private readonly owners = new Map<string, { state: OwnerView['state']; gates: Map<string, number | undefined> }>();
+  private discoveryComplete = false;
   readonly sessionId: string;
 
   constructor(sessionId: string) {
@@ -78,9 +81,15 @@ export class GateProjection {
     this.owners.set(owner, { state: 'unconfirmed', gates: new Map(prior?.gates ?? []) });
   }
 
+  finishDiscovery(): void {
+    this.discoveryComplete = true;
+  }
+
   view(): SessionGateView {
     return {
       sessionId: this.sessionId,
+      readiness: this.discoveryComplete && [...this.owners.values()].every(({ state }) => state === 'confirmed')
+        ? 'confirmed' : 'unconfirmed',
       owners: [...this.owners].sort(([a], [b]) => a.localeCompare(b)).map(([owner, data]) => ({
         owner,
         state: data.state,
