@@ -33,6 +33,7 @@ function fixture() {
 // @mara checks REQ-GATES-RECONCILIATION
 // @mara checks REQ-GATES-SESSION-HISTORY
 // @mara checks REQ-GATES-PERSIST-BEFORE-SIGNAL
+// @mara checks REQ-GATES-HEALTH-DIAGNOSTICS
 describe('gate coordination across Pi extension instances', () => {
   it('keeps a late observer unconfirmed until its owner verifies live work', () => {
     const f = fixture();
@@ -111,6 +112,78 @@ describe('gate coordination across Pi extension instances', () => {
     expect(observer.view().owners[0].gates).toEqual([{ id: 'running' }]);
     observer.close();
     owner.close();
+  });
+
+  it('warns when a known owner stops answering without clearing its gate', () => {
+    const f = fixture();
+    let now = 100;
+    const owner = createGateOwner(f.pi, 'tmux-bash');
+    const observer = createGateObserver(f.pi, { now: () => now, timeoutMs: 500 });
+    owner.start(f.ctx);
+    owner.reconcile(f.ctx, [{ id: 'running' }]);
+    observer.start(f.ctx);
+    owner.close();
+    observer.refresh();
+    expect(observer.view().owners[0]).toEqual({
+      owner: 'tmux-bash', state: 'unconfirmed', gates: [{ id: 'running' }],
+    });
+    now = 601;
+    expect(observer.view().owners[0]).toEqual({
+      owner: 'tmux-bash', state: 'unconfirmed', gates: [{ id: 'running' }],
+      diagnostics: ['unresponsive'],
+    });
+    const resumed = createGateOwner(f.pi, 'tmux-bash');
+    resumed.start(f.ctx);
+    expect(observer.view().owners[0].state).toBe('unconfirmed');
+    resumed.reconcile(f.ctx, [{ id: 'running' }]);
+    expect(observer.view().owners[0]).toEqual({
+      owner: 'tmux-bash', state: 'confirmed', gates: [{ id: 'running' }],
+    });
+    resumed.close();
+    observer.close();
+  });
+
+  it('reports only the owner that failed to answer a fresh request', () => {
+    const f = fixture();
+    let now = 0;
+    const a = createGateOwner(f.pi, 'tmux-bash');
+    const b = createGateOwner(f.pi, 'other');
+    const observer = createGateObserver(f.pi, { now: () => now, timeoutMs: 50 });
+    a.start(f.ctx);
+    b.start(f.ctx);
+    a.reconcile(f.ctx, [{ id: 'job' }]);
+    b.reconcile(f.ctx, [{ id: 'job' }]);
+    observer.start(f.ctx);
+    a.close();
+    observer.refresh();
+    now = 51;
+    expect(observer.view().owners).toEqual([
+      { owner: 'other', state: 'confirmed', gates: [{ id: 'job' }] },
+      { owner: 'tmux-bash', state: 'unconfirmed', gates: [{ id: 'job' }], diagnostics: ['unresponsive'] },
+    ]);
+    b.close();
+    observer.close();
+  });
+
+  it('diagnoses a lease lapse without expiring the awaited work', () => {
+    const f = fixture();
+    let now = 1_000;
+    const owner = createGateOwner(f.pi, 'tmux-bash');
+    const observer = createGateObserver(f.pi, { now: () => now, timeoutMs: 100 });
+    owner.start(f.ctx);
+    owner.reconcile(f.ctx, [{ id: 'running', leaseUntil: 1_500 }]);
+    observer.start(f.ctx);
+    now = 1_501;
+    expect(observer.view().owners[0]).toEqual({
+      owner: 'tmux-bash', state: 'confirmed', gates: [{ id: 'running', leaseUntil: 1_500 }],
+      diagnostics: ['stale'],
+    });
+    owner.reconcile(f.ctx, [{ id: 'running', leaseUntil: 2_000 }]);
+    expect(observer.view().owners[0]).toEqual({
+      owner: 'tmux-bash', state: 'confirmed', gates: [{ id: 'running', leaseUntil: 2_000 }],
+    });
+    owner.close();
+    observer.close();
   });
 
   it('does not invent completion on session tree navigation', () => {

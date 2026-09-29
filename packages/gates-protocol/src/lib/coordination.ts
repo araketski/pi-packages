@@ -6,7 +6,8 @@ const CHANNEL = 'araketski.pi-gates/v1';
 
 type JournalEntry =
   | { version: 1; kind: 'reconcile'; sessionId: string; owner: string; gates: GateIdentity[] }
-  | { version: 1; kind: 'acquire' | 'release'; sessionId: string; owner: string; gateId: string };
+  | { version: 1; kind: 'acquire'; sessionId: string; owner: string; gate: GateIdentity }
+  | { version: 1; kind: 'release'; sessionId: string; owner: string; gateId: string };
 type Signal =
   | { kind: 'request' | 'announce'; sessionId: string; owner?: string }
   | { kind: 'snapshot'; sessionId: string; owner: string; gates: GateIdentity[] };
@@ -36,9 +37,19 @@ function validId(value: unknown): value is string {
     value.trim() === value && !Array.from(value).some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
 }
 
+function validGate(value: unknown): value is GateIdentity {
+  return isRecord(value) && validId(value.id) &&
+    (value.leaseUntil === undefined || (typeof value.leaseUntil === 'number' &&
+      Number.isFinite(value.leaseUntil) && value.leaseUntil >= 0));
+}
+
 function validGates(value: unknown): value is GateIdentity[] {
-  return Array.isArray(value) && value.every((gate) => isRecord(gate) && validId(gate.id)) &&
+  return Array.isArray(value) && value.every(validGate) &&
     new Set(value.map((gate: GateIdentity) => gate.id)).size === value.length;
+}
+
+function copyGate(gate: GateIdentity): GateIdentity {
+  return gate.leaseUntil === undefined ? { id: gate.id } : { id: gate.id, leaseUntil: gate.leaseUntil };
 }
 
 function parseSignal(value: unknown): Signal | undefined {
@@ -58,8 +69,11 @@ function parseJournal(value: unknown): JournalEntry | undefined {
   if (value.kind === 'reconcile' && validGates(value.gates)) {
     return { version: 1, kind: 'reconcile', sessionId: value.sessionId, owner: value.owner, gates: value.gates };
   }
-  if ((value.kind === 'acquire' || value.kind === 'release') && validId(value.gateId)) {
-    return { version: 1, kind: value.kind, sessionId: value.sessionId, owner: value.owner, gateId: value.gateId };
+  if (value.kind === 'acquire' && validGate(value.gate)) {
+    return { version: 1, kind: 'acquire', sessionId: value.sessionId, owner: value.owner, gate: copyGate(value.gate) };
+  }
+  if (value.kind === 'release' && validId(value.gateId)) {
+    return { version: 1, kind: 'release', sessionId: value.sessionId, owner: value.owner, gateId: value.gateId };
   }
   return undefined;
 }
@@ -76,12 +90,12 @@ export function createGateOwner(pi: GateHost, owner: string) {
   if (!validId(owner)) throw new Error('Invalid gate owner ID.');
   let activeSession: string | undefined;
   let ready = false;
-  let gates = new Set<string>();
+  let gates = new Map<string, GateIdentity>();
   let unsubscribe: (() => void) | undefined;
   const send = (signal: Signal) => pi.events.emit(CHANNEL, signal);
   const snapshot = (): Signal => ({
     kind: 'snapshot', sessionId: activeSession!, owner,
-    gates: [...gates].sort().map((id) => ({ id })),
+    gates: [...gates].sort(([a], [b]) => a.localeCompare(b)).map(([, gate]) => copyGate(gate)),
   });
   const assertSession = (ctx: GateContext) => {
     const id = sessionId(ctx);
@@ -94,7 +108,7 @@ export function createGateOwner(pi: GateHost, owner: string) {
       unsubscribe?.();
       activeSession = id;
       ready = false;
-      gates = new Set();
+      gates = new Map();
       unsubscribe = pi.events.on(CHANNEL, (raw) => {
         const message = parseSignal(raw);
         if (message?.kind === 'request' && message.sessionId === activeSession) {
@@ -106,8 +120,8 @@ export function createGateOwner(pi: GateHost, owner: string) {
     reconcile(ctx: GateContext, verified: readonly GateIdentity[]): void {
       const id = assertSession(ctx);
       if (!validGates(verified)) throw new Error('Invalid verified gate snapshot.');
-      const next = new Set(verified.map((gate) => gate.id));
-      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'reconcile', sessionId: id, owner, gates: verified.map((gate) => ({ id: gate.id })) } satisfies JournalEntry);
+      const next = new Map(verified.map((gate) => [gate.id, copyGate(gate)] as const));
+      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'reconcile', sessionId: id, owner, gates: verified.map(copyGate) } satisfies JournalEntry);
       gates = next;
       ready = true;
       send(snapshot());
@@ -115,10 +129,10 @@ export function createGateOwner(pi: GateHost, owner: string) {
     acquire(ctx: GateContext, gate: GateIdentity): void {
       const id = assertSession(ctx);
       if (!ready) throw new Error('Reconcile this gate owner before acquisition.');
-      if (!gate || !validId(gate.id)) throw new Error('Invalid gate ID.');
+      if (!validGate(gate)) throw new Error('Invalid gate.');
       if (gates.has(gate.id)) return;
-      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'acquire', sessionId: id, owner, gateId: gate.id } satisfies JournalEntry);
-      gates.add(gate.id);
+      pi.appendEntry(GATE_ENTRY_TYPE, { version: 1, kind: 'acquire', sessionId: id, owner, gate: copyGate(gate) } satisfies JournalEntry);
+      gates.set(gate.id, copyGate(gate));
       send(snapshot());
     },
     release(ctx: GateContext, gateId: string): void {
@@ -135,53 +149,91 @@ export function createGateOwner(pi: GateHost, owner: string) {
       unsubscribe = undefined;
       ready = false;
       activeSession = undefined;
-      gates = new Set();
+      gates = new Map();
     },
   };
 }
 
 // @mara implements REQ-GATES-RECONCILIATION
+// @mara implements REQ-GATES-HEALTH-DIAGNOSTICS
 // @mara implements REQ-GATES-SESSION-HISTORY
-export function createGateObserver(pi: Pick<GateHost, 'events'>) {
+export function createGateObserver(
+  pi: Pick<GateHost, 'events'>,
+  options: { now?: () => number; timeoutMs?: number } = {},
+) {
+  const now = options.now ?? Date.now;
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('Invalid gate owner timeout.');
   let projection: GateProjection | undefined;
   let unsubscribe: (() => void) | undefined;
+  const pending = new Map<string, number>();
   const send = (signal: Signal) => pi.events.emit(CHANNEL, signal);
   return {
     start(ctx: GateContext): void {
       const id = sessionId(ctx);
-      const history = new Map<string, Set<string>>();
+      const history = new Map<string, Map<string, GateIdentity>>();
       for (const entry of ctx.sessionManager.getEntries()) {
         if (!isRecord(entry) || entry.type !== 'custom' || entry.customType !== GATE_ENTRY_TYPE) continue;
         const event = parseJournal(entry.data);
         if (!event || event.sessionId !== id) continue;
         if (event.kind === 'reconcile') {
-          history.set(event.owner, new Set(event.gates.map((gate) => gate.id)));
+          history.set(event.owner, new Map(event.gates.map((gate) => [gate.id, copyGate(gate)])));
         } else {
-          const known = history.get(event.owner) ?? new Set<string>();
-          if (event.kind === 'acquire') known.add(event.gateId);
+          const known = history.get(event.owner) ?? new Map<string, GateIdentity>();
+          if (event.kind === 'acquire') known.set(event.gate.id, copyGate(event.gate));
           else known.delete(event.gateId);
           history.set(event.owner, known);
         }
       }
       projection = new GateProjection(id);
-      for (const [owner, gates] of history) projection.remember(owner, [...gates].map((gateId) => ({ id: gateId })));
+      pending.clear();
+      for (const [owner, gates] of history) {
+        projection.remember(owner, [...gates.values()]);
+        pending.set(owner, now());
+      }
       unsubscribe?.();
       unsubscribe = pi.events.on(CHANNEL, (raw) => {
         const message = parseSignal(raw);
         if (!projection || !message || message.sessionId !== projection.sessionId) return;
-        if (message.kind === 'announce') projection.remember(message.owner!, []);
-        if (message.kind === 'snapshot') projection.confirm(message.owner, message.gates);
+        if (message.kind === 'announce') {
+          projection.expect(message.owner!);
+          pending.set(message.owner!, now());
+        }
+        if (message.kind === 'snapshot') {
+          projection.confirm(message.owner, message.gates);
+          pending.delete(message.owner);
+        }
       });
       send({ kind: 'request', sessionId: id });
     },
+    /** Ask every known owner again; unknown state never implies completion. */
+    refresh(): void {
+      if (!projection) throw new Error('Gate observer has not started.');
+      for (const { owner } of projection.view().owners) {
+        projection.expect(owner);
+        pending.set(owner, now());
+      }
+      send({ kind: 'request', sessionId: projection.sessionId });
+    },
     view(): SessionGateView {
       if (!projection) throw new Error('Gate observer has not started.');
-      return projection.view();
+      const result = projection.view();
+      for (const owner of result.owners) {
+        const diagnostics: Array<'unresponsive' | 'stale'> = [];
+        if (owner.gates.some((gate) => gate.leaseUntil !== undefined && gate.leaseUntil <= now())) {
+          diagnostics.push('stale');
+        }
+        const requestedAt = pending.get(owner.owner);
+        if (requestedAt !== undefined && now() - requestedAt > timeoutMs) diagnostics.push('unresponsive');
+        if (diagnostics.length) owner.diagnostics = diagnostics;
+      }
+      return result;
     },
     close(): void {
       unsubscribe?.();
       unsubscribe = undefined;
       projection = undefined;
+      pending.clear();
     },
   };
 }
