@@ -68,9 +68,11 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 
 ## Still to specify
 
-Exact APIs and wire envelopes, storage formats and upgrade handling, warning
-presentation, foreground budgets, cancellation, shutdown/recovery, and session
-replacement still need their own contracts and tests before implementation.
+The [lifecycle policy](./lifecycle.mara.md) records the agreed foreground budget,
+cancellation boundary, session continuity, normal-exit cleanup, and awaited-work
+default. Exact APIs and wire envelopes, storage and upgrade handling, warning
+presentation, delivery configuration/acknowledgements, crash handling, and detailed
+lifecycle event/race semantics still need contracts and tests before implementation.
 Persistent interactive agents remain executions rather than inferred delegated
 tasks; agent messaging and parent-child orchestration are not prerequisites.
 

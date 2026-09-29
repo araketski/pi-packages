@@ -35,9 +35,13 @@ for cross-extension pending-work coordination. The job integration owns result
 delivery and recovery ([[REQ-GATES-SIGNAL-ONLY]]); unreconciled work must not become
 confirmed empty merely because an owner cannot inspect it
 ([[REQ-GATES-RECONCILIATION]]). The intended workflow avoids idle-driven `goal`
-nudges while required work or its result delivery is pending. Exact delivery,
-wait, shutdown, and session-replacement policies still need specifications and
-consumer tests; this document does not claim those integrations work.
+nudges while required work or its result delivery is pending. The agreed
+[lifecycle policy](../jobs-core/lifecycle.mara.md) distinguishes normal-exit
+cancellation of owned managed commands from explicitly persistent Herdr terminals,
+which remain running. Job cleanup must not close parent workspaces or delete
+worktrees. Delivery details, crash cleanup, and lifecycle implementation still
+need specifications and consumer tests; this document does not claim those
+integrations work.
 
 ## Scope limits and later decisions
 
