@@ -1,13 +1,14 @@
 # Planned caffeinate integration with jobs
 
-Caffeinate owns the sleep-inhibition decision, independently of
-[goal continuation](../goal/jobs-integration.mara.md). Job owners supply execution
-and pending-delivery state; caffeinate does not run jobs or deliver results.
+Caffeinate and [goal](../goal/jobs-integration.mara.md) consume the same generic
+[gates protocol](../../../packages/gates-protocol/docs/contract.mara.md). Job owners
+decide what remains gated; neither consumer needs the jobs API or job-phase filters.
 
-An awaited command still executing needs the machine awake. A completed result
-intentionally waiting for the user's next turn still blocks goal, but need not
-keep the computer awake. Unknown awaited execution remains conservative, with a
-visible warning. Other reasons for keeping the machine awake remain independent.
+While gates remain pending, goal does not nudge and the gate-derived inhibition
+reason remains active. This also applies when a job has finished but its result
+is still gated for next-turn delivery. With no gates, each consumer applies its
+normal behavior; gate clearance does not override other awake reasons. Unconfirmed
+gate state remains conservative rather than being treated as confirmed empty.
 
 This defines intended behavior, not a migrated caffeinate extension or verified
 integration. Keep it under `docs/planned/caffeinate/` until that package is scaffolded.
@@ -16,23 +17,27 @@ integration. Keep it under `docs/planned/caffeinate/` until that package is scaf
 
 :::mara requirement REQ-JOBS-SLEEP-POLICY
 :mid: 01M3PZ6D3KC14SZEMSEAYTF3PX
-:title: Separate awaited execution wakefulness from intentionally deferred results
+:title: Keep sleep inhibition active while the shared gates remain pending
 :status: accepted
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 :derives_from: REQ-JOBS-AWAITED-COMPLETION
 
-The jobs integration with caffeinate keeps the computer awake for running awaited work. If awaited execution becomes unconfirmed, conservatively retain that sleep-inhibition reason until reconciliation or an explicit stop-awaiting action, and expose a visible warning. Once verified execution has finished and only intentionally deferred next-turn delivery remains, release this job reason for sleep inhibition even while goal remains paused for delivery. Do not release other independent reasons for keeping the machine awake. Releasing sleep inhibition does not cancel execution, discard a result, deliver it, or start a model turn. Actual caffeinate and goal integrations must verify these distinct decisions; gate presence alone must not erase the distinction.
+Caffeinate consumes the same generic gates as goal through the gates protocol, not job execution or delivery phases through a jobs API. Job owners decide when to acquire and release their gates. While gates remain pending, caffeinate must not release their inhibition reason merely because Pi is idle or a command has exited. This includes a completed result awaiting next-turn delivery when its owner keeps the gate pending. Do not add gate-purpose distinctions, separate consumer-specific gate sets, or job-stage filters to choose different behavior for goal and caffeinate.
+
+Unconfirmed gate state is not confirmed empty state; retain conservative inhibition with the protocol diagnostics until reconciliation or owner clearance, including clearance after an explicit stop-awaiting action. When no gates remain, remove only the gate-derived reason and let normal caffeinate activity/settings policy apply; other independent reasons are unaffected. Caffeinate does not own or clear gates belonging to other producers, deliver results, or start model turns.
 :::
 
 :::mara verification VER-JOBS-POWER-WORKFLOW
 :mid: 01M3PZ6JWXCFZ6XYCS82QFRHXP
-:title: Verify real consumer decisions for active, deferred, and uncertain jobs
+:title: Verify goal and caffeinate consume the same owner-managed gates
 :status: accepted
 :method: test
 :level: integration
 :verifies: REQ-JOBS-SLEEP-POLICY
 :verifies: REQ-JOBS-AWAITED-COMPLETION
 
-With actual goal and caffeinate consumers, keep an awaited command running while Pi is idle: goal does not nudge and the jobs wakefulness reason remains active. Complete it in next-turn mode: goal still waits for model delivery, but the job no longer prevents computer sleep. Retain a separate active reason and confirm it is not released by this job transition. Make awaited execution unconfirmed: retain conservative sleep inhibition and goal waiting with a visible diagnostic, until reconciliation or explicit stop-awaiting. Stopping the wait must not fabricate successful execution. Gate fixtures alone cannot establish this workflow. These checks have not run.
+Exercise actual goal and caffeinate consumers with a generic gate owner and without loading jobs-core: pending gates prevent goal nudges and keep the gate-derived inhibition reason active. Require no job-stage information or consumer-specific gate classification. Unconfirmed owner state retains conservative handling and diagnostics rather than being treated as empty. Once the owner confirms no gates, both consumers return to their normal behavior; an independent awake reason remains effective.
+
+Then integrate actual job owners: keep an awaited command running while Pi is idle, complete it in next-turn mode, and verify that both consumers remain gated while delivery is pending. Only owner clearance after delivery or explicit stop-awaiting removes that gate reason; stopping a wait must not fabricate execution success or termination. Gate clearance itself must not deliver results or start a model turn. Generic fixtures establish decoupling, but actual job/consumer tests are also required for end-to-end coverage. These checks have not run.
 :::

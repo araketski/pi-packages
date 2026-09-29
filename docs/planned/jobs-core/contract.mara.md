@@ -90,8 +90,11 @@ tasks; agent messaging and parent-child orchestration are not prerequisites.
 :kind: structure
 :satisfies: REQ-HERDR-JOBS-MODULE
 :satisfies: REQ-JOBS-PRODUCER-IDENTITY
+:satisfies: REQ-WORKFLOW-PRODUCER-INDEPENDENCE
 
 Use three packages: pi-jobs owns the replacement bash tool, local execution adapter, and unified job tools/UI; pi-herdr owns Herdr execution and full workspace, worktree, tab, and pane integration; pi-jobs-core supplies reusable job policy and an explicit owner/observer contract. Keep backend execution and ownership/liveness evidence in adapters, and lifecycle, reconciliation policy, waiting, output/result bookkeeping, completion delivery, and gate integration in the core. The observer UI does not independently redeliver owner results or take ownership of observed work. Independently loaded copies of the core must communicate through the explicit contract rather than an assumed package singleton. Herdr job tracking must not require pi-jobs UI registration. The core contract preserves each job's producer identity through observation, persistence, and results, separately from job/session identity, ownership, and contract version. No separate jobs-protocol package or agent messaging system is required.
+
+Apply [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]: backend adapters standardize their state and controls through the jobs contract. Consumers do not inspect which backend or extension supplied a job. Goal and caffeinate depend on the gates protocol, not on jobs-core or Herdr.
 :::
 
 :::mara requirement REQ-JOBS-RELEASE-COMPAT
@@ -150,6 +153,8 @@ Local bash commands that continue in the background and explicitly visible Herdr
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
 Every job preserves a stable producer identity identifying the originating extension or API consumer, such as pi-jobs, pi-herdr, or an external tool. Carry that identity through observation, persisted records, recovery, listings, and results rather than relabelling all jobs as belonging to the unified UI. Keep producer identity distinct from job identity, originating Pi session, control ownership, and the library-reported contract version. Producer metadata alone does not grant control authority or replace core-owned compatibility reporting. Participation must not require a hardcoded whitelist of repository producers.
+
+Producer identity is opaque to consumer decisions under [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]. Preserving or displaying it must not introduce producer-specific inspection or behavior.
 :::
 
 :::mara requirement REQ-JOBS-CONFIGURATION

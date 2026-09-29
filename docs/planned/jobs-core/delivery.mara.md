@@ -8,10 +8,11 @@ start turns or redeliver them.
 
 ## Consumer-owned decisions
 
-Shared job state informs different consumers; it does not make their decisions.
-[Goal continuation](../goal/jobs-integration.mara.md) and
-[caffeinate sleep inhibition](../caffeinate/jobs-integration.mara.md) have their
-canonical requirements and verification in those extensions' planned folders.
+Job owners project their awaited execution and required result delivery into the
+same generic gates consumed by [goal](../goal/jobs-integration.mara.md) and
+[caffeinate](../caffeinate/jobs-integration.mara.md). Neither consumer inspects job
+phases through a jobs API or requires gate-purpose distinctions. Their canonical
+requirements and verification live in their own planned folders.
 
 ## Pi scheduling and receipt boundaries
 
