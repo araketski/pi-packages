@@ -5,6 +5,14 @@ runtime dependency of any published package. Mara remains canonical for product
 contracts; Work tracks implementation scope, dependencies, and completion. Neither
 Work items nor a clean reviewer response prove runtime conformance.
 
+## Campaign baseline
+
+Pi 0.99.1 is the user-selected campaign baseline. An upgraded installed CLI does
+not establish SDK or consumer compatibility: reconcile native capabilities,
+repository dependencies, and required verification before dispatching implementation.
+Historical Pi 0.87.1 results are not passing evidence for Pi 0.99.1. Keep the
+campaign paused until that reconciliation and launch preflight are complete.
+
 ## Selected packages and hierarchy
 
 Implement `pi-jobs-core`, `pi-jobs`, `pi-herdr`, `pi-goal`, `pi-caffeinate`, and
@@ -25,8 +33,8 @@ root reserved for the existing coordinator's final integration/review obligation
 | Role | Harness | Model | Thinking | Concurrency |
 | --- | --- | --- | --- | --- |
 | Coordinator | Pi in Herdr | `gpt-6-astra` | high | One |
-| Workers | Pi in Herdr | `gpt-6-sol` | high | At most five active workers |
-| Reviewers | Codex CLI in Herdr | `gpt-6-sol` | x-high | Excluded from worker count |
+| Workers | Pi in Herdr | `gpt-6.1-sol` | high | At most five active workers |
+| Reviewers | Codex CLI in Herdr | `gpt-6.1-sol` | x-high | Excluded from worker count |
 
 The coordinator and all implementation workers are **Pi agents**, started with
 Herdr's `--kind pi`. **Only reviews run in Codex CLI**; do not substitute Codex
@@ -143,7 +151,9 @@ consumer workspaces.
 
 Both use native `codemode` exposure, allowing structured calls without declaring
 the entire tool catalog. `pi mcp list --json` verified both project servers connected
-with no errors during setup; it does not establish a completed domain operation.
+with no errors during setup. After reload, explicit-checkout MCP calls completed
+Mara project validation and Work inspection/diagnostics; connection alone was not
+treated as domain-operation evidence.
 Project trust is required. Run `/reload` or start a new Pi session after changes,
 and use the MCP tools when available, retaining the skills' CLI fallback otherwise.
 Do not change global MCP settings or hardcode the coordinator checkout into this
@@ -182,7 +192,7 @@ Each worker runs this loop for each independently integrated increment:
    worktree has no uncommitted implementation changes.
 2. Use the immutable integration base SHA assigned for this item, recorded before
    implementation. Run `codex review --base <assigned-base-sha>`, selecting
-   `gpt-6-sol` and Codex's x-high reasoning setting. Inspect installed CLI help and
+   `gpt-6.1-sol` and Codex's x-high reasoning setting. Inspect installed CLI help and
    effective configuration, including any review-model override. Do not use
    `origin/main`, a moving branch reference, or advance the base to hide findings.
 3. The worker creates a dedicated Herdr review tab with its own pane, cwd set to
@@ -216,9 +226,9 @@ review attempt at a time rather than accumulating overlapping reviews.
 
 ## Inspected launch syntax and preflight boundary
 
-For Pi 0.87.1 and Herdr 0.9.1, set these variables from the actual assignment and
+For Pi 0.99.1 and Herdr 0.9.1, set these variables from the actual assignment and
 creation responses. `PI_MODEL` is `openai-codex/gpt-6-astra` for the coordinator or
-`openai-codex/gpt-6-sol` for a worker; the pane must already have the assigned
+`openai-codex/gpt-6.1-sol` for a worker; the pane must already have the assigned
 worktree as cwd. These are launch templates, not commands to run during planning:
 
 ```sh
@@ -228,23 +238,24 @@ herdr agent start "$AGENT_NAME" --kind pi --pane "$PANE_ID" -- \
   --model "$PI_MODEL" --thinking high --name "$DISPLAY_LABEL"
 ```
 
-For Codex CLI 0.157.1, run the following in the named review pane in the assigned
+For Codex CLI 0.159.0, run the following in the named review pane in the assigned
 worker worktree, capturing the report and exit status as required above. The
 native spelling of x-high is `xhigh`. Set both the ordinary and review-specific
 model so a saved review override cannot select a different model:
 
 ```sh
 codex review --base "$ASSIGNED_BASE_SHA" \
-  -c 'model="gpt-6-sol"' \
-  -c 'review_model="gpt-6-sol"' \
+  -c 'model="gpt-6.1-sol"' \
+  -c 'review_model="gpt-6.1-sol"' \
   -c 'model_reasoning_effort="xhigh"' \
   -c 'sandbox_mode="read-only"'
 ```
 
-Preparation inspected CLI help and the compatible running Herdr server without
-creating or renaming resources. Pi's offline model list included both requested
+Baseline reconciliation inspected Pi 0.99.1, Codex CLI 0.159.0, CLI help, and
+the compatible running Herdr 0.9.1 server without launching agents. Pi's offline
+model list included the requested
 models; its no-refresh authentication check reported ready. Codex reported logged
-in, its model catalog advertised `gpt-6-sol` with `xhigh`, and `features list`
+in, its model catalog advertised `gpt-6.1-sol` with `xhigh`, and `features list`
 accepted the above configuration overrides. `--strict-config` is not supported
 by that inspection command. These checks are not an agent launch, an effective
 review-session configuration check, or proof of a successful model request.
