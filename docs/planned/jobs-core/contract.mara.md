@@ -68,12 +68,14 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 
 ## Still to specify
 
-The [lifecycle policy](./lifecycle.mara.md) records the agreed foreground budget,
-cancellation boundary, session continuity, normal-exit/best-effort crash cleanup,
-and awaited-work default. The [delivery policy](./delivery.mara.md) defines modes,
-receipts/retries, and separate goal/sleep-inhibition decisions. Exact APIs and wire
-envelopes, storage mechanisms and upgrade handling, warning presentation, and
-lifecycle event/race mechanisms still need designs and tests before implementation.
+Shared contracts cover [lifecycle and recovery](./lifecycle.mara.md) and
+[delivery modes and receipts](./delivery.mara.md). Consumer-specific knowledge lives
+in each owning plan: [pi-jobs execution](../jobs/execution.mara.md),
+[goal continuation](../goal/jobs-integration.mara.md),
+[caffeinate sleep inhibition](../caffeinate/jobs-integration.mara.md), and
+[Herdr integration](../herdr/scope.mara.md). Exact APIs and wire envelopes, storage
+mechanisms and upgrade handling, warning presentation, and lifecycle event/race
+mechanisms still need designs and tests before implementation.
 Persistent interactive agents remain executions rather than inferred delegated
 tasks; agent messaging and parent-child orchestration are not prerequisites.
 

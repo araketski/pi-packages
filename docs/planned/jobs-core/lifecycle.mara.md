@@ -20,8 +20,10 @@ user returns; it does not require managed commands to keep running after Pi exit
 
 ## Implementation and verification boundary
 
-The [delivery policy](./delivery.mara.md) defines modes, receipt/retry semantics,
-and the separate decisions made by goal and caffeinate. Crash cleanup is
+The [delivery policy](./delivery.mara.md) defines shared modes and receipt/retry
+semantics. Consumer decisions live in the [goal plan](../goal/jobs-integration.mara.md)
+and [caffeinate plan](../caffeinate/jobs-integration.mara.md); replacement-bash
+behavior lives in the [pi-jobs plan](../jobs/execution.mara.md). Crash cleanup is
 best-effort; it does not promise that shutdown handlers run after forced exit.
 
 Before implementing each slice, define and test its Pi lifecycle mapping, reload
@@ -34,24 +36,6 @@ Actual goal/caffeinate integration and isolated real-backend tests remain
 necessary. A fake executor or gate observer alone does not verify those workflows.
 
 ## Agreed knowledge
-
-:::mara goal GOAL-JOBS-MANAGED-LIFETIME
-:mid: 01M3PTSZNA34DADC14WYH20F5B
-:title: Keep asynchronous work controllable without losing session results
-:status: accepted
-
-Let ordinary bash commands continue without blocking Pi indefinitely, while keeping cancellation predictable and preserving results for the originating session. Managed work should not remain running after normal Pi exit, while explicitly persistent Herdr terminals remain available to the user. Required asynchronous work and pending result delivery must not cause premature goal continuation.
-:::
-
-:::mara requirement REQ-JOBS-FOREGROUND-BUDGET
-:mid: 01M3PTT2NP5GVDQF4TNPRMRQG0
-:title: Background the same local command after a configurable five-second wait
-:status: accepted
-:kind: functional
-:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
-
-The replacement bash tool uses a configurable foreground wait budget with a five-second default. Every ordinary bash command can use the local runner without a command-name whitelist. A command that finishes within the budget returns its foreground result. A command still running when the budget expires returns a job identity and continues as the same execution, without termination, restart, or migration into a Herdr pane. Also allow explicit immediate background launch, with the same delivery, awaiting, and lifetime options. Budget expiry is not a hard execution timeout. Completion racing with the handoff must not lose the result or deliver both a foreground result and an unnecessary duplicate completion.
-:::
 
 :::mara requirement REQ-JOBS-CANCELLATION-BOUNDARY
 :mid: 01M3PTT5HQ5J7JR6KBGK1PNC45
@@ -87,32 +71,6 @@ On normal Pi application exit, cancel outstanding managed command jobs owned by 
 Crash and forced-kill cleanup is best-effort, not a guarantee that shutdown handlers run. Reconcile survivors or unconfirmed jobs on resume rather than reporting them stopped from history alone. When the original Pi process is confirmed gone and its managed command is verified still running, stop that survivor rather than adopting it to continue; explicitly persistent Herdr terminals remain exempt. Missing or reused process identifiers are not sufficient ownership/liveness evidence. No survival guarantee applies across a Herdr-server restart or machine reboot.
 :::
 
-:::mara requirement REQ-JOBS-AWAITED-COMPLETION
-:mid: 01M3PTTE89F590Y3FPC5T1WBS7
-:title: Await automatically backgrounded work through its required result delivery
-:status: accepted
-:kind: functional
-:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
-:derives_from: REQ-GATES-SIGNAL-ONLY
-
-Automatically backgrounded commands are awaited by default: goal must not repeatedly nudge or treat work as complete while required execution or result delivery is pending. Allow explicit per-job awaiting overrides, including opting out for persistent servers/watchers. Waiting and execution lifetime are separate choices selected by the caller, not inferred from command text. The job owner maintains the appropriate gate signal and owns delivery; clearing a gate alone does not deliver output or start another turn.
-
-In next-turn mode, goal remains paused until the final result is delivered according to [[REQ-JOBS-DELIVERY-RECEIPTS]]. In display-only mode, no model delivery is required: end the wait when execution finishes and its result is saved/displayed. Unverified execution or requested-but-unconfirmed cancellation must not silently become confirmed empty work. Allow explicit stop-awaiting to release the wait without claiming success or confirmed termination; retain the unresolved job visibly. Sleep inhibition has its own policy in [[REQ-JOBS-SLEEP-POLICY]]. These are intended consumer integrations, not evidence that goal or caffeinate already implements them.
-:::
-
-:::mara verification VER-JOBS-FOREGROUND-HANDOFF
-:mid: 01M3PTTH3X0D4R2HK88DXYXGN2
-:title: Exercise quick completion, background handoff, and cancellation boundaries
-:status: accepted
-:method: test
-:level: integration
-:verifies: REQ-JOBS-FOREGROUND-BUDGET
-:verifies: REQ-JOBS-CANCELLATION-BOUNDARY
-:verifies: REQ-JOBS-HARD-TIMEOUT
-
-With controlled clocks and a fake executor, verify the five-second foreground default, a configured alternative, explicit immediate backgrounding, completion on either side of budget expiry, and no lost or unnecessarily duplicated result at the boundary. Repeat the basic flow with a real local command whose process identity and single execution can be checked: no rerun and no Herdr dependency. Foreground abort stops its command; after handoff, abort an unrelated agent turn and confirm the job continues, then explicitly stop it. Verify graceful termination, the five-second default escalation and a configured grace period, owned child cleanup, and unrelated-process safety. Test no hard deadline by default, an explicit hard timeout, and a proven completion winning over a later cancellation/timeout request. Failed or unconfirmed termination remains uncertain and tracked. Include success, nonzero exit, and launch failure. These are future checks, not observed passing results; define concrete ownership and race mechanisms before implementing their assertions.
-:::
-
 :::mara verification VER-JOBS-SESSION-AND-EXIT
 :mid: 01M3PTTM109CGS3B8DXJ4BK1BZ
 :title: Exercise reload, original-session recovery, and ownership-safe exit cleanup
@@ -125,17 +83,6 @@ With controlled clocks and a fake executor, verify the five-second foreground de
 Start managed work in session A, reload extensions, and switch to session B, checking that no replacement execution starts and transitions do not cancel the job. Complete it while B is active: B receives neither its result nor a model wake. Resume A and recover the saved result, but wait for the next user message before delivering already-pending completion. Navigate /tree without rewinding execution; route pending results to the active branch. Fork A and verify that copied references do not transfer jobs, waits, ownership, or delivery.
 
 With jobs from active and inactive sessions still running, exit Pi normally and verify that its owned managed jobs stop. In isolated Herdr tests, retain explicitly persistent terminals, unrelated work, and parent workspaces/worktrees. Reopen the original resumable session and reconcile outcomes. Simulate a confirmed-dead Pi owner with a verified managed survivor: request cleanup instead of continued adoption. Missing backend state, stale/reused identifiers, and unconfirmed stops must not fabricate success or cancellation; crash cleanup is best-effort. These checks require actual Pi lifecycle and real local/Herdr integration evidence; fake-adapter tests alone are insufficient. None has run.
-:::
-
-:::mara verification VER-JOBS-AWAITED-WORKFLOW
-:mid: 01M3PTTQ0D12D951MGSAY1C9KQ
-:title: Verify goal respects pending execution and delivery without gate-driven duplicate wakes
-:status: accepted
-:method: test
-:level: integration
-:verifies: REQ-JOBS-AWAITED-COMPLETION
-
-With the actual jobs owner and goal consumer, automatically background a finite command and check that goal does not issue premature continuation nudges while execution or required delivery is pending. In next-turn mode, retain the wait after exit until a final result is recorded in Pi model-visible context; no assistant reply is required. In display-only mode, verified exit plus the saved/displayed result releases the wait without model delivery. An explicitly non-awaited server/watcher must not create an indefinite wait; that choice must not change its execution lifetime. Unconfirmed termination remains pending unless explicitly opted out of awaiting, which leaves its uncertain job visible. Confirm gate clearance does not independently deliver a result or create an extra model wake. Gate fixtures alone do not establish this integration. This defines future checks, not passing runtime evidence.
 :::
 
 :::mara requirement REQ-JOBS-HARD-TIMEOUT

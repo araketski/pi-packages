@@ -1,0 +1,36 @@
+# Planned goal integration with jobs
+
+Goal owns the decision to continue or remain paused while required work and result
+delivery are pending. It does not own job execution, result delivery, or cleanup.
+Use the [shared jobs lifecycle](../jobs-core/lifecycle.mara.md),
+[delivery receipts](../jobs-core/delivery.mara.md), and
+[gates contract](../../../packages/gates-protocol/docs/contract.mara.md).
+
+This defines intended behavior, not a migrated goal extension or verified
+integration. Keep it under `docs/planned/goal/` until goal is scaffolded.
+
+## Agreed knowledge
+
+:::mara requirement REQ-JOBS-AWAITED-COMPLETION
+:mid: 01M3PTTE89F590Y3FPC5T1WBS7
+:title: Await automatically backgrounded work through its required result delivery
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+:derives_from: REQ-GATES-SIGNAL-ONLY
+
+Automatically backgrounded commands are awaited by default: goal must not repeatedly nudge or treat work as complete while required execution or result delivery is pending. Allow explicit per-job awaiting overrides, including opting out for persistent servers/watchers. Waiting and execution lifetime are separate choices selected by the caller, not inferred from command text. The job owner maintains the appropriate gate signal and owns delivery; clearing a gate alone does not deliver output or start another turn.
+
+In next-turn mode, goal remains paused until the final result is delivered according to [[REQ-JOBS-DELIVERY-RECEIPTS]]. In display-only mode, no model delivery is required: end the wait when execution finishes and its result is saved/displayed. Unverified execution or requested-but-unconfirmed cancellation must not silently become confirmed empty work. Allow explicit stop-awaiting to release the wait without claiming success or confirmed termination; retain the unresolved job visibly. Sleep inhibition has its own policy in [[REQ-JOBS-SLEEP-POLICY]]. These are intended consumer integrations, not evidence that goal or caffeinate already implements them.
+:::
+
+:::mara verification VER-JOBS-AWAITED-WORKFLOW
+:mid: 01M3PTTQ0D12D951MGSAY1C9KQ
+:title: Verify goal respects pending execution and delivery without gate-driven duplicate wakes
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-JOBS-AWAITED-COMPLETION
+
+With the actual jobs owner and goal consumer, automatically background a finite command and check that goal does not issue premature continuation nudges while execution or required delivery is pending. In next-turn mode, retain the wait after exit until a final result is recorded in Pi model-visible context; no assistant reply is required. In display-only mode, verified exit plus the saved/displayed result releases the wait without model delivery. An explicitly non-awaited server/watcher must not create an indefinite wait; that choice must not change its execution lifetime. Unconfirmed termination remains pending unless explicitly opted out of awaiting, which leaves its uncertain job visible. Confirm gate clearance does not independently deliver a result or create an extra model wake. Gate fixtures alone do not establish this integration. This defines future checks, not passing runtime evidence.
+:::
