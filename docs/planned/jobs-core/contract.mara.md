@@ -68,8 +68,9 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 
 ## Still to specify
 
-Shared contracts cover [lifecycle and recovery](./lifecycle.mara.md) and
-[delivery modes and receipts](./delivery.mara.md). Consumer-specific knowledge lives
+Shared contracts cover [lifecycle and recovery](./lifecycle.mara.md),
+[delivery modes and receipts](./delivery.mara.md), and
+[persistence and bounded output](./storage.mara.md). Consumer-specific knowledge lives
 in each owning plan: [pi-jobs execution](../jobs/execution.mara.md),
 [goal continuation](../goal/jobs-integration.mara.md),
 [caffeinate sleep inhibition](../caffeinate/jobs-integration.mara.md), and
