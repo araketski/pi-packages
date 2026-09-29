@@ -1,0 +1,85 @@
+# Jobs completion delivery and consumer decisions
+
+This defines intended behavior alongside the [lifecycle policy](./lifecycle.mara.md).
+It is not an implemented API, a promise of exactly-once delivery, or evidence of
+working goal/caffeinate integration. The owner delivers results; observers and
+[gates](../../../packages/gates-protocol/docs/contract.mara.md) do not independently
+start turns or redeliver them.
+
+## Two kinds of waiting
+
+Blocking goal continuation and preventing computer sleep are different decisions.
+An awaited command still executing needs both. A completed result intentionally
+waiting for the user's next turn still blocks goal, but need not keep the computer
+awake. Unknown awaited execution remains conservative, with a visible warning.
+Other reasons for keeping the machine awake remain independent.
+
+## Pi scheduling and receipt boundaries
+
+Use Pi's normal follow-up and session-message facilities rather than an extra
+Escape-specific pause state or a separate turn scheduler. Automatic delivery is
+non-steering: it follows the current run's pending work. Returning to a session
+with already-pending completions does not itself start a model turn.
+
+A delivery receipt means Pi recorded model-visible content, not that an LLM
+understood it, acted on it, or replied. Queue admission alone is not that receipt.
+If recovery cannot establish whether delivery happened, redeliver the saved result
+with stable identity rather than risk losing it. This uncertainty never authorizes
+rerunning the command or converting an unknown execution into success.
+
+## Agreed knowledge
+
+:::mara requirement REQ-JOBS-DELIVERY-MODES
+:mid: 01M3PZ67BH84B63J0AMEK1ZRD9
+:title: Deliver results through explicit non-interrupting modes
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+
+Support automatic follow-up, next-natural-turn, and display-only result delivery. Finite managed commands default to automatic delivery. The caller, including the agent, may explicitly override delivery and awaiting per job; do not classify command text to choose a mode. Automatic delivery follows the current agent run without steering or interrupting it, using normal Pi scheduling. Do not introduce Escape-specific pause state or distinguish ordinary idle from abort-induced idle beyond Pi behavior. Next-turn delivery includes the result when another turn naturally starts without starting a turn itself; display-only saves and shows the result without sending it to the model. Completions pending when the originating session is resumed wait for the next user message rather than waking the model merely because the session was opened. Batch results already pending for delivery into a common follow-up while preserving each job identity and outcome. Do not deliver into another session.
+:::
+
+:::mara requirement REQ-JOBS-DELIVERY-RECEIPTS
+:mid: 01M3PZ6A85V1SPQHMV8RACCCBJ
+:title: Confirm delivery through Pi records and retry ambiguous receipts without rerunning work
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+
+For model-directed modes, count delivery when Pi has recorded the final result as a model-visible message or tool result, not merely when it was queued and not after waiting for an assistant acknowledgement or action. Explicit retrieval of a completed final result through a tool counts as delivery and suppresses its pending automatic notification; reading incremental logs alone does not. Arbitrate normal foreground, explicit retrieval, and automatic-delivery paths to avoid unnecessary duplicate results. If recovery cannot establish whether delivery was recorded, retry the saved result with stable job/result identity even though it may repeat a previous delivery. Do not promise exactly-once delivery across failures. Uncertain delivery is distinct from uncertain execution: never rerun a command, invent an exit result, or mark it failed solely to resolve a missing delivery receipt.
+:::
+
+:::mara requirement REQ-JOBS-SLEEP-POLICY
+:mid: 01M3PZ6D3KC14SZEMSEAYTF3PX
+:title: Separate awaited execution wakefulness from intentionally deferred results
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+:derives_from: REQ-JOBS-AWAITED-COMPLETION
+
+The jobs integration with caffeinate keeps the computer awake for running awaited work. If awaited execution becomes unconfirmed, conservatively retain that sleep-inhibition reason until reconciliation or an explicit stop-awaiting action, and expose a visible warning. Once verified execution has finished and only intentionally deferred next-turn delivery remains, release this job reason for sleep inhibition even while goal remains paused for delivery. Do not release other independent reasons for keeping the machine awake. Releasing sleep inhibition does not cancel execution, discard a result, deliver it, or start a model turn. Actual caffeinate and goal integrations must verify these distinct decisions; gate presence alone must not erase the distinction.
+:::
+
+:::mara verification VER-JOBS-DELIVERY
+:mid: 01M3PZ6G2PTNSNXDP1K8CWX8YX
+:title: Exercise delivery scheduling, batching, final-result retrieval, and ambiguous recovery
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-JOBS-DELIVERY-MODES
+:verifies: REQ-JOBS-DELIVERY-RECEIPTS
+
+Use real Pi session/message scheduling plus controlled completion fixtures. Finish jobs during an active run and confirm automatic results follow without steering; test normal idle and aborted-run idle without extension-specific Escape state. Exercise next-turn and display-only modes and explicit per-job overrides. Resume a session with saved completions: no turn starts until the next user message. Batch simultaneous pending results with distinct identities/outcomes. Race foreground completion, explicit final-result retrieval, and automatic delivery; require one normal delivery path, but do not treat incremental log reads as consumption. Confirm a queued-only result is still pending, a recorded model-visible result is delivered without an assistant reply, and a confirmed receipt suppresses recovery redelivery. Inject an ambiguous receipt failure and allow identifiable redelivery of the saved result, never re-execution. An unknown execution must remain unknown. These are future checks, not passing evidence.
+:::
+
+:::mara verification VER-JOBS-POWER-WORKFLOW
+:mid: 01M3PZ6JWXCFZ6XYCS82QFRHXP
+:title: Verify real consumer decisions for active, deferred, and uncertain jobs
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-JOBS-SLEEP-POLICY
+:verifies: REQ-JOBS-AWAITED-COMPLETION
+
+With actual goal and caffeinate consumers, keep an awaited command running while Pi is idle: goal does not nudge and the jobs wakefulness reason remains active. Complete it in next-turn mode: goal still waits for model delivery, but the job no longer prevents computer sleep. Retain a separate active reason and confirm it is not released by this job transition. Make awaited execution unconfirmed: retain conservative sleep inhibition and goal waiting with a visible diagnostic, until reconciliation or explicit stop-awaiting. Stopping the wait must not fabricate successful execution. Gate fixtures alone cannot establish this workflow. These checks have not run.
+:::

@@ -18,23 +18,20 @@ application exit. Preserve jobs and their original-session association across
 those transitions. Persisting output/results makes them recoverable when the
 user returns; it does not require managed commands to keep running after Pi exits.
 
-## Remaining decisions and implementation work
+## Implementation and verification boundary
 
-- Abrupt crash cleanup is unresolved. Normal-exit cancellation is not a guarantee
-  that shutdown handlers run after a crash or forced process termination.
-- Define the Pi lifecycle event mapping, reload ownership handoff, durable record
-  format/location/retention, and pre-first-message/in-memory session boundaries.
-  Follow Pi's actual session resumability rather than inventing session history.
-- Define foreground-to-background cancellation races, startup failure handling,
-  process-tree termination, shutdown grace/escalation, and hard timeouts separately
-  from the foreground wait budget. Cancellation intent is not proof of exit.
-- The user favors configurable, non-interrupting completion delivery. Automatic
-  follow-up after the current agent run, next-natural-turn delivery, and display-only
-  delivery have been proposed; the exact mode/default/configuration contract and
-  delivery acknowledgement/retry rules remain to be finalized. Gate release and
-  pending-delivery handling must be defined for whichever modes are selected.
-- Actual goal/caffeinate integration and isolated real-backend tests remain
-  necessary. A fake executor or gate observer alone does not verify those workflows.
+The [delivery policy](./delivery.mara.md) defines modes, receipt/retry semantics,
+and the separate decisions made by goal and caffeinate. Crash cleanup is
+best-effort; it does not promise that shutdown handlers run after forced exit.
+
+Before implementing each slice, define and test its Pi lifecycle mapping, reload
+handoff, concrete ownership/liveness evidence, foreground cancellation races,
+startup failure handling, and durable record operations. Reuse Pi facilities where
+they fit rather than inventing a parallel session or turn scheduler. A cancellation
+request is not proof of termination, and history alone is not liveness evidence.
+
+Actual goal/caffeinate integration and isolated real-backend tests remain
+necessary. A fake executor or gate observer alone does not verify those workflows.
 
 ## Agreed knowledge
 
@@ -53,7 +50,7 @@ Let ordinary bash commands continue without blocking Pi indefinitely, while keep
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-The replacement bash tool uses a configurable foreground wait budget with a five-second default. Every ordinary bash command can use the local runner without a command-name whitelist. A command that finishes within the budget returns its foreground result. A command still running when the budget expires returns a job identity and continues as the same execution, without termination, restart, or migration into a Herdr pane. Budget expiry is not a hard execution timeout. Completion racing with the handoff must not lose the result or deliver both a foreground result and an unnecessary duplicate completion.
+The replacement bash tool uses a configurable foreground wait budget with a five-second default. Every ordinary bash command can use the local runner without a command-name whitelist. A command that finishes within the budget returns its foreground result. A command still running when the budget expires returns a job identity and continues as the same execution, without termination, restart, or migration into a Herdr pane. Also allow explicit immediate background launch, with the same delivery, awaiting, and lifetime options. Budget expiry is not a hard execution timeout. Completion racing with the handoff must not lose the result or deliver both a foreground result and an unnecessary duplicate completion.
 :::
 
 :::mara requirement REQ-JOBS-CANCELLATION-BOUNDARY
@@ -63,7 +60,7 @@ The replacement bash tool uses a configurable foreground wait budget with a five
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Aborting a bash tool operation while its command is still foreground cancels that command rather than silently detaching it. Once handed off to background execution, aborting an unrelated agent turn does not cancel the job; use explicit job-stop control, subject also to the normal-exit lifetime policy. A requested stop is not a confirmed terminal outcome. If termination cannot be verified, retain tracking and expose uncertainty rather than claiming cancellation completed or clearing awaited work merely because a stop was requested. Exact race arbitration and termination escalation remain to be specified.
+Aborting a bash tool operation while its command is still foreground cancels that command rather than silently detaching it. Once handed off to background execution, aborting an unrelated agent turn does not cancel the job; use explicit job-stop control, subject also to the normal-exit lifetime policy. Request graceful termination of the command and its owned child processes, wait up to a configurable five-second default grace period, then force termination if necessary, without touching unrelated processes. If a command has already completed when cancellation arrives, its actual exit result wins rather than being relabelled cancelled. A requested stop is not a confirmed terminal outcome. If termination cannot be verified, retain tracking and expose uncertainty rather than claiming cancellation completed or clearing awaited work merely because a stop was requested. Detailed process ownership evidence and handoff race arbitration must be defined and tested before implementation.
 :::
 
 :::mara requirement REQ-JOBS-SESSION-CONTINUITY
@@ -73,7 +70,9 @@ Aborting a bash tool operation while its command is still foreground cancels tha
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Extension reload, /new, and session switching must not apply application-exit cancellation to managed jobs. Keep tracking the existing execution rather than launching it again. Preserve its originating-session association and enough job, output/result, and pending-delivery state to reconcile when that session is resumed. A job completing while another session is active must not inject its result or start a turn in that other session. On return to a resumable originating session, including in a later Pi process, reconcile retained records: recover finished results and pending delivery, resume monitoring only with verified running evidence, and retain uncertainty when state cannot be established. Saved state is not proof that the job is still running or that termination succeeded; it does not authorize managed work to survive normal Pi exit.
+Extension reload, /new, and session switching must not apply application-exit cancellation to managed jobs. Keep tracking the existing execution rather than launching it again. Preserve its originating-session association and enough job, output/result, and pending-delivery state to reconcile when that session is resumed. A job completing while another session is active must not inject its result or start a turn in that other session. On return to a resumable originating session, including in a later Pi process, reconcile retained records and recover saved results; already-pending completions wait for the next user message as specified by [[REQ-JOBS-DELIVERY-MODES]]. Resume monitoring with verified running evidence for work allowed to continue; managed survivors of a confirmed-dead Pi owner follow [[REQ-JOBS-EXIT-CLEANUP]]. Retain uncertainty when state cannot be established. Saved state is not proof of liveness or successful termination.
+
+Navigating /tree within the same session does not rewind live job state; pending results belong on the currently active branch rather than restarting or forgetting the execution. A session fork does not inherit ownership, waits, or pending delivery from original-session jobs, although copied history may retain references. Session navigation and historical visibility must not imply new control authority.
 :::
 
 :::mara requirement REQ-JOBS-EXIT-CLEANUP
@@ -83,7 +82,9 @@ Extension reload, /new, and session switching must not apply application-exit ca
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-On normal Pi application exit, cancel outstanding managed command jobs owned by that Pi instance, including its jobs associated with sessions no longer active. Apply this lifetime policy to both local and Herdr managed commands. Explicitly persistent Herdr terminals, including servers or interactive agents launched with that lifetime choice, remain running; do not infer persistence solely from opting out of a wait. Never close a parent Herdr workspace or delete a worktree as part of job cleanup, or terminate work merely observed but not owned. Preserve known results and honest termination status for later reconciliation. This normal-exit policy does not establish an abrupt-crash cleanup guarantee or promise survival across a Herdr-server restart or machine reboot.
+On normal Pi application exit, cancel outstanding managed command jobs owned by that Pi instance, including its jobs associated with sessions no longer active. Apply this lifetime policy to both local and Herdr managed commands using the graceful-stop/escalation policy. Explicitly persistent Herdr terminals, including servers or interactive agents launched with that lifetime choice, remain running; do not infer persistence solely from opting out of a wait. Never close a parent Herdr workspace or delete a worktree as part of job cleanup, or terminate work merely observed but not owned. Preserve known results and honest termination status for later reconciliation.
+
+Crash and forced-kill cleanup is best-effort, not a guarantee that shutdown handlers run. Reconcile survivors or unconfirmed jobs on resume rather than reporting them stopped from history alone. When the original Pi process is confirmed gone and its managed command is verified still running, stop that survivor rather than adopting it to continue; explicitly persistent Herdr terminals remain exempt. Missing or reused process identifiers are not sufficient ownership/liveness evidence. No survival guarantee applies across a Herdr-server restart or machine reboot.
 :::
 
 :::mara requirement REQ-JOBS-AWAITED-COMPLETION
@@ -94,7 +95,9 @@ On normal Pi application exit, cancel outstanding managed command jobs owned by 
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 :derives_from: REQ-GATES-SIGNAL-ONLY
 
-Automatically backgrounded commands are awaited by default: goal must not repeatedly nudge or treat work as complete while required execution or result delivery is pending. Provide an explicit opt-out from awaiting persistent servers/watchers instead of waiting for their entire lifetime. Waiting and execution lifetime are separate choices. The job owner maintains the appropriate gate signal and owns delivery; clearing a gate alone does not deliver output or start another turn. Unverified job state or requested-but-unconfirmed cancellation must not become confirmed empty work. This is an intended consumer integration, not evidence that goal or caffeinate already implements it.
+Automatically backgrounded commands are awaited by default: goal must not repeatedly nudge or treat work as complete while required execution or result delivery is pending. Allow explicit per-job awaiting overrides, including opting out for persistent servers/watchers. Waiting and execution lifetime are separate choices selected by the caller, not inferred from command text. The job owner maintains the appropriate gate signal and owns delivery; clearing a gate alone does not deliver output or start another turn.
+
+In next-turn mode, goal remains paused until the final result is delivered according to [[REQ-JOBS-DELIVERY-RECEIPTS]]. In display-only mode, no model delivery is required: end the wait when execution finishes and its result is saved/displayed. Unverified execution or requested-but-unconfirmed cancellation must not silently become confirmed empty work. Allow explicit stop-awaiting to release the wait without claiming success or confirmed termination; retain the unresolved job visibly. Sleep inhibition has its own policy in [[REQ-JOBS-SLEEP-POLICY]]. These are intended consumer integrations, not evidence that goal or caffeinate already implements them.
 :::
 
 :::mara verification VER-JOBS-FOREGROUND-HANDOFF
@@ -105,8 +108,9 @@ Automatically backgrounded commands are awaited by default: goal must not repeat
 :level: integration
 :verifies: REQ-JOBS-FOREGROUND-BUDGET
 :verifies: REQ-JOBS-CANCELLATION-BOUNDARY
+:verifies: REQ-JOBS-HARD-TIMEOUT
 
-With controlled clocks and a fake executor, verify the five-second default, a configured alternative, completion on either side of budget expiry, and no lost or unnecessarily duplicated result at the boundary. Repeat the basic flow with a real local command whose process identity and single execution can be checked: no rerun and no Herdr dependency. Foreground abort stops its command; after background handoff, abort an unrelated agent turn and confirm the job continues, then explicitly stop it. Failed or unconfirmed termination must remain uncertain and tracked. Include success, nonzero exit, and launch failure. These are future checks, not observed passing results; finalize race arbitration before implementing its assertions.
+With controlled clocks and a fake executor, verify the five-second foreground default, a configured alternative, explicit immediate backgrounding, completion on either side of budget expiry, and no lost or unnecessarily duplicated result at the boundary. Repeat the basic flow with a real local command whose process identity and single execution can be checked: no rerun and no Herdr dependency. Foreground abort stops its command; after handoff, abort an unrelated agent turn and confirm the job continues, then explicitly stop it. Verify graceful termination, the five-second default escalation and a configured grace period, owned child cleanup, and unrelated-process safety. Test no hard deadline by default, an explicit hard timeout, and a proven completion winning over a later cancellation/timeout request. Failed or unconfirmed termination remains uncertain and tracked. Include success, nonzero exit, and launch failure. These are future checks, not observed passing results; define concrete ownership and race mechanisms before implementing their assertions.
 :::
 
 :::mara verification VER-JOBS-SESSION-AND-EXIT
@@ -118,7 +122,9 @@ With controlled clocks and a fake executor, verify the five-second default, a co
 :verifies: REQ-JOBS-SESSION-CONTINUITY
 :verifies: REQ-JOBS-EXIT-CLEANUP
 
-Start managed work in session A, reload extensions, and switch to session B, checking that no replacement execution starts and the job is not cancelled by those transitions. Complete it while B is active: B receives neither its result nor a model wake. Resume A and recover the saved result and pending delivery without treating historical state alone as liveness evidence. With jobs from both active and inactive sessions still running, exit Pi normally and verify that its owned managed jobs stop. In an isolated Herdr environment, include a managed command, an explicitly persistent terminal, unrelated work, and a parent workspace/worktree: retain the persistent and unrelated executions and parent resources. Reopen the original resumable session in a new Pi process and reconcile saved outcomes. Exercise unavailable-backend and unconfirmed-stop observations without false success or cancellation claims. These checks require actual Pi lifecycle and real local/Herdr integration evidence; fake-adapter tests alone are insufficient. Abrupt-crash cleanup has no agreed acceptance guarantee yet. None of these checks has run.
+Start managed work in session A, reload extensions, and switch to session B, checking that no replacement execution starts and transitions do not cancel the job. Complete it while B is active: B receives neither its result nor a model wake. Resume A and recover the saved result, but wait for the next user message before delivering already-pending completion. Navigate /tree without rewinding execution; route pending results to the active branch. Fork A and verify that copied references do not transfer jobs, waits, ownership, or delivery.
+
+With jobs from active and inactive sessions still running, exit Pi normally and verify that its owned managed jobs stop. In isolated Herdr tests, retain explicitly persistent terminals, unrelated work, and parent workspaces/worktrees. Reopen the original resumable session and reconcile outcomes. Simulate a confirmed-dead Pi owner with a verified managed survivor: request cleanup instead of continued adoption. Missing backend state, stale/reused identifiers, and unconfirmed stops must not fabricate success or cancellation; crash cleanup is best-effort. These checks require actual Pi lifecycle and real local/Herdr integration evidence; fake-adapter tests alone are insufficient. None has run.
 :::
 
 :::mara verification VER-JOBS-AWAITED-WORKFLOW
@@ -129,5 +135,15 @@ Start managed work in session A, reload extensions, and switch to session B, che
 :level: integration
 :verifies: REQ-JOBS-AWAITED-COMPLETION
 
-With the actual jobs owner and goal consumer, automatically background a finite command and check that goal does not issue premature continuation nudges while execution or required result delivery is pending. Keep delivery pending after completion and confirm execution exit alone does not release the wait. An explicitly non-awaited server/watcher must not create an indefinite wait for its exit; that opt-out must not change normal-exit cleanup ownership. Unconfirmed termination must not clear required work. Confirm clearing the gate does not independently deliver the result or create an extra model wake. Complete the delivery and acknowledgement contract before finalizing those assertions. Gate fixtures alone do not establish this integration, and this item records future checks rather than passing runtime evidence.
+With the actual jobs owner and goal consumer, automatically background a finite command and check that goal does not issue premature continuation nudges while execution or required delivery is pending. In next-turn mode, retain the wait after exit until a final result is recorded in Pi model-visible context; no assistant reply is required. In display-only mode, verified exit plus the saved/displayed result releases the wait without model delivery. An explicitly non-awaited server/watcher must not create an indefinite wait; that choice must not change its execution lifetime. Unconfirmed termination remains pending unless explicitly opted out of awaiting, which leaves its uncertain job visible. Confirm gate clearance does not independently deliver a result or create an extra model wake. Gate fixtures alone do not establish this integration. This defines future checks, not passing runtime evidence.
+:::
+
+:::mara requirement REQ-JOBS-HARD-TIMEOUT
+:mid: 01M3PZ6NT597T6PD3QSJDG2HH4
+:title: Keep execution deadlines separate from foreground wait budgets
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-JOBS-MANAGED-LIFETIME
+
+Commands have no hard execution deadline by default. Allow an explicit per-job hard timeout that requests termination through the normal stop/escalation policy rather than merely backgrounding the command. Foreground budget expiry alone preserves the execution. A hard-timeout or cancellation request is not verified termination; retain an honest outcome if stopping cannot be confirmed. A command already completed when the request arrives keeps its actual exit result.
 :::

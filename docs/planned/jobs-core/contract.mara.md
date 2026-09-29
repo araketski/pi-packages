@@ -69,10 +69,11 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 ## Still to specify
 
 The [lifecycle policy](./lifecycle.mara.md) records the agreed foreground budget,
-cancellation boundary, session continuity, normal-exit cleanup, and awaited-work
-default. Exact APIs and wire envelopes, storage and upgrade handling, warning
-presentation, delivery configuration/acknowledgements, crash handling, and detailed
-lifecycle event/race semantics still need contracts and tests before implementation.
+cancellation boundary, session continuity, normal-exit/best-effort crash cleanup,
+and awaited-work default. The [delivery policy](./delivery.mara.md) defines modes,
+receipts/retries, and separate goal/sleep-inhibition decisions. Exact APIs and wire
+envelopes, storage mechanisms and upgrade handling, warning presentation, and
+lifecycle event/race mechanisms still need designs and tests before implementation.
 Persistent interactive agents remain executions rather than inferred delegated
 tasks; agent messaging and parent-child orchestration are not prerequisites.
 
