@@ -1,7 +1,7 @@
 import { getProjects, readJson, writeJson, type Tree } from '@nx/devkit';
 import type { ThemeGeneratorSchema } from './schema';
 
-// Required roles in Pi 0.87.1 theme-schema.json. Optional roles have Pi fallbacks.
+// Required roles in Pi 0.99.1 theme-schema.json. Optional roles have Pi fallbacks.
 const requiredColors =
   `accent border borderAccent borderMuted success error warning muted dim text thinkingText selectedBg userMessageBg userMessageText customMessageBg customMessageText customMessageLabel toolPendingBg toolSuccessBg toolErrorBg toolTitle toolOutput mdHeading mdLink mdLinkUrl mdCode mdCodeBlock mdCodeBlockBorder mdQuote mdQuoteBorder mdHr mdListBullet toolDiffAdded toolDiffRemoved toolDiffContext syntaxComment syntaxKeyword syntaxFunction syntaxVariable syntaxString syntaxNumber syntaxType syntaxOperator syntaxPunctuation thinkingOff thinkingMinimal thinkingLow thinkingMedium thinkingHigh thinkingXhigh bashMode`.split(
     ' ',

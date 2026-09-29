@@ -32,7 +32,7 @@ function fixture() {
   return { host, ui, setStatus, fg };
 }
 
-// Compile against Pi 0.87.1 and use the same appearance type for footer configuration.
+// Compile against Pi 0.99.1 and use the same appearance type for footer configuration.
 const footerAppearance: Record<string, StatusAppearance> = {
   example: { prefix: '◎', color: { default: 'muted', byState: { running: 'accent' } } },
 };

@@ -9,7 +9,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-it('loads the extension and its helpers through the Pi 0.87.1 resource loader', async () => {
+it('loads the extension and its helpers through the Pi 0.99.1 resource loader', async () => {
   const agentDir = mkdtempSync(join(tmpdir(), 'statusline-loader-'));
   roots.push(agentDir);
   const packageRoot = resolve(import.meta.dirname, '..');

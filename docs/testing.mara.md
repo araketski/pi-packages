@@ -75,7 +75,7 @@ Each package manager covers:
   explicit opt-in lint/test/format options, Nx Release version/publish dry-runs,
   and packed JS/declaration resolution in isolated npm/pnpm installs. The four
   resource generators are exercised together; completed fixture resources are
-  packed, installed in a separate consumer with Pi 0.87.1, and discovered
+  packed, installed in a separate consumer with Pi 0.99.1, and discovered
   through Pi's SDK. The extension loads a helper from the installed archive,
   while test-only source files are excluded by the fixture's `files` allowlist.
   For resource projects, inferred `pi-check-package` checks an explicitly
@@ -108,7 +108,7 @@ resolution. Workspace creation and package installation may use the registry or
 package-manager cache; initialization itself must not install anything. Fixtures
 compare authored state after installation, excluding ordinary `node_modules` and
 `.nx` state. Each consumer and Nx sandbox is removed after its test, and the
-remaining tarball is removed after the suite. Pi 0.87.1 is pinned as a
+remaining tarball is removed after the suite. Pi 0.99.1 is pinned as a
 repository test dependency in the pnpm catalog and installed explicitly into
 isolated npm/pnpm resource consumers. No model, credentials, global Pi binary,
 or Pi dependency is required of workspaces using `init` or `pi-check`.

@@ -9,7 +9,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-it('validates and loads the packed statusline in an isolated Pi 0.87.1 consumer', () => {
+it('validates and loads the packed statusline in an isolated Pi 0.99.1 consumer', () => {
   const destination = mkdtempSync(join(tmpdir(), 'statusline-packed-'));
   roots.push(destination);
   const packageRoot = resolve(import.meta.dirname, '..');
@@ -63,8 +63,8 @@ it('validates and loads the packed statusline in an isolated Pi 0.87.1 consumer'
       '--no-package-lock',
       tarball,
       protocolTarball,
-      '@earendil-works/pi-coding-agent@0.87.1',
-      '@earendil-works/pi-tui@0.87.1',
+      '@earendil-works/pi-coding-agent@0.99.1',
+      '@earendil-works/pi-tui@0.99.1',
     ],
     { cwd: consumer, encoding: 'utf8', timeout: 120_000 },
   );

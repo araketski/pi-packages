@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { DefaultResourceLoader } from '@earendil-works/pi-coding-agent';
 import { expect, it } from 'vitest';
 
-it('loads the source extension through the Pi 0.87.1 resource loader', async () => {
+it('loads the source extension through the Pi 0.99.1 resource loader', async () => {
   const agentDir = mkdtempSync(join(tmpdir(), 'fast-mode-loader-'));
   try {
     const packageRoot = resolve(import.meta.dirname, '..');

@@ -282,7 +282,7 @@ Pi may accept custom entries in memory before it creates a new session file. A s
 :verifies: REQ-GATES-SESSION-HISTORY
 :verifies: REQ-GATES-SCOPED-STATE
 
-Use the actual Pi 0.87.1 SessionManager and EventBus in a temporary file-backed session. After Pi creates a resumable file, reconcile and acquire a gate; verify custom entries exist without becoming model-context messages. Move to another branch without the gate entry, reopen the session from disk, and confirm a late observer still sees unconfirmed historical intent. Only an owner-verified reconciliation changes it to confirmed empty. With SessionManager.inMemory, verify entries exist during the process but there is no session file or claim of recovery after exit. This local SDK test does not prove extension loading, remote Pi versions, or a consumer response.
+Use the actual Pi 0.99.1 SessionManager and EventBus in a temporary file-backed session. First acquire a gate in a setup-only session with no file, append the first user message, and verify the prior gate history is persisted and reopens as tentative without any assistant reply. After Pi creates a resumable file, reconcile and acquire a gate; verify custom entries exist without becoming model-context messages. Move to another branch without the gate entry, reopen the session from disk, and confirm a late observer still sees unconfirmed historical intent. Only an owner-verified reconciliation changes it to confirmed empty. With SessionManager.inMemory, verify entries exist during the process but there is no session file or claim of recovery after exit. This local SDK test does not prove extension loading, remote Pi versions, or a consumer response.
 :::
 
 :::mara design DES-GATES-DISCOVERY-BOUNDARY

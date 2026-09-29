@@ -22,7 +22,7 @@ For each release of a Pi resource package or Pi-facing shared library, select th
 :status: accepted
 :justifies: REQ-PI-RELEASE-COMPAT
 
-Choose one validated Pi version at the time of each integration release rather than advertise an open-ended lower bound or maintain a cross-version support matrix. Pi evolves quickly, so newer releases require a new compatibility check and package release before support is claimed. The current workspace catalog and installed Pi are 0.87.1 as of this decision; that fact does not pin future package releases. This decision covers the advertised compatibility promise, not an exact peer-dependency syntax for every package kind.
+Choose one validated Pi version at the time of each integration release rather than advertise an open-ended lower bound or maintain a cross-version support matrix. Pi evolves quickly, so newer releases require a new compatibility check and package release before support is claimed. At the original decision, the workspace catalog and installed Pi were 0.87.1; that historical fact does not pin future package releases. The 0.99.1 development baseline and scoped checks are recorded in [the reconciliation](pi-0991-reconciliation.mara.md). This decision covers the advertised compatibility promise, not an exact peer-dependency syntax for every package kind.
 :::
 
 :::mara verification VER-PI-RELEASE-COMPAT
@@ -32,5 +32,5 @@ Choose one validated Pi version at the time of each integration release rather t
 :method: inspection
 :verifies: REQ-PI-RELEASE-COMPAT
 
-Before releasing each Pi integration, check the current npm latest tag for @earendil-works/pi-coding-agent, the version selected by the release, its consumer-facing compatibility statement, and the actual runtime and loading checks performed with that version. Fail the release check if the selected version differs from latest or if support for other untested Pi versions is advertised. This is a repeatable release check, not an assertion that a release or its end-to-end integration has occurred. For this development increment, installed Pi and the workspace catalog are 0.87.1; statusline-protocol has type compatibility and mocked behavioral checks but not a real custom-footer integration.
+Before releasing each Pi integration, check the current npm latest tag for @earendil-works/pi-coding-agent, the version selected by the release, its consumer-facing compatibility statement, and the actual runtime and loading checks performed with that version. Fail the release check if the selected version differs from latest or if support for other untested Pi versions is advertised. This is a repeatable release check, not an assertion that a release or its end-to-end integration has occurred. The original development increment used Pi 0.87.1 and established type compatibility and mocked behavior, not a real custom-footer integration. Record current development checks separately in [the reconciliation](pi-0991-reconciliation.mara.md); they are not an executed release.
 :::

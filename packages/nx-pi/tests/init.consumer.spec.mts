@@ -711,7 +711,7 @@ describe('packed nx-pi in independent consumers', () => {
         private: true,
         dependencies: {
           '@terminal/pi-example': `file:${isAbsolute(resourceTarball.filename) ? resourceTarball.filename : join(temporaryRoot, resourceTarball.filename)}`,
-          '@earendil-works/pi-coding-agent': '0.87.1',
+          '@earendil-works/pi-coding-agent': '0.99.1',
         },
       });
       execFileSync(

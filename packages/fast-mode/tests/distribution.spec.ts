@@ -72,7 +72,7 @@ it('passes the packed extension source checker from the local nx-pi executor', (
         '--no-package-lock',
         pack.filename,
         protocol.filename,
-        '@earendil-works/pi-coding-agent@0.87.1',
+        '@earendil-works/pi-coding-agent@0.99.1',
       ],
       {
         cwd: consumer,

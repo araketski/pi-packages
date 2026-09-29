@@ -89,17 +89,17 @@ owner's responsibility; do not add another session or gate journal.
 
 ## Package impact and retained scope
 
-| Area | Reconciliation |
-| --- | --- |
-| jobs-core | C1 public tool/receipt boundary; C3 native persistence; C4 nested visibility, queues, and lifecycle; C5 real participant conformance. Shared quota/ownership still need their own design. |
-| jobs | Native structured tool integration and cancellation checks above; same-process foreground/background handoff remains necessary. |
-| herdr | Keep the public current-local JSON adapter and explicit resources/execution split. Native MCP does not replace Herdr's transport or prove command completion. Test adapter tools through the native nested pipeline without inventing approval, retries, or fallback. |
-| goal | Keep fresh branch-local state, evidence, pauses, budgets, and generic gates. Use actionable Pi scheduling boundaries; notification-only settlement must not schedule another turn. |
-| caffeinate | Keep fresh settings and all-tracked-session generic gates. Observe Pi activity/queues through settlement, including nested work; do not infer idleness from one completed inner tool. Actual Linux inhibition remains separate verification. |
-| gates | Keep read-only state/history/health, notice suppression, and reconciliation semantics. New theme behavior affects presentation, not authority. |
-| gates/statusline protocols | Recheck exported host types and real SDK integration. The Pi bump alone does not change their protocol identity or prove actual consumer integration. |
-| fast-mode/statusline | Recheck resource loading, provider hooks, packed consumers, and theme behavior. Upstream pricing fixes or a new provider label do not prove these extensions redundant. |
-| nx-pi | Recheck generated resource discovery/theme schema and independent consumers. Preserve infrastructure neutrality; do not make MCP or a TypeScript loader a generated consumer requirement. |
+| Area                       | Reconciliation                                                                                                                                                                                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| jobs-core                  | C1 public tool/receipt boundary; C3 native persistence; C4 nested visibility, queues, and lifecycle; C5 real participant conformance. Shared quota/ownership still need their own design.                                                                             |
+| jobs                       | Native structured tool integration and cancellation checks above; same-process foreground/background handoff remains necessary.                                                                                                                                       |
+| herdr                      | Keep the public current-local JSON adapter and explicit resources/execution split. Native MCP does not replace Herdr's transport or prove command completion. Test adapter tools through the native nested pipeline without inventing approval, retries, or fallback. |
+| goal                       | Keep fresh branch-local state, evidence, pauses, budgets, and generic gates. Use actionable Pi scheduling boundaries; notification-only settlement must not schedule another turn.                                                                                    |
+| caffeinate                 | Keep fresh settings and all-tracked-session generic gates. Observe Pi activity/queues through settlement, including nested work; do not infer idleness from one completed inner tool. Actual Linux inhibition remains separate verification.                          |
+| gates                      | Keep read-only state/history/health, notice suppression, and reconciliation semantics. New theme behavior affects presentation, not authority.                                                                                                                        |
+| gates/statusline protocols | Recheck exported host types and real SDK integration. The Pi bump alone does not change their protocol identity or prove actual consumer integration.                                                                                                                 |
+| fast-mode/statusline       | Recheck resource loading, provider hooks, packed consumers, and theme behavior. Upstream pricing fixes or a new provider label do not prove these extensions redundant.                                                                                               |
+| nx-pi                      | Recheck generated resource discovery/theme schema and independent consumers. Preserve infrastructure neutrality; do not make MCP or a TypeScript loader a generated consumer requirement.                                                                             |
 
 Pi now warns about host-provided modules in runtime dependencies and suppresses
 automatic Pi peer installation for managed git packages as well as npm packages.
@@ -123,6 +123,40 @@ The coordinator-owned baseline Work prerequisite blocks the first scaffold until
 4. Refresh current compatibility statements without rewriting historical results
    into 0.99.1 evidence. Diagnose Work and validate Mara completely. Record actual
    checks, artifacts, failures, and remaining runtime limitations.
+
+### Observed repository checks
+
+On Node 26.7.0 with pnpm 12.8.1 and npm 11.19.0, the preparation working tree
+passed the following checks; no release or campaign implementation is implied:
+
+- The new first-user persistence regression failed on 0.87.1 at the expected
+  missing-file assertion (22 other tests passed), then all 23 gates-protocol
+  tests passed on 0.99.1.
+- `CI=1 pnpm nx run-many -t test,typecheck,lint,build,pi-check --parallel=3
+--skip-nx-cache --outputStyle=static` passed across the five existing projects:
+  300 nx-pi, 23 gates-protocol, 13 statusline-protocol, 22 statusline, and
+  35 fast-mode tests. This included fresh extension packs/static archive checks,
+  isolated npm loading, and generated-resource/plugin npm/pnpm consumers.
+- Resolver inspection then found fast-mode's automatically installed wildcard
+  peer was still 0.87.1. Adding an explicit catalog-backed **development**
+  dependency made all workspace Pi SDK resolutions 0.99.1; fast-mode's 35 tests,
+  typecheck, lint, source check, and packed npm loading passed again. Its consumer
+  peer remains host-provided, not a bundled/runtime Pi dependency.
+- Fresh builds and explicit archive checks of both actual protocol libraries
+  passed, followed by runtime imports and declaration resolution in independent
+  npm and pnpm consumers with Pi 0.99.1. Declaration smoke used `skipLibCheck`;
+  it is not a typecheck of all Pi dependencies. The initial auxiliary probe
+  incorrectly imported the internal `GateProjection`; correcting the probe to
+  the actual public exports passed without changing the library API.
+- Frozen installation, changed-file formatting, and Nx sync checks passed.
+  Nx emitted its known native-TypeScript/CommonJS loading warnings before its
+  successful fallback; these were not runtime compatibility failures.
+
+The user approved retaining pnpm's automatic `minimumReleaseAgeExclude` additions
+for the eight exact-version Pi 0.99.1 packages and committing this verified upgrade.
+No unrelated catalog versions or package release versions were selected for change.
+The baseline Work item records local logs and archive hashes. Completing that
+prerequisite does not lift the campaign pause or authorize implementation dispatch.
 
 This does not close future native jobs/Herdr/goal/caffeinate/gates integration
 checks, establish live provider requests, or authorize publication. Recheck the

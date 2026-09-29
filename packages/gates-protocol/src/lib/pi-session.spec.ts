@@ -14,7 +14,7 @@ function persistentSession() {
   const dir = mkdtempSync(join(process.env.HOME!, '.cache/gates-pi-session-'));
   cleanup.push(dir);
   const manager = SessionManager.create(process.cwd(), dir);
-  // Pi does not write a fresh session until it has an assistant message.
+  // Give the persistent fixture a conversation (Pi also persists on a user message).
   manager.appendMessage({
     role: 'assistant',
     content: [{ type: 'text', text: 'session created' }],
@@ -87,6 +87,47 @@ it('reopens a real Pi session with model-invisible historical intent', () => {
   expect(observer.view().owners).toEqual([{ owner: 'tmux-bash', state: 'confirmed', gates: [] }]);
   observer.close();
   recovered.close();
+});
+
+// @mara checks REQ-GATES-SESSION-HISTORY
+it('persists early gate history with the first user message before any assistant reply', () => {
+  const dir = mkdtempSync(join(process.env.HOME!, '.cache/gates-pi-session-'));
+  cleanup.push(dir);
+  const manager = SessionManager.create(process.cwd(), dir);
+  const events = createEventBus();
+  const owner = createGateOwner(
+    {
+      events,
+      appendEntry: (kind, data) => {
+        manager.appendCustomEntry(kind, data);
+      },
+    },
+    'early-owner',
+  );
+  const observer = createGateObserver({ events });
+  try {
+    const ctx = { sessionManager: manager };
+    owner.start(ctx);
+    owner.reconcile(ctx, []);
+    owner.acquire(ctx, { id: 'pending' });
+    const file = manager.getSessionFile()!;
+    expect(existsSync(file)).toBe(false);
+
+    const prompt = { role: 'user' as const, content: 'first prompt', timestamp: Date.now() };
+    manager.appendMessage(prompt);
+    expect(existsSync(file)).toBe(true);
+    owner.close();
+
+    const reopened = SessionManager.open(file);
+    expect(reopened.buildSessionContext().messages).toEqual([prompt]);
+    observer.start({ sessionManager: reopened });
+    expect(observer.view().owners).toEqual([
+      { owner: 'early-owner', state: 'unconfirmed', gates: [{ id: 'pending' }] },
+    ]);
+  } finally {
+    owner.close();
+    observer.close();
+  }
 });
 
 it('keeps gate entries inside an ephemeral Pi session without promising recovery', () => {
