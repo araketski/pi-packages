@@ -1,8 +1,9 @@
 # `@araketski/pi-gates-protocol`
 
-This is the intended contract for a newly scaffolded library; gate coordination
-is not implemented yet. The legacy continuation-gate package is reference
-material, not its API or architecture. `pi-gates` is the separately planned,
+This is the intended contract for the coordination library. Its owner/observer
+API, journal replay, diagnostics, and Pi SDK integration fixtures are
+implemented; consuming packages are not yet migrated. The legacy
+continuation-gate package is reference material, not its API or architecture. `pi-gates` is the separately planned,
 optional visibility extension. The protocol is not itself a Pi resource.
 
 ## Motivation and boundary
@@ -44,9 +45,9 @@ This flag never prevents journaling, changes no live gate, and does not hide
 stale or unresponsive-owner diagnostics. The optional `pi-gates` extension
 will interpret it; the protocol itself does not render messages or start turns.
 
-## Open design questions
+## Protocol lifecycle
 
-The initial interface uses session ID, owner ID, and owner-local gate ID; a
+The interface uses session ID, owner ID, and owner-local gate ID; a
 single Pi session owns its live projection across tree navigation. Reconstruct
 intent from gate entries in the full session tree, then ask the work owner to
 verify external reality. An owner explicitly publishes verified snapshots; an
@@ -64,9 +65,11 @@ been written to disk cannot be resumed after exit, so gate coordination does
 not require a separate file or reject acquisition merely because Pi has not
 created one. Work owners still handle their external jobs independently.
 
-Still to be verified through integration: readiness when a known owner is
-registered but not reconciled, session replacement and tree navigation, and
-publication order when a source and observer start at different times.
+Tests now cover unconfirmed known owners, Pi SDK session startup, file-backed
+session replay across branches, independent late observers, and append-before-
+announcement ordering. Interactive Pi UI, actual `goal`/`caffeinate` policies,
+and full SDK session replacement remain unverified. Intended behavior and
+observed verification must not be confused with public release readiness.
 
 :::mara goal GOAL-GATES-COORDINATION
 :mid: 01M3P1VQ7C1W8PV36ZXWJ6BD6B

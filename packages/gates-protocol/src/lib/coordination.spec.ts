@@ -167,6 +167,32 @@ describe('gate coordination across Pi extension instances', () => {
     observer.close();
   });
 
+  it('diagnoses a missing owner when replaying a persisted wait', () => {
+    const f = fixture();
+    let now = 0;
+    const owner = createGateOwner(f.pi, 'tmux-bash');
+    owner.start(f.ctx);
+    owner.reconcile(f.ctx, [{ id: 'old-job' }]);
+    owner.close();
+    const observer = createGateObserver(f.pi, { now: () => now, timeoutMs: 50 });
+    observer.start(f.ctx);
+    observer.finishDiscovery();
+    now = 51;
+    expect(observer.view()).toEqual({
+      sessionId: 'session-a',
+      readiness: 'unconfirmed',
+      owners: [
+        {
+          owner: 'tmux-bash',
+          state: 'unconfirmed',
+          gates: [{ id: 'old-job' }],
+          diagnostics: ['unresponsive'],
+        },
+      ],
+    });
+    observer.close();
+  });
+
   it('rejects an unjournaled acquisition without telling observers it happened', () => {
     const f = fixture();
     const owner = createGateOwner(f.pi, 'tmux-bash');
