@@ -30,9 +30,9 @@ owner reconciles them against its own work. Observers must distinguish an
 unconfirmed projection from a confirmed empty one; a late observer requests
 current state rather than relying solely on having seen past events. A missed
 owner response or an elapsed diagnostic lease does not prove that work ended,
-and neither silently clears a gate or starts a turn. Persisted state transitions
-precede their live announcements; bounded identities make repeated delivery and
-reconciliation safe. Gate entries must not contain raw job commands or output.
+and neither silently clears a gate or starts a turn. Custom session entries
+are appended before their live announcements; bounded identities make repeated
+delivery and reconciliation safe. Gate entries must not contain raw job commands or output.
 
 ## Open design questions
 
@@ -49,6 +49,10 @@ do not broadcast an unrecorded acquisition, clearance, or reconciliation.
 Owners must arrange acquisition before depending on a background job's wait
 signal and handle such failures rather than treating the gate as acquired.
 This is an append-call guarantee, not a promise of filesystem durability.
+Gate recovery follows Pi's session lifecycle: a fresh session that has not yet
+been written to disk cannot be resumed after exit, so gate coordination does
+not require a separate file or reject acquisition merely because Pi has not
+created one. Work owners still handle their external jobs independently.
 
 Still to be verified through integration: readiness when a known owner is
 registered but not reconciled, session replacement and tree navigation, and
@@ -111,7 +115,7 @@ Acquire, observe, and clear a gate with a host that records model-message and co
 :kind: functional
 :contributes_to: GOAL-GATES-COORDINATION
 
-For a Pi session with persistent storage, record gate acquisition, clearance, and state-changing reconciliation as append-only custom session entries, separate from model context. These entries preserve historical intent across reload or restart; they do not prove the external work is still running. Restored history must remain distinguishable from owner-confirmed current state until the work-owning extension reconciles it. Ephemeral Pi sessions provide no durability across process exit.
+For a Pi session that Pi can resume, record gate acquisition, clearance, and state-changing reconciliation as append-only custom session entries, separate from model context. These entries preserve historical intent across reload or restart of that session; they do not prove external work is still running. Restored history must remain distinguishable from owner-confirmed current state until the work-owning extension reconciles it. A fresh session that Pi has not written to disk cannot be resumed after exit, and an ephemeral Pi session provides no durability across process exit; the protocol does not require a separate file or reject acquisition solely for these cases.
 :::
 
 :::mara verification VER-GATES-SESSION-HISTORY
@@ -122,7 +126,7 @@ For a Pi session with persistent storage, record gate acquisition, clearance, an
 :level: integration
 :verifies: REQ-GATES-SESSION-HISTORY
 
-In a persistent Pi session fixture, acquire and end a gate, then reopen the session and inspect custom entries on the active branch. Confirm their order and that they do not appear in model context. Simulate a restart with an acquired gate but no clearance: the history remains visible, yet current work is not reported as owner-confirmed until that owner reconciles and records its corrected state. In an in-memory session, do not claim durability after process exit.
+In a Pi session that has been written to disk, acquire and end a gate, then reopen the session and inspect custom entries on the active branch. Confirm their order and that they do not appear in model context. Simulate a restart with an acquired gate but no clearance: history remains visible, yet current work is not reported as owner-confirmed until its owner reconciles and records corrected state. In a fresh session before Pi creates its file and in an in-memory session, do not claim recovery after process exit.
 :::
 
 :::mara requirement REQ-GATES-SCOPED-STATE
@@ -237,11 +241,21 @@ Using independent owner and observer instances with a shared Pi-compatible event
 :::mara risk RISK-GATES-EARLY-SESSION-NOT-DURABLE
 :mid: 01M3P6N24V310FBANYYSCQAN37
 :title: Pi can accept a gate entry before its session file exists
-:status: accepted
+:status: retired
 :impact: high
-:treatment: open
+:treatment: tolerated
 :affects: REQ-GATES-SESSION-HISTORY
 :affects: REQ-GATES-PERSIST-BEFORE-SIGNAL
 
-Observed with Pi 0.87.1 SessionManager.create in a fresh file-backed session: appendCustomEntry returned and getEntries contained the gate entry, but getSessionFile pointed to a path that did not yet exist. Pi defers writing entries until an assistant message exists. A process exit before that flush can lose the gate history despite a successful append call. The current append-before-signal guarantee prevents announcing an entry whose append throws, but cannot prove disk persistence. An external job started in this window still needs its owner to recover it independently. Decide whether to prohibit starting awaited work until Pi has persisted the session, require an additional durable owner journal, or explicitly accept this pre-flush gap; do not present the package as fully restart-safe until this policy is agreed and tested.
+Pi 0.87.1 buffers custom entries in a fresh session until it has an assistant message. This observation is normal Pi lifecycle behavior, not a reason to reject early gate acquisition: no session file means Pi cannot resume that session after interruption. The gate protocol follows Pi resumability rather than imposing another journal or file-existence check. Work owners retain independent responsibility for external jobs that survive Pi. This former risk was closed by ADR-GATES-PI-RESUMABILITY-BOUNDARY; append-call failures remain separately covered by REQ-GATES-PERSIST-BEFORE-SIGNAL.
+:::
+
+:::mara decision ADR-GATES-PI-RESUMABILITY-BOUNDARY
+:mid: 01M3P7EH45AT9MECP3FJ7RQVXQ
+:title: Follow Pi session resumability instead of requiring a pre-first-message file
+:status: accepted
+:justifies: REQ-GATES-SESSION-HISTORY
+:justifies: RISK-GATES-EARLY-SESSION-NOT-DURABLE
+
+Pi may accept custom entries in memory before it creates a new session file. If the process exits before Pi records an assistant message, that Pi session cannot be resumed either. Gate history therefore promises restart reconstruction only within a Pi session that Pi can actually resume; do not reject an acquisition just because a new session file does not yet exist, and do not add protocol-owned durable storage for this case. This does not change the work-owning extension's obligation to manage and recover external jobs, nor the rule that a thrown appendEntry call must not publish an unrecorded state change.
 :::
