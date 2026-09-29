@@ -233,3 +233,15 @@ With a Pi-compatible host, assert a successful acquisition, release, and verifie
 
 Using independent owner and observer instances with a shared Pi-compatible event bus, assert a late observer recovers current gates, a restarted observer treats journal replay as unconfirmed until the work owner reconciles, and owner registration alone does not erase historical intent. Acquire and release append before live publication. If appending an acquire, release, or reconciliation fails, no new state is published. Session tree reads use full session history while session replacement does not leak old gates. This fixture does not yet verify a real Pi process or owner timeout behavior.
 :::
+
+:::mara risk RISK-GATES-EARLY-SESSION-NOT-DURABLE
+:mid: 01M3P6N24V310FBANYYSCQAN37
+:title: Pi can accept a gate entry before its session file exists
+:status: accepted
+:impact: high
+:treatment: open
+:affects: REQ-GATES-SESSION-HISTORY
+:affects: REQ-GATES-PERSIST-BEFORE-SIGNAL
+
+Observed with Pi 0.87.1 SessionManager.create in a fresh file-backed session: appendCustomEntry returned and getEntries contained the gate entry, but getSessionFile pointed to a path that did not yet exist. Pi defers writing entries until an assistant message exists. A process exit before that flush can lose the gate history despite a successful append call. The current append-before-signal guarantee prevents announcing an entry whose append throws, but cannot prove disk persistence. An external job started in this window still needs its owner to recover it independently. Decide whether to prohibit starting awaited work until Pi has persisted the session, require an additional durable owner journal, or explicitly accept this pre-flush gap; do not present the package as fully restart-safe until this policy is agreed and tested.
+:::
