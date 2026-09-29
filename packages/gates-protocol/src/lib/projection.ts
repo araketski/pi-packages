@@ -46,8 +46,9 @@ export class GateProjection {
   remember(owner: string, gates: readonly GateIdentity[]): void {
     identity(owner, 'owner ID');
     const ids = gateIds(gates);
-    if (this.owners.get(owner)?.state === 'confirmed') return;
-    this.owners.set(owner, { state: 'unconfirmed', gates: new Set(ids) });
+    const prior = this.owners.get(owner);
+    if (prior?.state === 'confirmed') return;
+    this.owners.set(owner, { state: 'unconfirmed', gates: new Set([...(prior?.gates ?? []), ...ids]) });
   }
 
   // @mara implements REQ-GATES-SCOPED-STATE

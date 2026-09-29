@@ -36,12 +36,23 @@ reconciliation safe. Gate entries must not contain raw job commands or output.
 
 ## Open design questions
 
-Before implementation, define the exact owner/gate identity and branch
-reconciliation interface, the readiness boundary for known owners, and what
-happens when writing a session entry fails. If an owner never comes back,
-consumers still need a deliberate recovery policy: warn and hold, or provide
-an explicit user-controlled override. The protocol will not select either
-policy by silently expiring the gate.
+The initial interface uses session ID, owner ID, and owner-local gate ID; a
+single Pi session owns its live projection across tree navigation. Reconstruct
+intent from gate entries in the full session tree, then ask the work owner to
+verify external reality. An owner explicitly publishes verified snapshots; an
+unresponsive owner never turns an unresolved wait into confirmed empty. The
+protocol supplies diagnostics, while `goal` remains paused and `caffeinate`
+retains its hold with warnings. No force-clear operation is provided here.
+
+If appending a custom session entry throws, reject that state transition and
+do not broadcast an unrecorded acquisition, clearance, or reconciliation.
+Owners must arrange acquisition before depending on a background job's wait
+signal and handle such failures rather than treating the gate as acquired.
+This is an append-call guarantee, not a promise of filesystem durability.
+
+Still to be verified through integration: readiness when a known owner is
+registered but not reconciled, session replacement and tree navigation, and
+publication order when a source and observer start at different times.
 
 :::mara goal GOAL-GATES-COORDINATION
 :mid: 01M3P1VQ7C1W8PV36ZXWJ6BD6B
@@ -187,4 +198,38 @@ With a known gate, advance a diagnostic deadline and observe a stale warning whi
 :verifies: REQ-GATES-SCOPED-STATE
 
 In a pure session-local state fixture, restore a gate as unconfirmed; require an owner report before it becomes confirmed, including an empty report. Check multiple owners and sessions with overlapping local IDs, malformed snapshots leaving current state unchanged, old history not replacing a confirmed report, and returned views not granting mutation rights. This is a unit check of projection logic, not evidence of session journaling, transport, or recovery integration.
+:::
+
+:::mara requirement REQ-GATES-PERSIST-BEFORE-SIGNAL
+:mid: 01M3P64J6NSFZ8XAGXR72CGHVT
+:title: Do not signal a gate transition whose journal append fails
+:status: accepted
+:kind: constraint
+:contributes_to: GOAL-GATES-COORDINATION
+
+For gate acquisition, clearance, and owner reconciliation, append a custom Pi session entry before changing published live state. If the append call fails, report the failure to the caller without announcing that transition or replacing the prior state. Ephemeral Pi sessions still keep in-process entries but cannot provide durability after exit. This does not claim filesystem fsync or exactly-once delivery.
+:::
+
+:::mara verification VER-GATES-PERSIST-BEFORE-SIGNAL
+:mid: 01M3P64MZSNJ3NKKZ5M1YZ56ZN
+:title: Reject unrecorded state transitions
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-GATES-PERSIST-BEFORE-SIGNAL
+
+With a Pi-compatible host, assert a successful acquisition, release, and verified owner snapshot append a custom entry before any bus announcement. Make appendEntry throw on each transition and verify the caller receives failure, the old projection remains, and no new bus event is emitted. Confirm in-memory sessions keep entries during the process but promise no recovery after exit.
+:::
+
+:::mara verification VER-GATES-OWNER-OBSERVER
+:mid: 01M3P6A6Q736WGBDRYYW0SZXCP
+:title: Exercise owner and late observer through the Pi event and entry interfaces
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-GATES-PENDING-STATE
+:verifies: REQ-GATES-RECONCILIATION
+:verifies: REQ-GATES-PERSIST-BEFORE-SIGNAL
+
+Using independent owner and observer instances with a shared Pi-compatible event bus, assert a late observer recovers current gates, a restarted observer treats journal replay as unconfirmed until the work owner reconciles, and owner registration alone does not erase historical intent. Acquire and release append before live publication. If appending an acquire, release, or reconciliation fails, no new state is published. Session tree reads use full session history while session replacement does not leak old gates. This fixture does not yet verify a real Pi process or owner timeout behavior.
 :::
