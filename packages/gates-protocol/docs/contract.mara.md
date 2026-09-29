@@ -176,3 +176,15 @@ A known owner that does not answer reconciliation within the defined observation
 
 With a known gate, advance a diagnostic deadline and observe a stale warning while the gate remains pending. Request owner reconciliation without a response and observe an unresponsive warning without dropping known state or confirming an empty restored state. Neither diagnostic causes a Pi message or an agent turn. Confirm that a later owner response corrects the diagnostic and projection.
 :::
+
+:::mara verification VER-GATES-PROJECTION-UNIT
+:mid: 01M3P61DKQGKBP2ZPGCQWGWPDQ
+:title: Check the isolated owner-scoped projection before Pi transport
+:status: accepted
+:method: test
+:level: unit
+:verifies: REQ-GATES-RECONCILIATION
+:verifies: REQ-GATES-SCOPED-STATE
+
+In a pure session-local state fixture, restore a gate as unconfirmed; require an owner report before it becomes confirmed, including an empty report. Check multiple owners and sessions with overlapping local IDs, malformed snapshots leaving current state unchanged, old history not replacing a confirmed report, and returned views not granting mutation rights. This is a unit check of projection logic, not evidence of session journaling, transport, or recovery integration.
+:::
