@@ -18,6 +18,12 @@
 - Validate changed knowledge with Mara. Require a complete, valid result; unavailable evaluation is not a pass.
 - An accepted specification does not imply implementation or passing tests. Distinguish intended behavior, implementation state, and observed verification results.
 
+## Durable execution tracking: Work
+
+- Use Work for durable implementation items and dependencies; keep product contracts and project documentation in Mara rather than copying specifications into task bodies.
+- Load the `work` skill before operating on items. Select the intended checkout explicitly, inspect CLI capabilities, and do not treat readiness as a claim or invent unsupported agent-management commands.
+- During the workflow-package campaign, follow [parallel implementation guidance](docs/parallel-implementation.mara.md) for coordinator authority, isolated worktrees, review loops, and completion evidence.
+
 ## Documentation ownership and lifecycle
 
 - Keep workspace-wide knowledge in root `docs/` and project-specific knowledge in `<project-root>/docs/`.
