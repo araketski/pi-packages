@@ -17,7 +17,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Planned Herdr workflow](docs/planned/herdr/scope.mara.md) and [execution/RPC contract](docs/planned/herdr/contract.mara.md)
 - [Planned jobs-core package boundary and contract compatibility](docs/planned/jobs-core/contract.mara.md)
 - [Planned local jobs execution](docs/planned/jobs/execution.mara.md) and [controls](docs/planned/jobs/controls.mara.md)
-- [Planned goal integration with jobs](docs/planned/goal/jobs-integration.mara.md)
+- [Planned goal contract](docs/planned/goal/contract.mara.md) and [jobs integration](docs/planned/goal/jobs-integration.mara.md)
 - [Planned caffeinate integration with jobs](docs/planned/caffeinate/jobs-integration.mara.md)
 
 ## Development
