@@ -16,6 +16,9 @@ The separate jobs module is now planned as `pi-jobs-core`, shared by the local
 `pi-jobs` bash execution path and `pi-herdr`. The
 [jobs-core contract](../jobs-core/contract.mara.md) owns the three-package boundary
 and distinguishes package releases from the library-reported contract version.
+The [Herdr execution and transport contract](./contract.mara.md) owns dedicated-pane
+behavior, explicit managed/persistent modes, and the current-local-session public
+JSON RPC adapter.
 
 | Herdr integration | Shared jobs module |
 | --- | --- |
@@ -39,9 +42,11 @@ nudges while required work or its result delivery is pending. The agreed
 [lifecycle policy](../jobs-core/lifecycle.mara.md) distinguishes normal-exit
 cancellation of owned managed commands from explicitly persistent Herdr terminals,
 which remain running. Job cleanup must not close parent workspaces or delete
-worktrees. Delivery details, crash cleanup, and lifecycle implementation still
-need specifications and consumer tests; this document does not claim those
-integrations work.
+worktrees. Shared [delivery behavior](../jobs-core/delivery.mara.md) is specified
+separately from consumer-owned [goal](../goal/jobs-integration.mara.md) and
+[caffeinate](../caffeinate/jobs-integration.mara.md) policies. Runner/storage details
+and actual lifecycle/consumer integration still need designs and tests; this
+document does not claim those integrations work.
 
 ## Scope limits and later decisions
 
@@ -85,7 +90,7 @@ The Herdr integration must use a separate jobs module for managed execution trac
 :method: inspection
 :verifies: REQ-HERDR-JOBS-MODULE
 
-When implementation exists, inspect dependencies and responsibilities: execution identity, reconciliation policy, output/result bookkeeping, delivery, waits, and gate integration reside in pi-jobs-core; local process and Herdr CLI/API operations reside in their respective adapters; worktree/layout operations remain in pi-herdr. Confirm job policy has a test seam for execution observations without starting Herdr, the two extensions use the shared implementation, and no agent messaging service is necessary for launching and tracking a command. The in-runtime owner/observer contract is specified in [[DES-JOBS-PACKAGE-BOUNDARY]]. This defines future verification; no implementation inspection or runtime test has passed yet.
+When implementation exists, inspect dependencies and responsibilities: execution identity, reconciliation policy, output/result bookkeeping, delivery, waits, and gate integration reside in pi-jobs-core; local process operations and the Herdr public JSON adapter specified by [[DES-HERDR-PUBLIC-JSON-ADAPTER]] reside in their respective execution adapters; worktree/layout operations remain in pi-herdr. Confirm job policy has a test seam for execution observations without starting Herdr, the two extensions use the shared implementation, and no agent messaging service is necessary for launching and tracking a command. The in-runtime owner/observer contract is specified in [[DES-JOBS-PACKAGE-BOUNDARY]]. This defines future verification; no implementation inspection or runtime test has passed yet.
 :::
 
 :::mara decision ADR-HERDR-INTERNAL-JOBS-MODULE

@@ -14,7 +14,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Repository linting](docs/tooling.mara.md)
 - [Release preparation and protected publication](docs/release.mara.md)
 - [Pi release compatibility policy](docs/pi-compatibility.mara.md)
-- [Planned Herdr workflow and separate jobs module](docs/planned/herdr/scope.mara.md)
+- [Planned Herdr workflow](docs/planned/herdr/scope.mara.md) and [execution/RPC contract](docs/planned/herdr/contract.mara.md)
 - [Planned jobs-core package boundary and contract compatibility](docs/planned/jobs-core/contract.mara.md)
 - [Planned local jobs execution](docs/planned/jobs/execution.mara.md) and [controls](docs/planned/jobs/controls.mara.md)
 - [Planned goal integration with jobs](docs/planned/goal/jobs-integration.mara.md)
