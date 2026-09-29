@@ -88,3 +88,27 @@ it('reopens a real Pi session with model-invisible historical intent', () => {
   observer.close();
   recovered.close();
 });
+
+it('keeps gate entries inside an ephemeral Pi session without promising recovery', () => {
+  const manager = SessionManager.inMemory();
+  const events = createEventBus();
+  const pi: GateHost = {
+    events,
+    appendEntry: (kind, data) => {
+      manager.appendCustomEntry(kind, data);
+    },
+  };
+  const ctx = { sessionManager: manager };
+  const owner = createGateOwner(pi, 'tmux-bash');
+  const observer = createGateObserver(pi);
+  owner.start(ctx);
+  observer.start(ctx);
+  observer.finishDiscovery();
+  owner.reconcile(ctx, [{ id: 'job' }]);
+  expect(observer.view().readiness).toBe('confirmed');
+  expect(manager.getSessionFile()).toBeUndefined();
+  expect(manager.getEntries().filter((entry) => entry.type === 'custom')).toHaveLength(1);
+  expect(manager.buildSessionContext().messages).toEqual([]);
+  owner.close();
+  observer.close();
+});
