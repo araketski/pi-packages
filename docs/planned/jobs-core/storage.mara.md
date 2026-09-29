@@ -13,12 +13,13 @@ session completions, and recovery. Do not edit Pi session JSONL directly or copy
 whole logs into custom entries. Reconstruct branch-sensitive conversation data
 from the branch, but do not rewind external executions when navigating history.
 
-The inspected Pi 0.87.1 session/extension documentation and installed declarations
-provide these capabilities: session IDs and entry/branch access, custom entries,
-model-visible custom messages, in-memory sessions, and shutdown reasons that
-separate quit from reload/new/resume/fork. Pi may buffer entries before the first
-assistant message. An accepted append call is not an immediate filesystem-durability
-guarantee; do not introduce a separate gate journal or file-existence admission
+The inspected Pi session/extension APIs provide session IDs and entry/branch
+access, custom entries, model-visible custom messages, in-memory sessions, and
+shutdown reasons that separate quit from reload/new/resume/fork. Pi 0.99.1 creates
+a new session file on the first user or assistant message; setup/custom entries
+alone can remain buffered. This advances the assistant-only boundary observed in
+0.87.1; see the [baseline reconciliation](../../pi-0991-reconciliation.mara.md).
+An accepted append call is not an immediate filesystem-durability guarantee; do not introduce a separate gate journal or file-existence admission
 check merely to strengthen Pi session resumability.
 
 ## Bounded storage, not unlimited full logs
@@ -46,7 +47,7 @@ before implementing the respective slice.
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 :derives_from: REQ-JOBS-SESSION-CONTINUITY
 
-Rely on existing Pi capabilities wherever they fit: session identity and lifecycle events, custom entries for compact non-context job references and lifecycle/delivery history, and normal model-visible messages for results. Keep execution records, logs, and results in jobs-owned storage under Pi user state, outside repositories/worktrees, including records of completion while the originating session is inactive. Do not edit Pi session JSONL directly, put whole logs in custom entries, or build a parallel Pi session system. Reconcile external execution rather than treating replayed entries as current liveness. Follow Pi resumability and its append-call boundary; no immediate disk-durability or pre-first-assistant session-file guarantee is implied. For --no-session/in-memory runs, jobs still function with temporary records/logs, normal-shutdown cleanup, and no promise of recovery after Pi exit.
+Rely on existing Pi capabilities wherever they fit: session identity and lifecycle events, custom entries for compact non-context job references and lifecycle/delivery history, and normal model-visible messages for results. Keep execution records, logs, and results in jobs-owned storage under Pi user state, outside repositories/worktrees, including records of completion while the originating session is inactive. Do not edit Pi session JSONL directly, put whole logs in custom entries, or build a parallel Pi session system. Reconcile external execution rather than treating replayed entries as current liveness. Follow Pi resumability and its append-call boundary; no immediate disk-durability or setup-only session-file guarantee is implied. Pi 0.99.1 creates a new persistent session file on its first user or assistant message; custom/setup entries alone may remain buffered. For --no-session/in-memory runs, jobs still function with temporary records/logs, normal-shutdown cleanup, and no promise of recovery after Pi exit.
 :::
 
 :::mara requirement REQ-JOBS-OUTPUT-BOUNDS
@@ -98,7 +99,7 @@ Refuse a new launch when required tracking cannot be saved. If persistence fails
 :verifies: REQ-JOBS-PI-STATE
 :verifies: REQ-JOBS-STORAGE-FAILURE
 
-Use real persistent and in-memory Pi sessions with an isolated jobs state root. Verify compact custom entries stay outside model context, model-directed results use Pi messages, full logs remain external, and no raw session-JSONL edits are required. Finish work while its session is inactive, then reconcile through the proper session and delivery policy. Exercise pre-first-assistant buffering without requiring an existing session file or claiming fsync. In --no-session mode, run jobs and clean temporary artifacts on normal shutdown without advertising later resumability. Fail required persistence before launch and assert no command starts. Fail writes after launch and assert execution continues with bounded memory and visible persistence/output-loss diagnostics, not fabricated outcomes. These are future checks, not passing evidence.
+Use real persistent and in-memory Pi sessions with an isolated jobs state root. Verify compact custom entries stay outside model context, model-directed results use Pi messages, full logs remain external, and no raw session-JSONL edits are required. Finish work while its session is inactive, then reconcile through the proper session and delivery policy. Exercise setup-only buffering without requiring an existing session file or claiming fsync, then verify that Pi 0.99.1 persists the first user message and preceding custom entries before an assistant reply. In --no-session mode, run jobs and clean temporary artifacts on normal shutdown without advertising later resumability. Fail required persistence before launch and assert no command starts. Fail writes after launch and assert execution continues with bounded memory and visible persistence/output-loss diagnostics, not fabricated outcomes. These are future checks, not passing evidence.
 :::
 
 :::mara verification VER-JOBS-STORAGE-BOUNDS

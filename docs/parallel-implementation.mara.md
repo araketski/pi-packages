@@ -12,6 +12,10 @@ not establish SDK or consumer compatibility: reconcile native capabilities,
 repository dependencies, and required verification before dispatching implementation.
 Historical Pi 0.87.1 results are not passing evidence for Pi 0.99.1. Keep the
 campaign paused until that reconciliation and launch preflight are complete.
+Follow the [native-capability reconciliation](pi-0991-reconciliation.mara.md) and
+complete its coordinator-owned baseline Work prerequisite before the first
+scaffold. This preparation item is a direct child of the root, alongside the six
+package aggregates; readiness does not override the campaign pause.
 
 ## Selected packages and hierarchy
 
@@ -253,9 +257,8 @@ codex review --base "$ASSIGNED_BASE_SHA" \
 
 Baseline reconciliation inspected Pi 0.99.1, Codex CLI 0.159.0, CLI help, and
 the compatible running Herdr 0.9.1 server without launching agents. Pi's offline
-model list included the requested
-models; its no-refresh authentication check reported ready. Codex reported logged
-in, its model catalog advertised `gpt-6.1-sol` with `xhigh`, and `features list`
+model list included the requested models; its no-refresh authentication check
+reported ready. Codex reported logged in, its model catalog advertised `gpt-6.1-sol` with `xhigh`, and `features list`
 accepted the above configuration overrides. `--strict-config` is not supported
 by that inspection command. These checks are not an agent launch, an effective
 review-session configuration check, or proof of a successful model request.

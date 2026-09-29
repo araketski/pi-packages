@@ -270,7 +270,7 @@ Pi 0.87.1 buffers custom entries in a fresh session until it has an assistant me
 :justifies: REQ-GATES-SESSION-HISTORY
 :justifies: RISK-GATES-EARLY-SESSION-NOT-DURABLE
 
-Pi may accept custom entries in memory before it creates a new session file. If the process exits before Pi records an assistant message, that Pi session cannot be resumed either. Gate history therefore promises restart reconstruction only within a Pi session that Pi can actually resume; do not reject an acquisition just because a new session file does not yet exist, and do not add protocol-owned durable storage for this case. This does not change the work-owning extension's obligation to manage and recover external jobs, nor the rule that a thrown appendEntry call must not publish an unrecorded state change.
+Pi may accept custom entries in memory before it creates a new session file. A setup-only session without a Pi-created file cannot be resumed after exit. Pi 0.99.1 creates that file on the first user or assistant message, earlier than the assistant-only boundary observed in 0.87.1. Gate history therefore promises restart reconstruction only within a Pi session that Pi can actually resume; do not reject an acquisition just because a new session file does not yet exist, and do not add protocol-owned durable storage for this case. This does not change the work-owning extension's obligation to manage and recover external jobs, nor the rule that a thrown appendEntry call must not publish an unrecorded state change.
 :::
 
 :::mara verification VER-GATES-REAL-PI-SESSION
