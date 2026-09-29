@@ -28,9 +28,13 @@ root reserved for the existing coordinator's final integration/review obligation
 | Workers | Pi in Herdr | `gpt-6-sol` | high | At most five active workers |
 | Reviewers | Codex CLI in Herdr | `gpt-6-sol` | x-high | Excluded from worker count |
 
-Worker/reviewer settings are not interchangeable. Work metadata is a dispatch
-instruction, not enforcement by Work. Verify the actual selected model/settings;
-if unavailable, report the blocker rather than substituting another model.
+The coordinator and all implementation workers are **Pi agents**, started with
+Herdr's `--kind pi`. **Only reviews run in Codex CLI**; do not substitute Codex
+for a worker or coordinator. A Pi provider named `openai-codex` does not change
+the harness to Codex. Worker/reviewer settings are not interchangeable. Work
+metadata is a dispatch instruction, not enforcement by Work. Verify the actual
+selected harness/model/settings; if unavailable, report the blocker rather than
+substituting another harness or model.
 
 The coordinator may resolve implementation details, shared API designs, dependency
 sequencing, and integration conflicts within accepted contracts. It must escalate
@@ -41,6 +45,47 @@ or merge the completed integration branch back into `rework` without user approv
 Create a dedicated coordinator integration branch/worktree. Workers use separate
 branches/worktrees based on its integrated prerequisites. The live user checkout
 is not a worker sandbox. Preserve existing uncommitted/unrelated work.
+
+## Herdr labels and inspectability
+
+Every campaign-created workspace, tab, pane, and live agent must have a meaningful
+name. This includes automatically created root tabs/panes, split panes, review
+attempts, and auxiliary check terminals. Use the campaign prefix `wf`, a package
+or coordinator role, and the short Work ID. Review labels also include the attempt
+number; check labels identify the check. For example:
+
+| Resource/purpose | Display label or live agent name |
+| --- | --- |
+| Integration workspace | `wf / integration / w-836650d2` |
+| Coordinator tab/pane/Pi session | `wf / coord / w-836650d2` |
+| Coordinator live agent | `wf-pi-coord-836650d2` |
+| Worker tab/pane/Pi session | `wf / jobs-core / impl / w-36824905` |
+| Worker live agent | `wf-pi-jobs-core-36824905` |
+| Reviewer tab/pane | `wf / jobs-core / review 1 / w-36824905` |
+| Reviewer live agent, when recognized | `wf-cx-jobs-core-36824905-r1` |
+| Auxiliary check tab/pane | `wf / jobs-core / test / w-36824905` |
+
+Use the actual assignment, not these example IDs. Agent names must be unique in
+the selected server and satisfy Herdr's `[a-z][a-z0-9_-]{0,31}` constraint. Resolve
+collisions without taking another agent's name. Display labels can be more readable
+than the compact agent names. Labels aid inspection; they are not authority or
+completion evidence.
+
+Pass `--label` to workspace/tab creation and preserve focus with `--no-focus`.
+Parse returned IDs, then immediately name any auto-created tab and root/split pane
+with `tab rename` and `pane rename` before starting work. Start Pi with both a
+meaningful Herdr agent name and native `--name` session label. Verify names and
+harness through the returned state and read-only get/list operations before sending
+the assignment; do not rely on shell or application-generated default titles.
+
+Review commands always have named tabs/panes. If Herdr recognizes a live Codex
+agent during the non-interactive command, give it the corresponding unique name
+with `agent rename`; do not force an interactive startup handshake or fabricate
+agent reports just to attach a name. A command not exposed as a live agent remains
+inspectable through its named pane and saved review report. Record names and IDs
+in the dispatch ledger and review evidence. On reassignment, update labels/session
+names and the ledger before new work; a naming failure blocks further dispatch
+until corrected or reported. Never rename unrelated resources.
 
 ## Work coordination boundary
 
@@ -63,9 +108,11 @@ completion/relationships. Workers receive explicit item IDs, worktrees, file sco
 and base commits; they do not self-dispatch every locally ready item.
 
 Maintain a dispatch ledger in the coordinator item body: item ID, worker identity,
-Herdr pane/tab IDs, branch/worktree, assigned base SHA, latest candidate commit,
-and current handoff/blocker. This is project-owned narrative, not a native claim or
-lease. With the inspected CLI, healthy body edits use precise file edits under the
+verified harness/model/thinking, Herdr workspace/tab/pane IDs and labels, live agent
+name, Pi session name, branch/worktree, assigned base SHA, latest candidate commit,
+and current handoff/blocker. Record reviewer names, IDs and attempt numbers too.
+This is project-owned narrative, not a native claim or lease. With the inspected
+CLI, healthy body edits use precise file edits under the
 Work file convention, followed by `work item diagnose`; `item repair` is not a
 normal body-edit API. Preserve item headers and opaque IDs.
 
@@ -111,10 +158,11 @@ Each worker runs this loop for each independently integrated increment:
    effective configuration, including any review-model override. Do not use
    `origin/main`, a moving branch reference, or advance the base to hide findings.
 3. The worker creates a dedicated Herdr review tab with its own pane, cwd set to
-   that worker's worktree, preserving user focus. Parse returned IDs. This is a
-   non-interactive CLI review command; do not assume an interactive `agent start`
-   readiness handshake will fit it. Reviewer access should be read-only; workers,
-   not reviewers, make fixes.
+   that worker's worktree, preserving user focus. Parse returned IDs and apply the
+   campaign naming convention to the tab, pane, and any recognized live reviewer.
+   This is a non-interactive CLI review command; do not assume an interactive
+   `agent start` readiness handshake will fit it. Reviewer access should be
+   read-only; workers, not reviewers, make fixes.
 4. Monitor the actual review command and capture its completed output and exit
    status. Command submission, echoed terminal text, idle/done badges, silence,
    timeout, or exit zero alone do not establish a clean review. Preserve the report
@@ -137,6 +185,43 @@ fresh checks and review. If prerequisites require a new baseline, the coordinato
 records and explains that new immutable base; a worker does not redefine it alone.
 Reviewers do not count toward the five-worker ceiling, but each worker uses one
 review attempt at a time rather than accumulating overlapping reviews.
+
+## Inspected launch syntax and preflight boundary
+
+For Pi 0.87.1 and Herdr 0.9.1, set these variables from the actual assignment and
+creation responses. `PI_MODEL` is `openai-codex/gpt-6-astra` for the coordinator or
+`openai-codex/gpt-6-sol` for a worker; the pane must already have the assigned
+worktree as cwd. These are launch templates, not commands to run during planning:
+
+```sh
+herdr tab rename "$TAB_ID" "$DISPLAY_LABEL"
+herdr pane rename "$PANE_ID" "$DISPLAY_LABEL"
+herdr agent start "$AGENT_NAME" --kind pi --pane "$PANE_ID" -- \
+  --model "$PI_MODEL" --thinking high --name "$DISPLAY_LABEL"
+```
+
+For Codex CLI 0.157.1, run the following in the named review pane in the assigned
+worker worktree, capturing the report and exit status as required above. The
+native spelling of x-high is `xhigh`. Set both the ordinary and review-specific
+model so a saved review override cannot select a different model:
+
+```sh
+codex review --base "$ASSIGNED_BASE_SHA" \
+  -c 'model="gpt-6-sol"' \
+  -c 'review_model="gpt-6-sol"' \
+  -c 'model_reasoning_effort="xhigh"' \
+  -c 'sandbox_mode="read-only"'
+```
+
+Preparation inspected CLI help and the compatible running Herdr server without
+creating or renaming resources. Pi's offline model list included both requested
+models; its no-refresh authentication check reported ready. Codex reported logged
+in, its model catalog advertised `gpt-6-sol` with `xhigh`, and `features list`
+accepted the above configuration overrides. `--strict-config` is not supported
+by that inspection command. These checks are not an agent launch, an effective
+review-session configuration check, or proof of a successful model request.
+Recheck actual harness/model/thinking and resource names at launch, and stop on a
+mismatch. No model substitution or completed-review claim follows from preflight.
 
 ## Integration and completion
 
