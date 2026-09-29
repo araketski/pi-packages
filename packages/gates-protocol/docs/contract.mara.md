@@ -259,3 +259,15 @@ Pi 0.87.1 buffers custom entries in a fresh session until it has an assistant me
 
 Pi may accept custom entries in memory before it creates a new session file. If the process exits before Pi records an assistant message, that Pi session cannot be resumed either. Gate history therefore promises restart reconstruction only within a Pi session that Pi can actually resume; do not reject an acquisition just because a new session file does not yet exist, and do not add protocol-owned durable storage for this case. This does not change the work-owning extension's obligation to manage and recover external jobs, nor the rule that a thrown appendEntry call must not publish an unrecorded state change.
 :::
+
+:::mara verification VER-GATES-REAL-PI-SESSION
+:mid: 01M3P7J5EH3PJDTG08J445H8CH
+:title: Restore gate intent from a resumable Pi session after branch navigation
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-GATES-SESSION-HISTORY
+:verifies: REQ-GATES-SCOPED-STATE
+
+Use the actual Pi 0.87.1 SessionManager and EventBus in a temporary file-backed session. After Pi creates a resumable file, reconcile and acquire a gate; verify custom entries exist without becoming model-context messages. Move to another branch without the gate entry, reopen the session from disk, and confirm a late observer still sees unconfirmed historical intent. Only an owner-verified reconciliation changes it to confirmed empty. This local SDK test does not prove extension loading, remote Pi versions, or a consumer response.
+:::
