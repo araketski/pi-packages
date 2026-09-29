@@ -303,3 +303,16 @@ An observer starts a session by replaying journalled intent and requesting curre
 
 With an observer started before any owner, assert empty owners and unconfirmed readiness. After explicit discovery completion assert confirmed empty; register a late owner and assert readiness becomes unconfirmed until the owner reconciles with an empty or pending snapshot. Refresh a known owner without a response, preserving its last gates and returning readiness to unconfirmed until it responds.
 :::
+
+:::mara verification VER-GATES-PI-EXTENSION-RUNTIME
+:mid: 01M3P83HRW0QJ0HTE5VXHS8SP3
+:title: Bind independent owners and observers in the Pi SDK extension runtime
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-GATES-PENDING-STATE
+:verifies: REQ-GATES-SIGNAL-ONLY
+:verifies: REQ-GATES-RECONCILIATION
+
+Create a Pi SDK agent session with two independently registered extension factories, bind their extensions so session_start is emitted, register a gate owner and a gate observer, and have the owner verify its empty initial state. Complete owner discovery, acquire a gate, and assert the independent observer reports it while Pi model context stays empty and no model prompt was invoked. This exercises extension loading and lifecycle startup, not interactive UI, result delivery, session replacement, or integration with goal/caffeinate.
+:::
