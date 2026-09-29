@@ -13,10 +13,12 @@ Implement `pi-jobs-core`, `pi-jobs`, `pi-herdr`, `pi-goal`, `pi-caffeinate`, and
 Use one root coordinator Work item with manual completion, child items per package
 with children-derived completion, and small independently verifiable implementation
 items under each package. Cross-package `depends_on` edges point to the actual
-prerequisite increments, not indiscriminately to whole packages. The coordinator
-must be runnable from the beginning: do not make its dispatch obligation depend
-on final integration. It closes the root only after package work and final
-integration/review obligations are fulfilled.
+prerequisite increments, not indiscriminately to whole packages. Bootstrap the
+coordinator explicitly with the root item ID; do not wait for `item ready` to return
+that parent. The inspected Work CLI reports a manual parent as non-executable while
+children remain unresolved. This is expected completion/readiness behavior, not an
+agent-start mechanism. Use readiness for implementation-leaf dispatch and keep the
+root reserved for the existing coordinator's final integration/review obligation.
 
 ## Roles and authority
 
@@ -46,6 +48,13 @@ Load the installed Work skill and inspect the selected CLI version/help. The
 inspected CLI was `work 0.1.0-alpha.1`: it has durable manual/aggregate items,
 relations, readiness, and diagnostics, but no claims, running state, agent execution,
 worktree management, or handoff operations. Do not advertise invented Work commands.
+A disposable CLI probe confirmed that a fresh checkout needs real `.work/items/`
+directories before the first create; create the directories, then author items with
+Work rather than fabricating headers. The probe also confirmed parent blocking and
+ready-leaf selection, not any runtime orchestration capability. Track canonical
+`.work/items/*.md`, not the CLI's observed local operation files and lock; those
+are narrowly ignored. Preserve reported recovery material and inspect diagnostics
+rather than deleting it or staging the whole store indiscriminately.
 
 The coordinator's integration checkout is the authoritative Work view. A linked
 worktree can contain stale copies of the same item IDs; `item ready` is eligibility,

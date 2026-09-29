@@ -42,6 +42,10 @@ Thumbs.db
 .nx/workspace-data
 .nx/migrate-runs
 .mara/mutation.lock
+
+# Work operation artifacts; canonical .work/items/*.md remain tracked.
+/.work/operations.lock
+/.work/items/.operation-*
 .claude/worktrees
 .claude/settings.local.json
 
