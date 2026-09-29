@@ -43,8 +43,17 @@ rather than silently weakening scope. Do not publish, tag, rewrite shared histor
 or merge the completed integration branch back into `rework` without user approval.
 
 Create a dedicated coordinator integration branch/worktree. Workers use separate
-branches/worktrees based on its integrated prerequisites. The live user checkout
-is not a worker sandbox. Preserve existing uncommitted/unrelated work.
+branches/worktrees based on its integrated prerequisites. These must be Herdr
+worktree workspaces, visibly grouped with the repository, not standalone workspaces
+merely pointed at Git worktrees. Use `herdr worktree create` for new checkouts and
+`herdr worktree open` to attach existing ones without duplicating their agents.
+Discover the repository's primary (non-linked) workspace and explicitly select it
+as `--workspace`: Herdr 0.9.1 rejects create/open from a linked child workspace.
+Always supply the assigned immutable integration SHA as `--base` when creating a
+worker branch; the repo parent's HEAD is not the campaign integration baseline.
+Preserve focus with `--no-focus`, parse returned IDs, and verify workspace worktree
+provenance/group membership before dispatch. The live user checkout is not a
+worker sandbox. Preserve existing uncommitted/unrelated work.
 
 ## Herdr labels and inspectability
 
