@@ -70,3 +70,31 @@ For each package that supplies model tools, inspect registration and exercise si
 
 Verify managed bash retains native replacement behavior and direct availability, with namespacing that actually works through the public host contract. Test native discovery enabled, absent, and explicitly disabled; other operations remain directly usable where appropriate without re-enabling explicitly disabled tools or mutating user settings. Include SDK sessions with explicit native-extension setup and configurations without built-ins, plus interactive/print/JSON/RPC entry points. Native tool inactivity/exposure must not be mistaken for an authorization boundary; document and test the actual disablement semantics. Prove these mechanisms before freezing public registration schemas. These are future integration checks, not evidence from the classifier pilot or earlier package-loading fixtures.
 :::
+
+:::mara requirement REQ-PI-NONUI-AWAIT
+:mid: 01M3S4BTB7PPCBVXPPZKBDAEJG
+:title: Keep non-UI runs pending for awaited work and required result delivery
+:status: accepted
+:kind: functional
+:derives_from: REQ-JOBS-RUNTIME-SCOPE
+:derives_from: REQ-GOAL-CONTINUATION
+
+Non-UI runs must not finish merely because the assistant says it is waiting while current-session work is still awaited. Apply this to print, JSON, RPC and SDK integrations, including ordinary review/task runs without an active goal or --goal flag. Awaiting selected by the operation contract, including managed-command defaults, is sufficient; correctness must not depend on the model remembering a separate wait call or on another CLI waiting flag.
+
+Keep the native run pending until the relevant awaited work reaches an established outcome and its required model-directed final result is delivered, allowing the model to consume it and finish the task. Waiting must not require repeated model polling, claim completion from queued delivery, or rerun the work. Preserve [[REQ-JOBS-DELIVERY-RECEIPTS]] and [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]. Reuse public native scheduling/lifecycle boundaries, not a new scheduler or consumer dependency on producer internals. Do not let unrelated inactive-session work or explicitly persistent non-awaited/display-only services keep every invocation alive.
+
+Remain cancellable and honor errors and configured limits. An aborted, paused, budget-limited, or failed operation is not successful completion; preserve honest unresolved state and apply normal lifetime cleanup when the host actually exits. RPC/SDK hosts still own their process lifetime; reporting a run finished must not overlook its awaited obligations. This policy revises the earlier non-UI requirement for callers to explicitly invoke a wait. Exact cancellation integration, machine-readable terminal outcomes, unknown-owner waits and delivery-mode interactions still require design and verification; this is not permission to invent completion, promote next-turn/display-only results to automatic delivery, or claim an implemented keepalive.
+:::
+
+:::mara verification VER-PI-NONUI-AWAIT
+:mid: 01M3S4BXJCQY7NJ4WF3D54S2C2
+:title: Verify non-UI awaited work result consumption and cancellable settlement
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-PI-NONUI-AWAIT
+
+Reproduce a reviewer-shaped run using controlled providers: launch delayed work, return its running identity, and have the assistant say it is waiting without calling a wait tool. In print/JSON, assert the process does not finish early; in RPC/SDK, assert run settlement/prompt completion does not occur early. Complete the work, verify the identifiable final result reaches the next provider context, and require the model's final review response before successful settlement. No active goal is necessary. Repeat with a goal, local/Herdr/external conforming producers, direct/nested tools, and the native discovery configurations in [[VER-PI-ATOMIC-TOOLS]].
+
+Check no repeated provider calls while work is pending, no duplicate results/continuations, and no hold for unrelated inactive-session work or deliberately persistent non-awaited/display-only services. Cover timeout/status-only returns, explicit stop-awaiting, unknown owners, stale session/goal callbacks, result-arrival versus cancellation, boundary-handler failures, host shutdown, configured limits and required-delivery failures. An aborted/failed/unfinished outcome must not masquerade as completed work; the test host must enforce an external deadline so a hung cancellation is reported rather than counted as passing. Exercise real CLI signal/exit paths separately from RPC abort and SDK disposal. Preserve stdout protocol framing and explicit delivery choices. Limited native fixtures establish host behavior only; actual workflow integration and agreed terminal/error semantics remain necessary.
+:::

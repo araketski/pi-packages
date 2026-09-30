@@ -164,6 +164,13 @@ normal guarded creation/start, initial-startup-only application, and rejection o
 existing-goal conflicts without silent replacement. These are intended behaviors,
 not implemented tools, run association or CLI startup support.
 
+[[REQ-PI-NONUI-AWAIT]] subsequently revises the earlier separate-explicit-wait
+policy: selected awaited work must prevent premature non-UI completion, including
+reviewers without an active goal. Required final results must reach the model before
+it finishes the task; an assistant saying it is waiting is not successful completion.
+[[VER-PI-NONUI-AWAIT]] defines the regression and cancellation/exit checks. Isolated
+offline lifecycle probes are authorized; implementation and campaign dispatch are not.
+
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model
 identity; foreground/handoff cancellation; reload/session-scoped callbacks; concrete
