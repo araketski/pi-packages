@@ -168,6 +168,12 @@ lifetimes. Nested delivery receipts and goal-turn ownership remain design work.
 See [the report and replay fixtures](pi-0991-native-probes.mara.md); these limited
 observations do not complete workflow verification or authorize dispatch.
 
+The subsequent user decision sets native classifier `maxRetries: 0` in
+[[DES-GOAL-CLASSIFIER-POLICY]]. Local-only [[DES-PI-EXTENSION-USAGE-API]] and
+[[DES-PI-REQUEST-IDENTITY-API]] draft the two requested upstream additions;
+[their scope and open questions](pi-api-proposals.mara.md) are not implemented
+or accepted upstream APIs. No submission, Pi upgrade, or restart is authorized.
+
 ## Verification before dispatch
 
 The coordinator-owned baseline Work prerequisite blocks the first scaffold until:
