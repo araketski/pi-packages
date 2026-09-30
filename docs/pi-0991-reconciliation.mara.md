@@ -176,7 +176,12 @@ polling, but the tested wait has no boundary cancellation signal, RPC abort wait
 for its resolution, and naive CLI startup loses work or JSON events. A thrown
 boundary-handler error can still exit zero. These observations leave cancellable
 waiting, mode-safe startup and unfinished-outcome signaling unresolved; see
-[the report](pi-0991-nonui-probes.mara.md).
+[the report](pi-0991-nonui-probes.mara.md). Supplementary
+[[EVD-PI-0991-TURN-END-PROBES]] finds a cancellable candidate at the earlier native
+`turn_end` boundary: print/JSON/RPC result consumption and prompt RPC abort worked
+in four controlled cases. This avoids assuming a new cancellation API is necessary
+for those cases, but does not establish final-settlement, multi-owner/gate or goal
+integration. The startup and terminal-outcome gaps remain.
 
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model

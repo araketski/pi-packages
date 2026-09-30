@@ -74,7 +74,7 @@ fixtures. RPC abort suppresses continuation but waits for settlement.
 
 These are useful native integration points, but the simple boundary-wait strategy
 is **not a complete cancellable solution**. A public cancellation path for that
-wait, mode-safe startup with fully observed/awaited runs, and reliable unfinished
+pre-settlement wait, mode-safe startup with fully observed/awaited runs, and reliable unfinished
 outcome signaling still need design and proof. Do not patch private runtime fields,
 use busy model polling, fake provider errors, or replace Pi scheduling to conceal
 these gaps. No claim is made that every alternative public integration is
@@ -88,6 +88,56 @@ versus automatic delivery at settlement, goal pause/budget boundaries, and exact
 machine-readable terminal/exit semantics are still unresolved design choices.
 Existing local Pi API drafts remain drafts; these findings do not authorize
 additional API drafting, submission, an upgrade, implementation or dispatch.
+
+## Supplementary turn-end observations
+
+Before proposing another host API, four further offline cases tested the existing
+`turn_end` boundary at repository subject
+`b9932771b65eed7c2ca37561aadb06969b4bd366`, with the same CLI, isolation and
+synthetic provider. The [small hash-checked variant and observations](pi-0991-turn-end-probe-data.mara.md)
+reuse the frozen base sources above. Raw captures are retained in
+`/home/araketski/.cache/pi-turn-end-probes.8VEqkn/`. Archived-source replay passed
+in `/home/araketski/.cache/pi-turn-end-replay.mwOrRX/`; the two supplementary
+artifact blocks were byte-compared with the captured originals.
+
+- `turn-end-print`, `turn-end-json`, and `turn-end-rpc`: after the assistant stops
+  without a tool call, await the pending timer through the native `turn_end`
+  handler, then propose the final result and continuation. The context **does**
+  have an operation signal here. All three cases consume the result and produce
+  `REVIEW_DONE`, with exactly two requests before completion and one afterward.
+- `turn-end-abort-rpc`: racing that wait against its public operation signal lets
+  RPC abort interrupt it promptly, before the timer completes, and prevents the
+  third model request. The fixture remains pending until later client EOF causes
+  shutdown cleanup. Cancelling the wait did not itself claim job termination.
+
+This narrows the initial finding: absence of a signal at `agent_before_settle`
+does not imply absence at every usable native boundary. A cancellable candidate
+exists for these turn-end cases; a new cancellation API is not established as
+necessary for them. However, turn end is earlier than final settlement. Later
+handler activity, multi-owner ordering, generic gates, queued result delivery,
+abort/completion races and goal integration remain untested. Do not block a later
+handler whose work is needed to release a wait, confuse proposed entries with
+receipts, or assume this candidate covers work first acquired after turn end.
+The startup/JSON and unfinished-outcome findings above remain unchanged.
+
+### Replay the supplementary cases
+
+Extract only source blocks from both data files into a fresh directory, then apply
+the variant to those copies. It rejects a modified base rather than guessing.
+
+```sh
+probe=$(mktemp -d "$HOME/.cache/pi-turn-end-replay.XXXXXX")
+python3 - "$probe" <<'PY'
+import pathlib, re, sys
+for doc in ['pi-0991-nonui-probe-data.mara.md', 'pi-0991-turn-end-probe-data.mara.md']:
+    source = pathlib.Path('docs', doc).read_text()
+    for name, _, body in re.findall(r'^## ([^\n]+)\n\n(`{3,})text\n([\s\S]*?)\n\2$', source, re.M):
+        if name != 'observations.json':
+            pathlib.Path(sys.argv[1], name).write_text(body + '\n')
+PY
+node "$probe/turn-end-variant.mjs"
+PROBE_PI=/absolute/path/to/pi-0.99.1 sh "$probe/replay.sh" > "$probe/replay.log" 2>&1
+```
 
 ## Replay
 
@@ -129,4 +179,18 @@ including the known failure modes. It does not mean [[VER-PI-NONUI-AWAIT]] or
 Executed and replayed 17 isolated offline scenarios through the installed compiled Pi 0.99.1 CLI using an in-process synthetic provider and timer-only work. The report above and [archived sources/observations](pi-0991-nonui-probe-data.mara.md) distinguish unguarded early settlement, successful native pre-settlement result consumption, delayed RPC abort without a boundary signal, SIGTERM fixture cleanup, CLI flag/startup races and missing JSON startup events, native first-input transformation, help-only loading, and boundary errors that still exit zero.
 
 All final fixture assertions and fresh-directory replay completed successfully, including assertions of host limitations. Outcome is inconclusive for the linked full verification methods: these are partial host observations, not an implemented goal/jobs/Herdr integration or a passing non-UI workflow. No live inference, managed OS jobs, campaign agents or reviewers ran. The observed premature completion resembles the user's regression scenario but does not diagnose the historical reviewer incident. The campaign remains paused; cancellation, startup and terminal-outcome designs remain open.
+:::
+
+:::mara evidence EVD-PI-0991-TURN-END-PROBES
+:mid: 01M3S5NNMQ1JRXKGPGCE0Z474C
+:title: Observe a cancellable native turn-end wait without assuming new host APIs
+:status: accepted
+:result: inconclusive
+:captured_at: 2026-09-30
+:subject_revision: b9932771b65eed7c2ca37561aadb06969b4bd366
+:evidences: VER-PI-NONUI-AWAIT
+
+Four supplementary offline CLI cases test a signal-aware turn_end wait after the assistant's no-tool response. Print, JSON and RPC consume the synthetic final result and complete the review without repeated polling; RPC abort interrupts the wait before timer completion, without claiming execution termination. See the supplementary section above and [hash-checked variant/observations](pi-0991-turn-end-probe-data.mara.md). All four assertions and archived-source fresh replay completed successfully.
+
+This evidence narrows the no-signal finding in [[EVD-PI-0991-NONUI-PROBES]] to the tested pre-settlement hook; it does not prove a new cancellation API is required for turn-end waiting. Outcome remains inconclusive for the full workflow verification: later handlers, multiple producers, generic gates, actual local/Herdr work, goals, receipts and final-settlement races are not covered. Startup and terminal-outcome gaps remain. No live inference or campaign execution occurred.
 :::
