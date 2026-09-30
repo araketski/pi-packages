@@ -134,6 +134,32 @@ ranges or consumer infrastructure. Built-ins can be disabled/replaced, and
 `--no-extensions` now also disables built-in extensions: explicitly configure
 native codemode/MCP in SDK tests that intend to cover them.
 
+## Verified reserved-theme correction
+
+The separately authorized correction under [[DES-NXPI-THEME-CONTRACT]] rejects
+Pi's exact reserved `system` theme name before generator writes; names such as
+`system-dark` remain valid. The source regression first failed because generation
+resolved instead of rejecting, then passed with the guard.
+
+On Node 26.7.0, Nx 23.2.1, npm 11.19.0 and pnpm 12.8.1, the uncached nx-pi
+test/typecheck/lint/build run passed with **302 tests**. Fresh plugin/resource
+packs were exercised in independent npm/pnpm consumers: reserved-name rejection
+in dry-run and real CLI invocations preserved authored files; valid resources
+passed source and explicit-tarball checks and loaded through Pi 0.99.1.
+A separate credential-free process used the installed SDK's public `initTheme`
+and `getMarkdownTheme` APIs to verify that selecting `system` ignores a custom
+palette while the same palette under a non-reserved name is selected. No model
+session or inference was used; this is not interactive terminal/theme-switching QA.
+
+The first full attempt failed 41 validation-fixture setups because the configured
+temporary parent did not yet exist. Creating that directory, without changing
+product or test code, allowed the complete rerun to pass. Local logs are
+`~/.cache/nx-pi-system-theme-{red,green,checks,checks-final}.log`; the test sources
+are the durable regression/replay method. No dependency versions changed.
+The plugin itself has no inferred `pi-check` target; the eligible generated
+consumer packages were checked. Other packages, Node versions and full workflow
+integration were not reverified by this bounded repair.
+
 ## Agreed changes not yet implemented
 
 - [[REQ-STATUSLINE-BUILTINS]] and [[DES-STATUSLINE-BUILTIN-VALUES]] now include
@@ -144,10 +170,6 @@ native codemode/MCP in SDK tests that intend to cover them.
   wire API/authentication and fast-service support, otherwise unsupported. Public
   hook feasibility and regressions remain necessary. Sol 6.1 is not automatically
   added to the support list merely because it is available or selected for workers.
-- Current Nx theme/discovery clauses now refer to the already verified 0.99.1
-  baseline; historical 0.87.1 observations remain historical. The audit also found
-  that the generator accepts Pi's reserved `system` theme name: add a regression
-  against real host selection before fixing that gap. It is not fixed here.
 - [[DES-GOAL-CLASSIFIER-POLICY]] and [[EVD-GOAL-CLASSIFIER-PILOT]] separate agreed
   provisional policy from actual limited calls and still-unverified goal runtime.
   [[REQ-CAFFEINATE-AUTO-HOLD]] includes active classifier work outside assistant

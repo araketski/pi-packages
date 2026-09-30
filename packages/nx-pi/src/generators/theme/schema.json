@@ -6,7 +6,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "Exact lowercase kebab-case Pi theme name (1–64 characters).",
+      "description": "Exact lowercase kebab-case Pi theme name (1–64 characters); system is reserved by Pi.",
       "maxLength": 64,
       "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
       "$default": { "$source": "argv", "index": 0 }

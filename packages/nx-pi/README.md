@@ -150,8 +150,8 @@ an intentionally plain starting point; **the actor chooses the palette**.
 It registers `./themes/soft-dark.json` in `package.json.pi.themes` and adds
 `themes/soft-dark.json` to a present `files` allowlist, leaving an absent
 allowlist absent. The name must be exact lowercase kebab-case (at most 64
-characters), and existing destinations fail unchanged. It adds no scripts,
-other tooling, or dependency on Pi. Source validation checks only the file's
+characters); Pi's reserved name `system` and existing destinations fail unchanged.
+It adds no scripts, other tooling, or dependency on Pi. Source validation checks only the file's
 presence, not theme contents or Pi loading.
 
 ## Scaffold a Pi extension

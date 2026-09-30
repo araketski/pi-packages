@@ -435,6 +435,19 @@ describe('packed nx-pi in independent consumers', () => {
           'prompts/release-notes.md',
         ],
       });
+      // Reject Pi's reserved name both in preview and real generation, without writes.
+      const beforeReservedTheme = authoredFiles(root);
+      for (const preview of [true, false]) {
+        const reserved = generate(
+          root,
+          ['system', '--project=@terminal/pi-example', ...(preview ? ['--dry-run'] : [])],
+          'theme',
+        );
+        expect(reserved.status, reserved.stdout + reserved.stderr).not.toBe(0);
+        expect(reserved.stdout + reserved.stderr).toMatch(/system.*reserved.*Pi/);
+        expect(authoredFiles(root)).toEqual(beforeReservedTheme);
+      }
+
       // A minimal valid theme may be added to the same multi-resource package.
       const themeArgs = ['soft-dark', '--project=@terminal/pi-example'];
       const themeBefore = authoredFiles(root);
@@ -786,6 +799,46 @@ describe('packed nx-pi in independent consumers', () => {
       expect(packedTheme?.getFgAnsi('accent')).not.toBe('');
       expect(realpathSync(packedTheme!.sourcePath!)).toContain(installedResource);
       expect(packageItems(themes.themes).map(({ name }) => name)).toContain('soft-light');
+
+      // Discovery alone does not prove that selecting a reserved name uses that palette.
+      // Exercise public SDK selection in a separate process, with no session or inference.
+      const themeAgent = join(isolatedResources, 'theme-agent');
+      mkdirSync(join(themeAgent, 'themes'), { recursive: true });
+      const selectedPalette = json(join(installedResource, 'themes/soft-dark.json'));
+      (selectedPalette.colors as Record<string, string>).mdHeading = '#123456';
+      for (const name of ['system', 'system-fixture']) {
+        save(join(themeAgent, 'themes', `${name}.json`), { ...selectedPalette, name });
+      }
+      const themeSelection = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          `const { initTheme, getMarkdownTheme } = await import(${JSON.stringify(pathToFileURL(installedPi).href)});
+           initTheme('system-fixture', false);
+           const custom = getMarkdownTheme().heading('probe');
+           initTheme('system', false);
+           const reserved = getMarkdownTheme().heading('probe');
+           console.log(JSON.stringify({ custom, reserved }));`,
+        ],
+        {
+          cwd: isolatedResources,
+          env: {
+            HOME: themeAgent,
+            PI_CODING_AGENT_DIR: themeAgent,
+            PI_OFFLINE: '1',
+            TERM: 'xterm-256color',
+            COLORTERM: 'truecolor',
+          },
+          encoding: 'utf8',
+          timeout: 30_000,
+        },
+      );
+      expect(themeSelection.status, themeSelection.stdout + themeSelection.stderr).toBe(0);
+      const selected = JSON.parse(themeSelection.stdout) as { custom: string; reserved: string };
+      expect(selected.custom).toContain('18;52;86');
+      expect(selected.reserved).not.toContain('18;52;86');
+      expect(selected.reserved).not.toBe(selected.custom);
       expect(packageItems(extensions.extensions).map(({ path }) => path)).toEqual([
         expect.stringContaining('extensions/status-line/index.ts'),
         expect.stringContaining('extensions/another/index.ts'),

@@ -73,6 +73,29 @@ describe('theme generator', () => {
     expect(readJson(tree, 'packages/demo/themes/soft-light.json').name).toBe('soft-light');
   });
 
+  it('rejects the reserved system theme name before any writes', async () => {
+    const tree = workspace({
+      name: '@acme/pi-demo',
+      pi: { themes: ['./themes/authored.json'] },
+      files: ['README.md', 'themes/authored.json'],
+    });
+    tree.write('packages/demo/themes/authored.json', 'authored theme\n');
+    const before = snapshot(tree);
+    await expect(themeGenerator(tree, { ...options, name: 'system' })).rejects.toThrow(
+      /system.*reserved.*Pi/,
+    );
+    expect(snapshot(tree)).toEqual(before);
+  });
+
+  it('allows a non-reserved name containing system', async () => {
+    const tree = workspace();
+    await themeGenerator(tree, { ...options, name: 'system-dark' });
+    expect(readJson(tree, 'packages/demo/themes/system-dark.json').name).toBe('system-dark');
+    expect(readJson(tree, 'packages/demo/package.json').pi.themes).toEqual([
+      './themes/system-dark.json',
+    ]);
+  });
+
   it('rejects existing theme files and authored directories unchanged', async () => {
     const tree = workspace();
     await themeGenerator(tree, options);

@@ -24,6 +24,9 @@ export async function themeGenerator(tree: Tree, options: ThemeGeneratorSchema):
   if (typeof name !== 'string' || name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
     fail('name must be lowercase kebab-case (at most 64 characters), without path separators.');
   }
+  if (name === 'system') {
+    fail('name "system" is reserved by Pi; choose a different theme name.');
+  }
   if (typeof project !== 'string' || !project.trim())
     fail('--project must name an existing Pi package project.');
   const configured = getProjects(tree).get(project)?.root;
