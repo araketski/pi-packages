@@ -183,6 +183,15 @@ in four controlled cases. This avoids assuming a new cancellation API is necessa
 for those cases, but does not establish final-settlement, multi-owner/gate or goal
 integration. The startup and terminal-outcome gaps remain.
 
+The user subsequently authorized local [[DES-PI-STARTUP-INPUT-API]] and
+[[DES-PI-RUN-OUTCOME-API]] drafts, not host changes or submission. Nonzero exit
+mapping is conditional on a small supported SDK integration, not an unconditional
+0.99.1 requirement. The inspected public extension API has no outcome/exit-code
+setter; a caller-owned SDK application's process policy is not an extension
+capability. Preserve honest workflow diagnostics without promising unsupported
+exit control or making it a new prerequisite by itself. The drafts and their
+compatibility/composition questions remain unimplemented.
+
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model
 identity; foreground/handoff cancellation; reload/session-scoped callbacks; concrete

@@ -1,7 +1,7 @@
-# Local drafts for two Pi API additions
+# Local drafts for Pi API additions
 
 The user authorized **drafting**, not upstream submission, implementation, a Pi
-upgrade, or campaign restart. The two designs below are **draft proposals**:
+upgrade, or campaign restart. The designs below are **draft proposals**:
 names and signatures are illustrative, not APIs available in Pi 0.99.1 or
 accepted upstream contracts.
 
@@ -10,7 +10,22 @@ The basis is [[EVD-PI-0991-NATIVE-PROBES]] and the installed 0.99.1
 `docs/session-format.md` and `docs/virtual-models.md`, plus the exported
 extension, session-manager and model/auth declarations. The probes use a real
 host with synthetic providers/loopback transports, not live service validation.
-No upstream checkout or newer release has been evaluated.
+No upstream checkout or newer release has been evaluated. The later startup and
+terminal-outcome drafts also use [[EVD-PI-0991-NONUI-PROBES]] and
+[[EVD-PI-0991-TURN-END-PROBES]], plus current CLI/JSON/RPC documentation and public
+extension/session declarations.
+
+For terminal exit codes, approval is conditional on a small, supported SDK
+integration; see [[REQ-PI-NONUI-AWAIT]]. Pi 0.99.1 exposes `shutdown(): void`,
+`prompt(): Promise<void>` and boundary results containing entries/continuation,
+not an extension exit-code or workflow-outcome setter. The inspected print/JSON
+runner chooses its exit status and reports extension-handler errors separately;
+the probes observed a boundary error followed by exit zero. An embedding SDK
+application can choose its own process exit policy, but that is not an extension
+API for changing Pi CLI or RPC behavior. Node/Bun process-global `exitCode` is not
+that SDK API either; this increment neither tests nor adopts such a workaround.
+These observations do not prove every runtime alternative impossible. They do
+mean the conditional SDK-based mapping is not established on the selected host.
 
 The separately accepted classifier policy is [[DES-GOAL-CLASSIFIER-POLICY]]:
 explicit native `maxRetries: 0`, no extension retry loop, and a configurable
@@ -134,4 +149,78 @@ Use deterministic virtual routers and real provider implementations against isol
 - Assert diagnostics contain only the sanitized descriptor, not credentials, environment or copied headers.
 
 No new hook fields, provider capability claims or upstream tests are implemented here. [[EVD-PI-0991-NATIVE-PROBES]] remains the evidence for current behavior; this is only a candidate contract for review.
+:::
+
+:::mara design DES-PI-STARTUP-INPUT-API
+:mid: 01M3S6K3XF4WY8KQRD9NRFPB3F
+:title: Propose host-owned preparation and dispatch of extension startup input
+:status: draft
+:kind: interface
+:satisfies: REQ-GOAL-CLI-STARTUP
+
+## Problem and smallest proposed host change
+
+A registered string flag does not itself provide an initial prompt. The 0.99.1 probes showed that sending startup work without awaiting it can race print/JSON disposal, while awaiting it inside session_start can finish before JSON forwarding is attached. With an actual first prompt, native input transformation worked. None of those observations proves the full --goal startup contract.
+
+First evaluate correcting existing host ordering and awaiting: attach native output/event consumers before startup work can run, and account for extension-requested startup work before a one-shot host decides it has nothing to await. Prefer that smaller change where it supplies the complete contract. If extensions still cannot safely inspect/augment the normalized first input or supply one when absent, propose one startup-input preparation hook, tentatively `startup_input`. This name and hook do not exist in the inspected SDK.
+
+The hook receives only the native normalized initial input (including an explicit absent-input case), the selected session context and a host-bound invocation identity. It can leave that input unchanged, supply/augment the initial goal-directed prompt, or reject initialization with a bounded reason. The host, not the extension, owns dispatch and awaiting. Exact types and whether an existing API can provide the same contract remain open; this is not a second prompt queue or scheduler.
+
+## Proposed semantics
+
+- Run once for initial invocation preparation, after required session restoration and before its first dispatch, with JSON/RPC event consumers ready. Do not rerun on reload, new/switch/resume inside the process, fork or tree navigation. SDK binding alone must not unexpectedly start inference; an embedding host explicitly opts into startup preparation/dispatch.
+- Preserve native positional/piped/file/image handling and any remaining prompt ordering. With explicit --goal intent, use the actual first supplied message as that run's context rather than silently discarding it or launching a competing ordinary-chat run. With no initial input, allow one host-dispatched goal-start prompt. Expose normalized input, not raw argv, credentials or unrelated settings.
+- Keep --goal registration and values under the existing native flag API. Help/version/resource-only loading must not dispatch work. An absent/disabled extension cannot claim its flag created a goal. No provider/model activation, tool re-enabling or gate/budget bypass.
+- The goal extension validates objective and existing-goal conflicts before claiming successful creation/start. Normal criteria review and evidence rules still govern substantive work. A preparation rejection must be observable without a successful-run claim or silently replacing/resuming an existing goal.
+- The host awaits the actual scheduled startup run through normal native settlement. All native run/message/tool/settlement events must reach the ordinary JSON/RPC consumers; do not replay buffered synthetic event copies from the extension. Print retains its native output path. If other work is already queued, preserve native ordering and avoid duplicate startup.
+- Provide a public cancellation/lifecycle boundary for preparation itself; do not reuse a stale context or infer cancellation from elapsed time. Later awaited work uses ordinary supported run integration. [[EVD-PI-0991-TURN-END-PROBES]] supplies a candidate for some waits, not a guarantee for all final-settlement races.
+- This hook supplies explicit startup provenance only. It does not solve every later ordinary-chat attachment, prove goal ownership from all extension-originated messages, or create authorization from a goal label.
+
+## Open decisions and acceptance checks
+
+Define ordering with existing session_start handlers and restore/resume policies, composition/conflict handling between multiple startup contributors, cancellation before dispatch, and state reporting if preparation fails after an extension appended its own state. Do not promise transactional rollback of unrelated extension writes. A startup request accepted into a queue is not proof that the run completed.
+
+Use offline real-mode regressions for no-input --goal, an existing first prompt, piped text, attachments, multiple inputs, help-only loading, rejected/conflicting goals, disabled extensions, startup failures, cancellation and lifecycle changes. Assert one intended run, preserved input, ordinary JSON/RPC event framing, complete event visibility and no premature disposal. Include explicit SDK-host opt-in versus ordinary binding. Reuse native persistence semantics; do not introduce file-existence admission or a second session store.
+
+This is a local draft, not a new host hook, implemented startup feature, or authorization to upgrade Pi. The earlier probes did not execute these proposed acceptance checks against a modified host.
+:::
+
+:::mara design DES-PI-RUN-OUTCOME-API
+:mid: 01M3S6K71MSB2PXZTG9VXBFDT3
+:title: Propose explicit native terminal run outcomes with host-owned exit mapping
+:status: draft
+:kind: interface
+:satisfies: REQ-PI-NONUI-AWAIT
+
+## Problem and conditional scope
+
+Pi 0.99.1 exposes low-level activity outcomes and notification-only agent_settled, but the inspected extension surface has no workflow-outcome/exit-code setter. Boundary results contain entries and continue, while prompt() returns Promise<void>. The non-UI probe's boundary exception produced stderr diagnostics and exit zero. Those signals are not sufficient to distinguish a completed workflow from a paused or otherwise unfinished one.
+
+The user favors nonzero print/JSON exit for unfinished/error outcomes **only when a small, supported SDK integration permits it**. This proposal explores a minimal native facility rather than treating the behavior as mandatory on 0.99.1. Caller-owned SDK applications can already choose their process exit policy; extensions must not assume that authority over arbitrary hosts. Process-global exitCode manipulation is not the proposed SDK contract and has not been selected or tested here.
+
+## Smallest candidate interface
+
+Allow a trusted extension to contribute a bounded, run-scoped terminal report at the native finalization boundary, and expose the finalized host result through native SDK/JSON/RPC run-completion reporting. Prefer an additive result field on an existing actionable boundary if it can supply the guarantees below; an illustrative name is `terminalReport`, not an available BoundaryResult member.
+
+A candidate report distinguishes completed from incomplete, with an explicit incomplete reason such as paused, blocked/needs-input, budget-limited, aborted or workflow error, plus an optional bounded diagnostic. Exact enums, field names and transport shape are not fixed. Do not copy a workflow error into a fake assistant/provider stopReason, or change prompt()'s return type without a separate compatibility decision.
+
+The host performs mode-specific mapping after real settlement and cleanup. Extensions report their own established workflow state; they do not directly terminate the process, choose arbitrary OS exit codes, mutate another session's outcome, or install a replacement RPC/CLI wrapper.
+
+## Proposed semantics
+
+- Bind reports to the actual session/run and current finalization attempt. Reject stale reports after reload/session replacement and do not associate them using a reusable turn index or the latest selected goal alone. Native queue/continuation activity can invalidate a provisional terminal report; do not publish it as final while work remains.
+- A report neither schedules another model call nor skips pending native work, required delivery, gate checks or cleanup. Keep agent_settled notification-only. Expose the final result in a correlated public completion event/result readable by SDK consumers without inspecting private fields or parsing assistant prose.
+- Combine native abort/error information and participating extension reports conservatively. A completed report must not erase a known incomplete/error outcome. Keep bounded source/reason details when several reports disagree; aggregation and handler-failure rules require explicit upstream definition rather than last-writer-wins success.
+- Report completion of execution/workflow obligations, not a semantic verdict on task quality. A completed review may contain findings. A failed test process can be valid evidence within a still-running diagnostic task; it must not automatically decide the enclosing task's outcome. Classifiers do not establish successful delivery, gate clearance or verified completion.
+- For a supported print/JSON host, prefer zero for completed invocation and nonzero plus a distinct reason for incomplete/error termination, while retaining native signal/cleanup behavior. Choose exact code assignments, multi-prompt aggregation and legacy compatibility explicitly. Ordinary text mode must not gain a second JSON stream; JSON stdout remains native protocol records and diagnostics stay off it.
+- RPC/SDK expose the outcome without automatically shutting down their long-lived host. Startup rejection before an agent run needs a corresponding invocation-level failure path under [[DES-PI-STARTUP-INPUT-API]], not a fabricated settled agent run.
+- Absence of this feature on an older host leaves the conditional exit mapping unavailable. Preserve truthful workflow state/diagnostics and disclose that exit zero is not a workflow-completion guarantee; do not weaken awaited-work protection or silently substitute a new scheduler, host fork or forced exit.
+
+## Open decisions and acceptance checks
+
+Finalize the native run/invocation correlation, terminal-report composition, rejection of stale contexts, treatment of finalization-handler failures, output shape, exact codes and compatibility before implementation. A report from a trusted extension is not a host-authenticated proof of all external work; define the covered scope and unavailable/unknown cases honestly. Do not add another durable workflow ledger or global extension accounting/coordination bus.
+
+Use controlled providers and real print/JSON/RPC plus SDK hosts. Cover completed execution (including reviews with findings), explicit paused/blocked/budget-limited states, aborts, workflow/native errors, mixed reports, boundary failures, multiple prompts, continuation after a provisional report, stale reports and startup rejection. Assert no false success, no premature settlement, intact output framing and cleanup, and no unwanted RPC/SDK process exit. Feature absence must follow the documented limitation rather than a private-field or process-termination workaround.
+
+No outcome setter, event field or exit mapping is implemented or tested here. This draft does not make unsupported exit control a new prerequisite by itself, authorize a dependency upgrade, or replace the user's minimal-effort condition.
 :::
