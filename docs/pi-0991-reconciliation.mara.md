@@ -178,13 +178,26 @@ integration were not reverified by this bounded repair.
 
 The user subsequently approved globally unique `jobs_*`, `goal_*` and `herdr_*`
 registration names alongside native namespace metadata, preserving the exact `bash`
-replacement name; see [[REQ-PI-ATOMIC-TOOLS]]. [[REQ-GOAL-NO-PROGRESS]] excludes new
-ordinary-chat runs from supervision unless explicitly attached through goal controls.
-Goal-started runs and automatic continuations remain goal-directed.
-[[REQ-GOAL-CLI-STARTUP]] adds the accepted `pi --goal "objective"` startup contract:
-normal guarded creation/start, initial-startup-only application, and rejection of
-existing-goal conflicts without silent replacement. These are intended behaviors,
-not implemented tools, run association or CLI startup support.
+replacement name; see [[REQ-PI-ATOMIC-TOOLS]]. [[REQ-GOAL-CLI-STARTUP]] adds the
+accepted `pi --goal "objective"` startup contract: normal guarded creation/start,
+initial-startup-only application, and rejection of existing-goal conflicts without
+silent replacement. These are intended behaviors, not implemented tools or CLI
+startup support.
+
+The user subsequently clarified the goal model in [[GOAL-PERSISTENT-AUTONOMY]] and
+[[REQ-GOAL-CONTROLS]]: a goal directs one assistant's conversation, from the start
+or during the portion after it is set, not a shared task across assistants/sessions.
+Normal messages naturally guide the current active goal. This supersedes the earlier
+explicit ordinary-chat attachment policy; the proposed `/goal run` command is
+withdrawn, not accepted or implemented. [[REQ-GOAL-CONTINUATION]] requires guarded
+continuation after premature stopping and fresh goal context after compaction.
+Branch-local persistence restores that conversation's state; it does not coordinate
+other sessions. [[REQ-GOAL-NO-PROGRESS]] now scopes classifier observations to
+completed assistant turns in the current active goal interval, while retaining the
+deterministic fallback's narrower sampling. Pause/resume, gates, budgets, evidence,
+and completion safeguards remain unchanged. The updated verification methods are
+future checks, not runtime evidence. Work item bodies follow the corrected model;
+metadata, dependencies, sequencing and the campaign pause are unchanged.
 
 [[REQ-PI-NONUI-AWAIT]] subsequently revises the earlier separate-explicit-wait
 policy: selected awaited work must prevent premature non-UI completion, including
@@ -230,7 +243,7 @@ API drafts, conditional exit signaling and the campaign pause are unchanged.
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model
 identity; foreground/handoff cancellation; reload/session-scoped callbacks; concrete
-goal-directed run association and mode-specific CLI startup; and usage/activity
+active-goal context/lifecycle isolation and mode-specific CLI startup; and usage/activity
 attribution for classifier calls inside and outside tools. Record unsupported cases
 honestly rather than using private state or adding a tool broker. The existing Work graph is not dispatch authorization.
 
@@ -238,7 +251,8 @@ Subsequent user-authorized [[EVD-PI-0991-NATIVE-PROBES]] records 21 isolated SDK
 and loopback scenarios with no live model calls. It confirms useful tool/lifecycle
 seams, while exposing missing pre-dispatch routed identity and non-tool usage
 attribution, classifier retry/deadline nuances, and differing direct/nested signal
-lifetimes. Nested delivery receipts and goal-turn ownership remain design work.
+lifetimes. Nested delivery receipts and current-goal lifecycle/revision isolation
+remain design work; the superseded per-chat attachment policy is not an API gap.
 See [the report and replay fixtures](pi-0991-native-probes.mara.md); these limited
 observations do not complete workflow verification or authorize dispatch.
 
