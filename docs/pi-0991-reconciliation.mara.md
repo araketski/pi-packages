@@ -17,8 +17,10 @@ setup; SDK sessions do not automatically inherit the CLI's built-ins.
 
 The inspected delta does not supply durable managed background jobs, a shared
 owner/observer gate contract, a Herdr execution backend, goal evidence policy,
-or OS inhibition. The six-package boundary and producer-independent contracts
-remain applicable. Parallel nested tools are not a persistent job manager.
+or OS inhibition. Those gaps alone do not establish the six-package split;
+package boundaries remain subject to the paused native-first design review.
+Producer independence still applies. Parallel nested tools are not a persistent
+job manager.
 
 ## Native capabilities to reuse
 
@@ -37,10 +39,18 @@ remain applicable. Parallel nested tools are not a persistent job manager.
 - Use Pi UI components and active theme callbacks. The new default `system`
   palette can change at runtime; avoid permanently cached ANSI colors. Existing
   `theme.fg()`/`bg()` remain supported alongside `style()`, colors, and appearance.
-- Native virtual models, classifiers, and image generation are not new campaign
-  features. Account for Pi-attributed usage where the existing budget contract
-  requires it, without counting nested usage twice. Do not add routing or model
-  classification to command lifetime policy.
+- Native classifiers are now an agreed first-class capability for goal supervision
+  and ledger review; see [[REQ-GOAL-CLASSIFIERS]], [[REQ-GOAL-NO-PROGRESS]], and
+  [[REQ-GOAL-EVIDENCE]]. The user approved classifier-first behavior with visible
+  fallback, not a mandatory new provider. Extensions can call
+  `ctx.modelRegistry.classify()` without codemode. Inspection of Pi 0.99.1
+  `docs/models.md`, `docs/llama-cpp.md`, `docs/virtual-models.md`, and
+  `examples/extensions/jev-router.ts` establishes the API, not assessment quality;
+  no classifier request or evaluation has run here.
+- Native virtual-model routing and image generation remain unselected features.
+  Account for Pi-attributed usage where the budget contract requires it, without
+  counting nested usage twice. Do not classify command lifetime, ownership, or
+  delivery receipts from semantic model judgments.
 
 ## Nested tools and delivery
 
@@ -94,7 +104,7 @@ owner's responsibility; do not add another session or gate journal.
 | jobs-core                  | C1 public tool/receipt boundary; C3 native persistence; C4 nested visibility, queues, and lifecycle; C5 real participant conformance. Shared quota/ownership still need their own design.                                                                             |
 | jobs                       | Native structured tool integration and cancellation checks above; same-process foreground/background handoff remains necessary.                                                                                                                                       |
 | herdr                      | Keep the public current-local JSON adapter and explicit resources/execution split. Native MCP does not replace Herdr's transport or prove command completion. Test adapter tools through the native nested pipeline without inventing approval, retries, or fallback. |
-| goal                       | Keep fresh branch-local state, evidence, pauses, budgets, and generic gates. Use actionable Pi scheduling boundaries; notification-only settlement must not schedule another turn.                                                                                    |
+| goal                       | Keep fresh state and generic gates; add the agreed native-classifier supervision and ledger review with fallback. Use actionable Pi scheduling boundaries, not notification-only settlement, to schedule turns.                                                       |
 | caffeinate                 | Keep fresh settings and all-tracked-session generic gates. Observe Pi activity/queues through settlement, including nested work; do not infer idleness from one completed inner tool. Actual Linux inhibition remains separate verification.                          |
 | gates                      | Keep read-only state/history/health, notice suppression, and reconciliation semantics. New theme behavior affects presentation, not authority.                                                                                                                        |
 | gates/statusline protocols | Recheck exported host types and real SDK integration. The Pi bump alone does not change their protocol identity or prove actual consumer integration.                                                                                                                 |
