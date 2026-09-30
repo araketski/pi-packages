@@ -5,6 +5,37 @@ checks, and limited classifier evaluation below are distinct from full workflow
 runtime verification or authorization to dispatch the paused campaign.
 The release-time verification policy remains [[REQ-PI-RELEASE-COMPAT]].
 
+## Current implementation scope after user simplification
+
+Implement against available public Pi capabilities. When Pi does not support a
+feature, omit it and document the limitation rather than adding a workaround,
+mandatory host upgrade, or dependency on the local API drafts. In particular,
+[[REQ-PI-NONUI-AWAIT]] no longer requires custom exit-code mapping on Pi 0.99.1,
+and [[REQ-GOAL-CLI-STARTUP]] is limited to demonstrably supported mode/input cases.
+This is scope reduction, not permission to claim an omitted capability works or
+weaken ownership, result receipts, or truthful completion in supported modes.
+
+[[REQ-GOAL-CLASSIFIERS]] uses native available classifiers by default and supplies
+needed context, including code/diff/test excerpts, without an added approval or
+excerpt-sharing opt-in. The extension has a classifier-disable configuration flag.
+Fallback conditions are unavailable or disabled classifiers, not cost or privacy
+admission policies. [[DES-GOAL-CLASSIFIER-POLICY]] no longer requires monetary caps,
+spending reservations, or price-based admission. Preserve supported native usage
+reporting without making missing accounting an execution gate. Optional explicitly
+configured whole-goal token/wall-time limits are separate and remain opt-in.
+Earlier budget choices, conditional API proposals, and probe findings below are
+historical context, not contradictory current requirements.
+
+The user authorized the remaining isolated feasibility probes and three parallel
+existing-package repair workers: statusline accounting, statusline model display,
+and conservative fast-mode eligibility. Workers use Pi `openai-codex/gpt-6.1-sol`
+with `high`; worker-owned Codex reviews use `gpt-6.1-sol` with `xhigh` in fresh
+named Herdr tabs, repeating review/fix/review until explicitly clean. Use isolated
+Herdr worktrees and the review/provenance rules in
+[parallel implementation](parallel-implementation.mara.md). This does not dispatch
+the workflow-package campaign, authorize publishing, or revive the retired
+integration checkout. Record actual repair assignments and evidence in Work.
+
 ## Inspection provenance
 
 Compared the installed 0.99.1 documentation and its 0.99.0/0.99.1 changelog entries

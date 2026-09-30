@@ -3,7 +3,10 @@
 The user authorized **drafting**, not upstream submission, implementation, a Pi
 upgrade, or campaign restart. The designs below are **draft proposals**:
 names and signatures are illustrative, not APIs available in Pi 0.99.1 or
-accepted upstream contracts.
+accepted upstream contracts. The user's subsequent scope decision is to implement
+against current public Pi capabilities and omit unsupported features. None of these
+four proposals is a campaign prerequisite, an instruction to build a host workaround,
+or a reason to block otherwise supported extension functionality.
 
 The basis is [[EVD-PI-0991-NATIVE-PROBES]] and the installed 0.99.1
 `docs/extensions.md`, `docs/sdk.md`, `docs/models.md`,
@@ -15,8 +18,8 @@ terminal-outcome drafts also use [[EVD-PI-0991-NONUI-PROBES]] and
 [[EVD-PI-0991-TURN-END-PROBES]], plus current CLI/JSON/RPC documentation and public
 extension/session declarations.
 
-For terminal exit codes, approval is conditional on a small, supported SDK
-integration; see [[REQ-PI-NONUI-AWAIT]]. Pi 0.99.1 exposes `shutdown(): void`,
+For terminal exit codes, the user subsequently dropped custom mapping where the
+current public SDK does not support it; see [[REQ-PI-NONUI-AWAIT]]. Pi 0.99.1 exposes `shutdown(): void`,
 `prompt(): Promise<void>` and boundary results containing entries/continuation,
 not an extension exit-code or workflow-outcome setter. The inspected print/JSON
 runner chooses its exit status and reports extension-handler errors separately;
@@ -77,7 +80,7 @@ The draft's minimum scope is reporting complete, attributable usage from a still
 3. **Ambiguous writes/duplicates:** returned entry identity and caller bookkeeping cover an ordinary successful append. If recoverable idempotent reporting is required, agree on host-owned operation identity and retention rather than hiding an unbounded deduplication store in this proposal.
 4. **Lifecycle and activity are separate:** recording usage is not proof that an operation is running or stopped. Caffeinate still consumes public activity or generic gates under [[REQ-CAFFEINATE-AUTO-HOLD]], and deadline expiration cannot release an unresolved activity obligation by itself.
 
-These are explicit draft blockers, not permission to weaken [[REQ-GOAL-CLASSIFIERS]] or use private methods until an upstream API exists.
+These are blockers for this optional API proposal, not prerequisites for the current extension. Under the user's native-supported scope in [[REQ-GOAL-CLASSIFIERS]], omit unsupported attribution features with honest limitations rather than waiting for an upstream API or using private methods.
 
 ## Proposed upstream acceptance checks
 
