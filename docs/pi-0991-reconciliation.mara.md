@@ -200,7 +200,9 @@ unresolved gates and normal actual-exit cleanup; neither decision promotes
 delivery modes or turns timeout into proof of execution completion or owner death.
 Responsive owners with known pending work remain normal waits. The updated
 [[VER-PI-NONUI-AWAIT]] and linked delivery/goal checks are plans, not observed
-conformance. Later recovery/resumption from needs-attention remains to be agreed;
+conformance. The user subsequently chose explicit `/goal resume` after a
+needs-attention pause, even if the owner recovers; see [[REQ-GOAL-PAUSE-RECOVERY]].
+Independent jobs and result delivery remain unaffected by that goal pause.
 API drafts, conditional exit signaling and the campaign pause are unchanged.
 
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
