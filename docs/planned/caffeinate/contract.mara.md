@@ -46,6 +46,8 @@ Keep appropriate power inhibition active while Pi has activity, queued messages,
 :contributes_to: GOAL-PI-WAKEFULNESS
 
 When enabled and not manually stopped or shutting down, retain an inhibition reason while Pi is active, messages are queued, or any session still tracked by this Pi process has pending generic gates. A session switch must not discard an existing gate-derived hold; reload must not silently forget outstanding tracked reasons. Unconfirmed gate state remains conservative with diagnostics, not confirmed empty. Observe only public gate state, regardless of producer, under [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]. Do not inspect jobs-core, Herdr, job phases, or producer-specific internals. Do not scan unrelated historical sessions or invent a cross-process gate system. Removing one reason does not remove others; caffeinate never clears producer gates, delivers results, starts turns, or terminates jobs.
+
+Active classifier calls are work that must retain inhibition under this same enabled/manual-override policy, including manual reviews outside an assistant turn. Expose that activity through applicable public Pi activity or ordinary generic gates, not a classifier/goal-specific consumer branch or private-state inspection. Finished calls alone do not retain a hold; other activity/gate obligations still do. The concrete public activity mapping requires integration verification.
 :::
 
 :::mara requirement REQ-CAFFEINATE-MANUAL-CONTROLS
@@ -99,6 +101,8 @@ Expose activity, queued-message, gate, manual-override, mode, and availability d
 :verifies: REQ-CAFFEINATE-PRESENTATION
 
 Use actual Pi lifecycle and generic gate producers without loading jobs-core. Test activity, queued messages, pending and unconfirmed gates, multiple reasons, inactive tracked sessions, switching/reload, and final owner clearance. Keep an A-session gate pending while B is current and idle; inhibition remains. Exercise temporary stop even with gates present, rearming only for new activity/acquisition or start, persistent disable, idle start without a false actively-awake claim, and mode/quiet/status controls. Unknown producers receive identical behavior. Verify footer/structured status, warnings, and no gate mutations or model turns. These checks have not run.
+
+Include actual goal classifier calls during assistant turns and manual review outside a turn, as well as an independent producer with equivalent public activity/gate state. Verify holding, release, timeout/cancellation/failure, manual overrides, and remaining unrelated reasons without classifier-specific consumer logic. Model benchmark calls alone do not establish inhibition behavior.
 :::
 
 :::mara verification VER-CAFFEINATE-INHIBITORS

@@ -1,7 +1,8 @@
 # Pi 0.99.1 campaign reconciliation
 
-Pi 0.99.1 is the agreed development baseline. This is source/document inspection,
-not passing runtime evidence or authorization to dispatch the paused campaign.
+Pi 0.99.1 is the agreed development baseline. Source inspection, completed baseline
+checks, and limited classifier evaluation below are distinct from full workflow
+runtime verification or authorization to dispatch the paused campaign.
 The release-time verification policy remains [[REQ-PI-RELEASE-COMPAT]].
 
 ## Inspection provenance
@@ -45,8 +46,10 @@ job manager.
   fallback, not a mandatory new provider. Extensions can call
   `ctx.modelRegistry.classify()` without codemode. Inspection of Pi 0.99.1
   `docs/models.md`, `docs/llama-cpp.md`, `docs/virtual-models.md`, and
-  `examples/extensions/jev-router.ts` establishes the API, not assessment quality;
-  no classifier request or evaluation has run here.
+  `examples/extensions/jev-router.ts` establishes the API, not assessment quality.
+  Subsequent [[EVD-GOAL-CLASSIFIER-PILOT]] records 100 authorized synthetic calls;
+  [[DES-GOAL-CLASSIFIER-POLICY]] records the agreed provisional profile and limits.
+  Actual goal integration and calibrated production accuracy remain unverified.
 - Native virtual-model routing and image generation remain unselected features.
   Account for Pi-attributed usage where the budget contract requires it, without
   counting nested usage twice. Do not classify command lifetime, ownership, or
@@ -168,8 +171,9 @@ No unrelated catalog versions or package release versions were selected for chan
 The baseline Work item records local logs and archive hashes. Completing that
 prerequisite does not lift the campaign pause or authorize implementation dispatch.
 
-This does not close future native jobs/Herdr/goal/caffeinate/gates integration
-checks, establish live provider requests, or authorize publication. Recheck the
+These baseline checks do not close future native jobs/Herdr/goal/caffeinate/gates
+integration or establish live fast-service provider behavior, and do not authorize
+publication. The separate classifier pilot is not a substitute for those checks. Recheck the
 [named-agent/model preflight](parallel-implementation.mara.md) before a separately
 controlled restart; coordinator remains Astra/high, workers Sol 6.1/high, and
 Codex reviewers Sol 6.1/xhigh.
