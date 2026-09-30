@@ -39,7 +39,8 @@ interfaces and proof mechanisms remain unverified; the campaign is still paused.
   repository packages, replacing the old one-jobs-tool decision. Managed bash
   stays directly available as the native replacement; other tools use enabled
   native discovery or direct fallback without re-enabling disabled tools or
-  rewriting settings. Public registration/disablement semantics still need probes.
+  rewriting settings. The limited native probes below establish useful host
+  registration/disablement behavior, not complete package conformance.
 - Preserve native sessions, custom entries/messages, queueing, actionable
   `turn_end`/`agent_before_settle`, and notification-only `agent_settled`. Do not
   equate low-level `agent_end`, queue acceptance, or RPC prompt disposition with
@@ -153,12 +154,22 @@ native codemode/MCP in SDK tests that intend to cover them.
   turns, through public activity or generic gates rather than classifier-specific
   consumer logic.
 
-Before implementation/API freeze, resolve native namespacing versus bash replacement
-and explicit disabling; model-visible nested receipts; public routed-model identity;
-foreground/handoff cancellation; reload/session-scoped callbacks; goal-directed turn
-ownership; and usage/activity attribution for classifier calls inside and outside
-tools. Record unsupported cases honestly rather than using private state or adding
-a tool broker. The existing Work graph is not dispatch authorization.
+The user subsequently approved globally unique `jobs_*`, `goal_*` and `herdr_*`
+registration names alongside native namespace metadata, preserving the exact `bash`
+replacement name; see [[REQ-PI-ATOMIC-TOOLS]]. [[REQ-GOAL-NO-PROGRESS]] excludes new
+ordinary-chat runs from supervision unless explicitly attached through goal controls.
+Goal-started runs and automatic continuations remain goal-directed.
+[[REQ-GOAL-CLI-STARTUP]] adds the accepted `pi --goal "objective"` startup contract:
+normal guarded creation/start, initial-startup-only application, and rejection of
+existing-goal conflicts without silent replacement. These are intended behaviors,
+not implemented tools, run association or CLI startup support.
+
+Before implementation/API freeze, verify the prefixed tool surface, bash replacement
+and explicit disabling; resolve model-visible nested receipts; public routed-model
+identity; foreground/handoff cancellation; reload/session-scoped callbacks; concrete
+goal-directed run association and mode-specific CLI startup; and usage/activity
+attribution for classifier calls inside and outside tools. Record unsupported cases
+honestly rather than using private state or adding a tool broker. The existing Work graph is not dispatch authorization.
 
 Subsequent user-authorized [[EVD-PI-0991-NATIVE-PROBES]] records 21 isolated SDK
 and loopback scenarios with no live model calls. It confirms useful tool/lifecycle
