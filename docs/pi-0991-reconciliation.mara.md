@@ -169,7 +169,14 @@ policy: selected awaited work must prevent premature non-UI completion, includin
 reviewers without an active goal. Required final results must reach the model before
 it finishes the task; an assistant saying it is waiting is not successful completion.
 [[VER-PI-NONUI-AWAIT]] defines the regression and cancellation/exit checks. Isolated
-offline lifecycle probes are authorized; implementation and campaign dispatch are not.
+offline lifecycle probes were authorized; implementation and campaign dispatch are not.
+Subsequent [[EVD-PI-0991-NONUI-PROBES]] records 17 CLI scenarios and a fresh replay:
+native pre-settlement waiting can deliver a result for model consumption without
+polling, but the tested wait has no boundary cancellation signal, RPC abort waits
+for its resolution, and naive CLI startup loses work or JSON events. A thrown
+boundary-handler error can still exit zero. These observations leave cancellable
+waiting, mode-safe startup and unfinished-outcome signaling unresolved; see
+[the report](pi-0991-nonui-probes.mara.md).
 
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model
