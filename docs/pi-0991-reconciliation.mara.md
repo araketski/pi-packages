@@ -192,6 +192,17 @@ capability. Preserve honest workflow diagnostics without promising unsupported
 exit control or making it a new prerequisite by itself. The drafts and their
 compatibility/composition questions remain unimplemented.
 
+The user also approved the two waiting-policy clarifications in
+[[REQ-PI-NONUI-AWAIT]]: reject awaited plus next-natural-turn selections in
+one-shot print/JSON, and stop non-UI progression with needs-attention when a
+relevant owner stays unknown after normal reconciliation timeout. Preserve
+unresolved gates and normal actual-exit cleanup; neither decision promotes
+delivery modes or turns timeout into proof of execution completion or owner death.
+Responsive owners with known pending work remain normal waits. The updated
+[[VER-PI-NONUI-AWAIT]] and linked delivery/goal checks are plans, not observed
+conformance. Later recovery/resumption from needs-attention remains to be agreed;
+API drafts, conditional exit signaling and the campaign pause are unchanged.
+
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model
 identity; foreground/handoff cancellation; reload/session-scoped callbacks; concrete

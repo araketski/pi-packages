@@ -123,6 +123,8 @@ Allow optional token and wall-time budgets together, with no whole-goal token/wa
 :contributes_to: GOAL-PERSISTENT-AUTONOMY
 
 Automatic continuation, normal goal start, and resume obey current-session generic gate state: pending or unconfirmed state is not permission to nudge. Queue normal follow-up only for an active eligible goal when Pi is idle, no messages or goal continuation are pending, and discovery/reconciliation confirms the session unblocked. Recheck after asynchronous boundaries and invalidate stale requests after goal, session, or relevant gate changes. Gate observations may cause eligibility reevaluation, but the protocol does not dispatch turns or carry producer-specific wake instructions; goal owns its normal continuation policy. For /goal continue only, retain an explicit interactive confirmation allowing one turn despite the displayed gates, without clearing them. Refuse stale confirmations or a non-interactive gate bypass. This particular user control is not a general approval system. Follow [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]] and [[REQ-GATES-SIGNAL-ONLY]].
+
+In non-UI runs, follow [[REQ-PI-NONUI-AWAIT]] for needs-attention reporting and stopped progression when a relevant owner remains unknown after reconciliation timeout. This is a consumer response to unresolved generic gate state, not permission to clear gates, infer owner death or control external execution. Do not confuse it with ordinary confirmed-pending work, which remains subject to normal guarded waiting.
 :::
 
 :::mara requirement REQ-GOAL-PAUSE-RECOVERY
@@ -223,6 +225,8 @@ Cover configured/available classifier default enablement, explicit off, the prev
 Classifier supervision must cover initial, resumed, manually continued, and automatic goal-directed runs while ignoring unrelated conversation. Exercise completed-turn rather than nested-call sampling and three consecutive qualifying new observations, resetting on progress/resume and not advancing from cached/repeated observations. Separately preserve the deterministic fallback's narrower legacy observation scope. The static pilot does not verify these temporal transitions.
 
 With an active goal, start ordinary-chat runs, including text that mentions the objective and unrelated extension-originated input; none becomes a supervision observation merely from that context. Explicitly attach a run through goal controls and verify its completed goal-directed turns are eligible for classifier supervision. Separately exercise goal-started runs, CLI startup and automatic continuations; attachment must not leak into the next unattached ordinary-chat run. Verify session/goal changes and delayed events cannot retarget an association. Keep deterministic fallback limited to its separately specified automatic-synthetic scope. Public run association must be demonstrated, not inferred from native turn indices or prompt wording.
+
+Include the non-UI unknown-owner timeout cases in [[VER-PI-NONUI-AWAIT]] with generic owners: needs-attention stops progression without clearing unresolved gates, while a responsive owner with known pending work remains a normal gate wait. Verify no producer-specific inspection or timeout-triggered stop of independent work. Later recovery/resumption after needs-attention still requires an agreed policy and corresponding checks.
 :::
 
 :::mara verification VER-GOAL-STATE-AND-CLEAN-BREAK
