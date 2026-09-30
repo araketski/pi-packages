@@ -158,8 +158,15 @@ and explicit disabling; model-visible nested receipts; public routed-model ident
 foreground/handoff cancellation; reload/session-scoped callbacks; goal-directed turn
 ownership; and usage/activity attribution for classifier calls inside and outside
 tools. Record unsupported cases honestly rather than using private state or adding
-a tool broker. The existing Work graph is not dispatch authorization, and these
-notes do not claim those probes or new runtime checks ran.
+a tool broker. The existing Work graph is not dispatch authorization.
+
+Subsequent user-authorized [[EVD-PI-0991-NATIVE-PROBES]] records 21 isolated SDK
+and loopback scenarios with no live model calls. It confirms useful tool/lifecycle
+seams, while exposing missing pre-dispatch routed identity and non-tool usage
+attribution, classifier retry/deadline nuances, and differing direct/nested signal
+lifetimes. Nested delivery receipts and goal-turn ownership remain design work.
+See [the report and replay fixtures](pi-0991-native-probes.mara.md); these limited
+observations do not complete workflow verification or authorize dispatch.
 
 ## Verification before dispatch
 
