@@ -125,6 +125,8 @@ Use controlled JSON-socket fixtures for subscription acknowledgement, events arr
 :contributes_to: GOAL-HERDR-VISIBLE-WORKFLOW
 
 Provide Pi-facing controls for the agreed local workflow: create/list/inspect and explicitly navigate or manage worktrees, workspaces, tabs, and panes; launch explicit commands or agents; read terminal output; send explicit input; and revisit/control the selected running resources. Use the public supported Herdr capability surface and explicit IDs, not inferred UI focus. Preserve caller focus unless navigation/focus was explicitly requested. Existing-pane input remains terminal control, not proof of a managed job launch or outcome. Keep backend resource operations in pi-herdr and managed job policy in pi-jobs-core. Specify concrete tool arguments and supported native operations before implementing each slice; unsupported capabilities fail clearly rather than being invented or silently substituted.
+
+Expose any model-facing resource operations as composable atomic namespaced tools under [[REQ-PI-ATOMIC-TOOLS]], not one multiplexed Herdr action tool. This does not change explicit resource authority, focus preservation, or the separation of existing-pane input from tracked execution.
 :::
 
 :::mara requirement REQ-HERDR-NO-APPROVAL-LAYER

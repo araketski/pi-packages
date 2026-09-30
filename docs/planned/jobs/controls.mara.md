@@ -18,12 +18,12 @@ legacy tmux package.
 
 :::mara requirement REQ-JOBS-CONTROL-SURFACE
 :mid: 01M3PZWZV0HPGFDP1TSJQ1JQHW
-:title: Expose one jobs tool and corresponding Pi user controls
+:title: Expose atomic namespaced jobs tools and corresponding Pi user controls
 :status: accepted
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Alongside the replacement model bash tool, expose one jobs tool for listing, inspecting, reading output, waiting, stopping, and changing awaiting/delivery settings. Provide /jobs user controls for inspecting jobs/output and performing the same control actions without asking the model, using applicable Pi UI components. Show producer identity as required by [[REQ-JOBS-PRODUCER-IDENTITY]]. Use the shared wait, termination, and delivery rules rather than duplicating them in UI code. Registering an observer/control view must not independently take execution ownership or redeliver owner results. Tool and event behavior must not require terminal rendering.
+Alongside the replacement model bash tool, expose single-purpose namespaced operations for listing, inspecting, reading output, waiting, stopping, and changing awaiting/delivery settings under [[REQ-PI-ATOMIC-TOOLS]]. Do not funnel unrelated operations through one jobs action-dispatch tool. Provide /jobs user controls for inspecting jobs/output and performing the same control actions without asking the model, using applicable Pi UI components. Show producer identity as required by [[REQ-JOBS-PRODUCER-IDENTITY]]. Use the shared wait, termination, and delivery rules rather than duplicating them in UI code. Registering an observer/control view must not independently take execution ownership or redeliver owner results. Tool and event behavior must not require terminal rendering.
 :::
 
 :::mara requirement REQ-JOBS-CONTROL-SCOPE
@@ -66,7 +66,7 @@ The initial pi-jobs support and verification target is Linux; macOS and Windows 
 :verifies: REQ-JOBS-CONTROL-SCOPE
 :verifies: REQ-JOBS-WAIT-SELECTION
 
-With local, Herdr, and external-producer fixtures, exercise the single jobs tool and /jobs controls for list/inspect/output/wait/stop and await/delivery changes. Preserve producer/job/session identity through records and results. Default to current-session jobs; explicitly inspect another session without thereby gaining ownership or rerunning work. Exercise one/any/all waits, concurrent completions, unconfirmed state, and timeout returning status without stopping jobs or disabling delivery. Final-result retrieval counts as delivery; incremental logs do not. Explicitly stop awaiting an unknown job and retain its honest unresolved status. Confirm observer registration does not duplicate delivery or acquire execution ownership. These checks require Pi tool/UI integration, not just a shared-library fixture, and have not run.
+With local, Herdr, and external-producer fixtures, exercise the namespaced atomic jobs tools individually and composed, and /jobs controls for list/inspect/output/wait/stop and await/delivery changes. Preserve producer/job/session identity through records and results. Default to current-session jobs; explicitly inspect another session without thereby gaining ownership or rerunning work. Exercise one/any/all waits, concurrent completions, unconfirmed state, and timeout returning status without stopping jobs or disabling delivery. Final-result retrieval counts as delivery only with the model-visible receipt required by [[REQ-JOBS-DELIVERY-RECEIPTS]]; incremental logs and discarded nested results do not. Explicitly stop awaiting an unknown job and retain its honest unresolved status. Confirm observer registration does not duplicate delivery or acquire execution ownership. These checks require Pi tool/UI integration, not just a shared-library fixture, and have not run.
 :::
 
 :::mara verification VER-JOBS-RUNTIME-SCOPE

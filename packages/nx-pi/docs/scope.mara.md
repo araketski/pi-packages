@@ -31,8 +31,10 @@ scaffolds to Pi packages; see [[DES-NXPI-SKILL-CONTRACT]] and
 terminal-default palette scaffold under [[DES-NXPI-THEME-CONTRACT]]. The first
 `extension` generator adds a typed no-op extension and an explicit Pi peer
 declaration under [[DES-NXPI-EXTENSION-CONTRACT]]. An isolated positive test
-now checks Pi 0.87.1 SDK discovery from packed, installed resource fixtures
-under [[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. The inferred `pi-check-package`
+initially checked Pi 0.87.1 SDK discovery from packed, installed resource fixtures.
+The [verified 0.99.1 baseline](../../../docs/pi-0991-reconciliation.mara.md#observed-repository-checks)
+updated and reran these consumers; current methods use 0.99.1 under
+[[VER-NXPI-PACKED-RESOURCE-DISCOVERY]]. The inferred `pi-check-package`
 checks caller-supplied tarballs for declared resources, missing static extension
 helpers, and tagged-library JS/declaration export files under
 [[DES-NXPI-PACKED-INPUT-CONTRACT]], [[VER-NXPI-PACKED-STATIC]] and
@@ -54,9 +56,11 @@ do not establish completion of the broader [[VER-NXPI-INIT]] or
 
 The project documentation was relocated here after scaffolding, preserving all
 structured identities. `package.json.files` excludes this knowledge, tests, and
-test configuration from the npm artifact. No repository-wide release workflow or
-registry publication is implemented; generated libraries use Nx Release's
-existing consumer configuration.
+test configuration from the npm artifact. Scaffolding does not add a consumer
+release workflow; generated libraries use Nx Release's existing consumer
+configuration. This development repository's separate coordinated release workflow
+is documented in [release policy](../../../docs/release.mara.md); actual registry
+publication has not been performed.
 Repository test infrastructure is not added to consumer workspaces.
 
 ## Observed verification of interactive initialization

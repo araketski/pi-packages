@@ -33,7 +33,9 @@ Keep the enabled boolean in Pi session custom entries so it survives reload, res
 :kind: constraint
 :contributes_to: GOAL-FAST-MODE
 
-Match on the selected model's wire API, not its provider name. For `anthropic-messages`, recognize only `claude-opus-4-6`, `claude-opus-4-8`, `claude-opus-5`, and `claude-opus-5-5`. For both `openai-responses` and `openai-codex-responses`, recognize only `gpt-5.4`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. Strip at most one leading `anthropic/` or `openai/` model-id prefix for eligibility, retaining the original id for request matching. Codex Responses additionally requires `modelRegistry.isUsingOAuth(model)`; OpenAI Responses does not. Absent, unrecognized, or ineligible models are unsupported.
+Match on the verified model serving the actual request and its wire API using supported public Pi information, not the selected virtual model or a provider display name. Support configured native virtual models without adding a routing extension. If actual request identity, applicable authentication, or fast-service support cannot be established safely, report unsupported and leave the request untouched. For `anthropic-messages`, recognize only `claude-opus-4-6`, `claude-opus-4-8`, `claude-opus-5`, and `claude-opus-5-5`. For both `openai-responses` and `openai-codex-responses`, recognize only `gpt-5.4`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. Strip at most one leading `anthropic/` or `openai/` model-id prefix for eligibility, retaining the original id for request matching. Codex Responses additionally requires `modelRegistry.isUsingOAuth(model)` for the actual request model; OpenAI Responses does not. Absent, unrecognized, or ineligible models are unsupported.
+
+The explicit allowlist is not automatically expanded by Pi catalog updates or campaign model selection. Sol 6.1 support remains a separate verification question; no live fast-service request or newly confirmed support is asserted here.
 :::
 
 :::mara requirement REQ-FAST-REQUEST
@@ -43,7 +45,7 @@ Match on the selected model's wire API, not its provider name. For `anthropic-me
 :kind: functional
 :contributes_to: GOAL-FAST-MODE
 
-When enabled and the selected model is eligible, inject `speed: "fast"` for Anthropic Messages or `service_tier: "priority"` for either OpenAI Responses API. Do not replace an existing injection field, inject into a non-record payload, or inject if the outgoing payload's `model` does not exactly equal the selected model's original id. For eligible Claude requests, add `fast-mode-2026-02-01` to the outgoing `anthropic-beta` header. For Claude OAuth also include `claude-code-20250219` and `oauth-2025-04-20`. Preserve existing beta tokens, avoid duplicates, and retain an existing header key's casing. Change only outgoing headers, not stored model headers. If disabled or unsupported, leave headers and payload untouched, including any pre-existing fast option.
+When enabled and the verified actual request model is eligible, inject `speed: "fast"` for Anthropic Messages or `service_tier: "priority"` for either OpenAI Responses API. Do not replace an existing injection field, inject into a non-record payload, or inject if the outgoing payload's `model` does not exactly equal the verified actual request model's original id. For eligible Claude requests, add `fast-mode-2026-02-01` to the outgoing `anthropic-beta` header. For Claude OAuth also include `claude-code-20250219` and `oauth-2025-04-20`. Preserve existing beta tokens, avoid duplicates, and retain an existing header key's casing. Change only outgoing headers, not stored model headers. If disabled or unsupported, leave headers and payload untouched, including any pre-existing fast option.
 :::
 
 :::mara requirement REQ-FAST-STATUS
@@ -53,7 +55,7 @@ When enabled and the selected model is eligible, inject `speed: "fast"` for Anth
 :kind: functional
 :contributes_to: GOAL-FAST-MODE
 
-Publish a visible status even when disabled: `fast off` (muted) when off; `fast on` (accent) when enabled and the current model is eligible; `fast n/a` (warning) when enabled but the current model is unsupported. Refresh the status after restoration, toggle, or model selection. Publish through [[DES-STATUSLINE-PROTOCOL]] so the native Pi footer displays it and a late custom footer can recover the structured state. The display reports eligibility, not proof that any particular outgoing request was modified.
+Publish a visible status even when disabled: `fast off` (muted) when off; `fast on` (accent) when enabled and the current model is eligible; `fast n/a` (warning) when enabled but the current model is unsupported. Refresh the status after restoration, toggle, model selection, or a change in publicly established request-model applicability. Unknown routed applicability is unsupported, not a guess from the selected model or an unrelated earlier request. Publish through [[DES-STATUSLINE-PROTOCOL]] so the native Pi footer displays it and a late custom footer can recover the structured state. The display reports eligibility, not proof that any particular outgoing request was modified.
 :::
 
 :::mara design DES-FAST-SESSION
@@ -77,9 +79,11 @@ Implementation state: command/shortcut/flag, branch restoration and the launch o
 :satisfies: REQ-FAST-ELIGIBILITY
 :satisfies: REQ-FAST-REQUEST
 
-Evaluate eligibility from the event's current context for both `before_provider_headers` and `before_provider_request`, not from a cached model-selection result. The header hook adds the Claude beta tokens only when enabled and eligible; comma-separated existing beta tokens are trimmed and deduplicated in their original order, followed by required OAuth and fast-mode tokens. Find an existing `anthropic-beta` header case-insensitively; otherwise create the lowercase key. The request hook returns a shallow copy with the new field only when enabled, eligible, payload is a non-array object, its model matches exactly, and the field is absent. Otherwise return no replacement. Do not mutate `ctx.model.headers`. This matches the observed safety behavior of main, not a claim that other extensions cannot independently set conflicting headers or fields.
+Evaluate eligibility for both `before_provider_headers` and `before_provider_request` using public facts about the actual request model/API/authentication, not a cached selection or an assumed virtual-model route. Establish the usable public hook fields before implementing routed support; if a hook cannot safely identify the actual request, make no fast-mode mutation there. Do not inspect private routing state or add a router. The header hook adds the Claude beta tokens only when enabled and eligible; comma-separated existing beta tokens are trimmed and deduplicated in their original order, followed by required OAuth and fast-mode tokens. Find an existing `anthropic-beta` header case-insensitively; otherwise create the lowercase key. The request hook returns a shallow copy with the new field only when enabled, eligible, payload is a non-array object, its model matches exactly, and the field is absent. Otherwise return no replacement. Do not mutate stored model headers. Preserving existing fields and stored headers follows the reference safety behavior; the newly agreed routed-model rule is separate. Other extensions may independently set conflicting headers or fields.
 
 Implementation state: eligibility, header, and payload helpers and the corresponding Pi event hooks are implemented and covered by isolated and Pi API fixture tests. Packed Pi 0.87.1 loads the extension, but real provider requests have not been exercised.
+
+The native-first actual-request/routed-model rule above is newly agreed intended behavior. Existing selected-model fixture coverage and baseline loading checks do not prove this rule or real provider fast-service support; add regressions and public-API conformance before changing runtime hooks.
 :::
 
 :::mara design DES-FAST-STATUS
@@ -127,6 +131,8 @@ With a Pi extension fixture, exercise `/fast`, F3, explicit `on`, `off`, and `st
 :verifies: DES-FAST-REQUEST
 
 Cover every allowed model id on each applicable wire API, prefixed proxy ids, unknown ids/APIs, no model, and the Codex OAuth/API-key distinction. Check exact payload model matching, non-record payloads, and existing speed/tier fields. Check Claude headers with absent, mixed-case, user-provided, duplicate, OAuth and non-OAuth beta tokens; disabled and unsupported events leave headers untouched and model configuration unmodified. Exercise the actual Pi event hooks, not just pure helpers, when the package is implemented.
+
+Add regressions for selected virtual versus actual request identity, supported and unsupported routes, changed routes without selection changes, unavailable identity/auth/capability information, and safe no-mutation behavior. Verify the public Pi hook boundary with isolated fixtures before relying on it; unrelated classifier/image requests must not be modified based on the selected chat model. Source/catalog model availability alone does not establish fast-service support, including Sol 6.1. These new checks have not run.
 :::
 
 :::mara verification VER-FAST-STATUS
@@ -139,4 +145,6 @@ Cover every allowed model id on each applicable wire API, prefixed proxy ids, un
 :verifies: DES-FAST-STATUS
 
 Exercise off/on/unsupported transitions and updates after model selection, toggle, and restoration. Verify native `setStatus` displays each short text with muted/accent/warning theme colors, and that a late snapshot subscriber receives the current key, source, text, semantic state and the complete state-color mapping; shutdown clears and disposes the producer. Check disabled status remains visible and status queries do not change state. This exercises the existing state-color feature of [[DES-STATUSLINE-PROTOCOL]], not a proposed protocol change.
+
+Exercise routed applicability updates and unavailable actual-model information without reporting eligibility from stale selection/other-branch context. Keep enabled intent distinct from supported applicability. This native-first coverage is still planned.
 :::

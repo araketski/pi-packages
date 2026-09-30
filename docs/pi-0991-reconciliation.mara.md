@@ -18,10 +18,13 @@ setup; SDK sessions do not automatically inherit the CLI's built-ins.
 
 The inspected delta does not supply durable managed background jobs, a shared
 owner/observer gate contract, a Herdr execution backend, goal evidence policy,
-or OS inhibition. Those gaps alone do not establish the six-package split;
-package boundaries remain subject to the paused native-first design review.
-Producer independence still applies. Parallel nested tools are not a persistent
-job manager.
+or OS inhibition. Those gaps alone did not establish package boundaries. After
+the native-first review, the user explicitly reconfirmed independently installable
+local jobs, Herdr, goal, caffeinate and gates-inspection extensions, with only
+necessary execution lifecycle/ownership/storage/delivery shared between local and
+Herdr execution; see [[DES-JOBS-PACKAGE-BOUNDARY]]. Pi retains tool discovery,
+composition and agent scheduling. Producer independence still applies. Concrete
+interfaces and proof mechanisms remain unverified; the campaign is still paused.
 
 ## Native capabilities to reuse
 
@@ -32,6 +35,11 @@ job manager.
   `isError`, and specify exposure, namespace, and capability annotations. Native
   `ctx.executeTool()` handles validation, hooks, cancellation, and nested events.
   Annotations are unverified hints, not ownership proof or an approval framework.
+  [[REQ-PI-ATOMIC-TOOLS]] now requires single-purpose namespaced operations across
+  repository packages, replacing the old one-jobs-tool decision. Managed bash
+  stays directly available as the native replacement; other tools use enabled
+  native discovery or direct fallback without re-enabling disabled tools or
+  rewriting settings. Public registration/disablement semantics still need probes.
 - Preserve native sessions, custom entries/messages, queueing, actionable
   `turn_end`/`agent_before_settle`, and notification-only `agent_settled`. Do not
   equate low-level `agent_end`, queue acceptance, or RPC prompt disposition with
@@ -50,9 +58,12 @@ job manager.
   Subsequent [[EVD-GOAL-CLASSIFIER-PILOT]] records 100 authorized synthetic calls;
   [[DES-GOAL-CLASSIFIER-POLICY]] records the agreed provisional profile and limits.
   Actual goal integration and calibrated production accuracy remain unverified.
-- Native virtual-model routing and image generation remain unselected features.
-  Account for Pi-attributed usage where the budget contract requires it, without
-  counting nested usage twice. Do not classify command lifetime, ownership, or
+- Support configured native virtual models; do not build a separate routing
+  extension. The statusline will show selected versus observed actual model, and
+  fast-mode must establish actual request identity and support or remain
+  unsupported. Image-generation features remain unselected.
+  Count all Pi-attributed active-branch usage in the statusline and relevant goal
+  budgets without counting nested/aggregate usage twice. Do not classify command lifetime, ownership, or
   delivery receipts from semantic model judgments.
 
 ## Nested tools and delivery
@@ -121,6 +132,34 @@ Pi host. Follow the existing package contracts rather than silently changing pee
 ranges or consumer infrastructure. Built-ins can be disabled/replaced, and
 `--no-extensions` now also disables built-in extensions: explicitly configure
 native codemode/MCP in SDK tests that intend to cover them.
+
+## Agreed changes not yet implemented
+
+- [[REQ-STATUSLINE-BUILTINS]] and [[DES-STATUSLINE-BUILTIN-VALUES]] now include
+  tool-result/native usage and selected-to-actual model display. Current code is
+  still assistant-usage-only and selected-model-only. Earlier passing fixtures
+  do not establish these new behaviors.
+- [[REQ-FAST-ELIGIBILITY]] requires safely established actual-request identity,
+  wire API/authentication and fast-service support, otherwise unsupported. Public
+  hook feasibility and regressions remain necessary. Sol 6.1 is not automatically
+  added to the support list merely because it is available or selected for workers.
+- Current Nx theme/discovery clauses now refer to the already verified 0.99.1
+  baseline; historical 0.87.1 observations remain historical. The audit also found
+  that the generator accepts Pi's reserved `system` theme name: add a regression
+  against real host selection before fixing that gap. It is not fixed here.
+- [[DES-GOAL-CLASSIFIER-POLICY]] and [[EVD-GOAL-CLASSIFIER-PILOT]] separate agreed
+  provisional policy from actual limited calls and still-unverified goal runtime.
+  [[REQ-CAFFEINATE-AUTO-HOLD]] includes active classifier work outside assistant
+  turns, through public activity or generic gates rather than classifier-specific
+  consumer logic.
+
+Before implementation/API freeze, resolve native namespacing versus bash replacement
+and explicit disabling; model-visible nested receipts; public routed-model identity;
+foreground/handoff cancellation; reload/session-scoped callbacks; goal-directed turn
+ownership; and usage/activity attribution for classifier calls inside and outside
+tools. Record unsupported cases honestly rather than using private state or adding
+a tool broker. The existing Work graph is not dispatch authorization, and these
+notes do not claim those probes or new runtime checks ran.
 
 ## Verification before dispatch
 

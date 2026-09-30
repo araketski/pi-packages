@@ -59,6 +59,8 @@ Let users explicitly enable sustained work toward an auditable objective, retain
 :contributes_to: GOAL-PERSISTENT-AUTONOMY
 
 Maintain one current goal per conversation branch. Preserve /goal creation, status, waits, evidence, evidence reset, pause, resume, continue, clear, restart-policy, no-progress, and statusbar controls. Model-driven creation or replacement requires explicit user intent, not inference from an ordinary task. Use the reference replacement/reset confirmations, reject stale confirmations, and preserve terminal audit records. Expose a single-purpose namespaced goal-inspection tool as read-only in active, paused, complete, budget-limited, and unset states; absence of a goal is a valid inspection result. Restrict evidence mutation and completion to an active current goal. Pause and clear control only goal autonomy; they do not cancel jobs or clear producer gates.
+
+All model-facing goal operations follow [[REQ-PI-ATOMIC-TOOLS]]; the user-facing /goal command family need not be split into separate slash commands. Exact names remain a public API design, not a requirement to preserve legacy unnamespaced tool names.
 :::
 
 :::mara requirement REQ-GOAL-CLASSIFIERS

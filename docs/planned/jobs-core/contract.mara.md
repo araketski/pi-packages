@@ -55,11 +55,11 @@ separately specified [Pi runtime support policy](../../pi-compatibility.mara.md)
 If the first shipping release is `0.4.0`, and the first incompatible change ships
 in `0.4.12`, the markers are:
 
-| Core package release | Jobs contract version |
-| --- | --- |
-| `0.4.0` through compatible `0.4.11` | `0.4.0` |
-| `0.4.12` with the incompatible change | `0.4.12` |
-| Later releases compatible with that revision | Still `0.4.12` |
+| Core package release                         | Jobs contract version |
+| -------------------------------------------- | --------------------- |
+| `0.4.0` through compatible `0.4.11`          | `0.4.0`               |
+| `0.4.12` with the incompatible change        | `0.4.12`              |
+| Later releases compatible with that revision | Still `0.4.12`        |
 
 This is an illustrative sequence, not a claim those releases exist. Compare
 markers by exact equality, never a version range or newer-than test. Even a small
@@ -95,6 +95,8 @@ tasks; agent messaging and parent-child orchestration are not prerequisites.
 Use three packages: pi-jobs owns the replacement bash tool, local execution adapter, and unified job tools/UI; pi-herdr owns Herdr execution and full workspace, worktree, tab, and pane integration; pi-jobs-core supplies reusable job policy and an explicit owner/observer contract. Keep backend execution and ownership/liveness evidence in adapters, and lifecycle, reconciliation policy, waiting, output/result bookkeeping, completion delivery, and gate integration in the core. The observer UI does not independently redeliver owner results or take ownership of observed work. Independently loaded copies of the core must communicate through the explicit contract rather than an assumed package singleton. Herdr job tracking must not require pi-jobs UI registration. The core contract preserves each job's producer identity through observation, persistence, and results, separately from job/session identity, ownership, and contract version. No separate jobs-protocol package or agent messaging system is required.
 
 Apply [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]: backend adapters standardize their state and controls through the jobs contract. Consumers do not inspect which backend or extension supplied a job. Goal and caffeinate depend on the gates protocol, not on jobs-core or Herdr.
+
+The native-first review reaffirmed independently installable local jobs, Herdr, goal, caffeinate and gates-inspection extensions rather than one bundled workflow extension. Share only the necessary job lifecycle, ownership, storage/results, delivery and associated contract/gate obligations between local and Herdr execution. Pi remains responsible for native tool discovery/composition and agent scheduling; the core does not become a general tool broker, classifier client, router or second agent runtime. Goal/caffeinate/gates stay independent generic-gate consumers. Concrete public APIs and proof mechanisms remain to be designed and verified; agreement on boundaries is not scaffolding or dispatch authorization.
 :::
 
 :::mara requirement REQ-JOBS-RELEASE-COMPAT
@@ -143,6 +145,8 @@ Exercise an illustrative release sequence: core 0.4.0 and compatible releases th
 :justifies: REQ-JOBS-RELEASE-COMPAT
 
 Local bash commands that continue in the background and explicitly visible Herdr executions now provide two concrete consumers of the same job machinery. Place that machinery and its in-runtime observation contract in pi-jobs-core instead of keeping it internal to Herdr. This supersedes the packaging choice in [[ADR-HERDR-INTERNAL-JOBS-MODULE]], while preserving separation of job policy from terminal operations and exclusion of agent messaging infrastructure. Initial repository consumers are maintained and released together, so the end-to-end support guarantee targets matching releases. Separately, the core reports a hardcoded contract revision, bumped for incompatible changes, so third-party extensions can speak the same language without matching our package versions. Warn on contract-version mismatches, not merely release differences; preserve mixed-release compatibility where practical without promising a support matrix.
+
+The Pi 0.99.1 native-first review subsequently reconfirmed independent installation and a deliberately limited shared execution core. Native capabilities reduce custom orchestration, not the need to share the remaining job ownership/result/delivery obligations between the two concrete backends. This is an explicit user-approved boundary, not a conclusion inferred solely from missing host features. No additional model-routing extension, tool broker or classifier client was selected.
 :::
 
 :::mara requirement REQ-JOBS-PRODUCER-IDENTITY
