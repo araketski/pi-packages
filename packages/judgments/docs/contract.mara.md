@@ -1,8 +1,8 @@
 # Lightweight Pi judgment assistance
 
-This records the user-agreed purpose and initial scope. `judgments` is a staging
-label, not a frozen package or tool registration name. No package has been
-scaffolded and no implementation or quality/token-saving benefit is established.
+This records the user-agreed purpose and initial scope. The package is scaffolded at
+`packages/judgments` as `@araketski/pi-judgments`. The initial tools and skill are
+implemented and checked below; no quality/token-saving benefit is established.
 
 ## Initial scope and boundaries
 
@@ -15,10 +15,9 @@ deferred. Do not build a scenario marketplace, separate process, tool broker,
 provider client or shared framework before a concrete need exists.
 
 A judgment scenario is a saved classifier question set and its usage guidance,
-not a Mara `scenario` item or an executable action. Exact configuration syntax,
-public argument/result schemas and registration names remain implementation design
-work. Each tool has one coherent responsibility and must preserve
-[native atomic tool conventions](../../workflow-contracts.mara.md).
+not a Mara `scenario` item or an executable action. The initial public interface
+is recorded below. Each tool has one coherent responsibility and must preserve
+[native atomic tool conventions](../../../docs/workflow-contracts.mara.md).
 
 The portable Mara skill and Mara/Work operations remain agent-agnostic. Pi-specific
 judgment guidance belongs to the Pi package, not the portable skill. Its bundled
@@ -28,9 +27,83 @@ point and supply adequate evidence: usage
 guidance is assistance, not an enforcement guarantee. Confidence is not evidence,
 acceptance, authorization or proof of correctness.
 
-The goal extension's [classifier policy](../goal/classifiers.mara.md) is a separate
+The goal extension's [classifier policy](../../../docs/planned/goal/classifiers.mara.md) is a separate
 contract. Its per-active-goal cadence, pause behavior, cutoffs and reference model
 are not inherited by this on-demand assistant.
+
+## Implemented interface
+
+- `judgments_list_scenarios({})` returns `scenarios` with ID, purpose,
+  `use_when`, `avoid_when`, input descriptions and JSON `input_schema`,
+  outcomes and interpretation. It makes no classifier request.
+- `judgments_evaluate_scenario({scenario, input})` currently accepts
+  `mara-representation`. Required input is `content`, `purpose` and the
+  project's `flavours` mapping. Each flavour supplies `description`,
+  nonempty `use_when`, `avoid_when` (possibly empty) and
+  `distinguish_from` (possibly empty). Extra per-flavour schema fields may
+  be retained. Optional `context` supplies relevant existing knowledge.
+- `judgments_evaluate({state, questions})` accepts JSON-object state and a
+  nonempty named mapping of native `choice`, `bool` and `score` questions.
+  Each has nonblank instructions and criteria: a nonempty label-to-description
+  mapping, `true`/`false` descriptions, or an ordered description array.
+
+Tools share native namespace `judgments` while retaining unique registration
+names. Essential delegation/data-flow/authority guidance is in descriptions;
+the bundled skill remains entirely generic. Scenario metadata supplies the
+Mara checkpoint, schema-retrieval instructions and authoring responsibilities.
+
+Flags `--judgments-provider=<provider>` and `--judgments-model=<model-id>`
+select the native classifier; defaults are `openrouter` and
+`~typesafe/jev-latest`. No settings file, provider client or credentials are
+owned by the package. Supplied context is sent to the selected provider through
+Pi and may incur charges. Each evaluation submits one native request with
+automatic transport retries disabled; host cancellation is forwarded and late
+results after cancellation are not treated as assessments.
+
+Evaluation returns `advisory: true`, `classifier`, `guidance` and `status`:
+`assessed`, `inconclusive`, `unavailable`, `failed` or `aborted`.
+Successful native responses retain raw typed `answers`; native `usage` is
+included in structured and host tool results only when reported. Unavailable,
+failed and aborted results set the host error flag. Invalid arguments are
+rejected before classification, without echoing evidence. Provider diagnostics
+are not propagated because they can echo submitted content or credentials.
+
+The bundled scenario asks independent representation and conditional-flavour
+questions in one request. Returned `assessment.representation` is `item`,
+`narrative`, `mixed`, `insufficient` or `no_fit`. Only `item` includes a
+schema-declared `assessment.flavour`. `flavour_labels` maps internal `fN`
+probability labels to exact project names, avoiding collisions with custom
+names. Missing flavour context is distinct from no fit; both are inconclusive.
+There is no confidence cutoff or automatic action. Read uncertainty against
+evidence rather than interpreting `assessed` as truth.
+
+## Observed initial verification
+
+On Node 26.7.0, pnpm 12.8.1, Nx 23.2.1 and Pi SDK 0.99.1:
+
+- 19 automated tests passed: controlled native responses/failures/cancellation,
+  local discovery, all representation outcomes, custom vocabulary and guidance
+  placement, plus source and independently installed npm/pnpm artifact replay.
+- Source `typecheck`, `lint` and `pi-check` passed. Both fresh consumer
+  tarballs passed `pi-check-package`. Publication allowlisting excluded tests,
+  compiler configuration and repository-only Mara specifications.
+- The offline HTTP replay exercised real Pi discovery, tool execution, native
+  System One bool-wire adaptation, host credentials, usage reporting, provider
+  failure and configured unavailability without classifier fallback, automatic
+  hooks or main-model/config changes.
+- The development workspace's frozen-lockfile install succeeded.
+
+Reproduce repository checks through `pnpm nx run-many -t
+test,typecheck,lint,pi-check -p @araketski/pi-judgments`. This machine used
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_PREFER_NODE_STRIP_TYPES=false`
+to avoid its plugin-worker/native-TS loading issues. For explicit packing use
+`pnpm nx pack @araketski/pi-judgments --packDestination=<absolute-directory>`,
+then `pnpm nx run @araketski/pi-judgments:pi-check-package
+--tarball=<absolute-archive>`.
+
+These checks use controlled answers and local HTTP, not a live Jev accuracy
+campaign. They do not prove quality improvement, token savings, reliable agent
+invocation, other Pi versions, licensing completeness or publication readiness.
 
 ## Agreed contract
 
@@ -115,5 +188,5 @@ Use controlled classifier responses to exercise both evaluation tools: bundled s
 
 Supply a custom Mara vocabulary and check it is preserved in classification input rather than replaced with built-in flavours. Exercise item/flavour, narrative, mixed-content and insufficient/no-fit responses with controlled answers. Verify that the tools do not retrieve Mara context, mutate knowledge, change the main model or alter permissions. Missing required input must not silently produce a successful assessment. Exercise configured classifier selection, unavailable credentials/model, provider failure and cancellation; require honest outcomes without provider fallback. Inspect usage handling through supported native tool results and preservation of explicit approval/clarification requirements in guidance.
 
-These checks establish the operation contracts, not classifier accuracy, token savings, reliable invocation by every agent or real-world authoring quality. Tests can be automated without requiring the user to perform a manual evaluation campaign. No implementation checks have run for this planned assistant.
+These checks establish the operation contracts, not classifier accuracy, token savings, reliable invocation by every agent or real-world authoring quality. Tests can be automated without requiring the user to perform a manual evaluation campaign. Observed initial checks and their limitations are recorded in the Observed initial verification section; an accepted verification definition is not itself a passing execution.
 :::

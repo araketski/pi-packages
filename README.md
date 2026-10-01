@@ -22,6 +22,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Planned caffeinate contract](docs/planned/caffeinate/contract.mara.md) and [jobs integration](docs/planned/caffeinate/jobs-integration.mara.md)
 - [Planned gates inspection and visibility](docs/planned/gates/contract.mara.md)
 - [Questions extension](packages/questions/docs/contract.mara.md), [interaction/lifecycle design](packages/questions/docs/design.mara.md) and [verification plan](packages/questions/docs/verification.mara.md)
+- [On-demand judgment tools](packages/judgments/README.md) and [advisory contract](packages/judgments/docs/contract.mara.md)
 - [Session auto-naming](packages/session-name/README.md) and [terminal-title contract](packages/session-name/docs/contract.mara.md)
 
 ## Development

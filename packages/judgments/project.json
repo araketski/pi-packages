@@ -1,0 +1,25 @@
+{
+  "name": "@araketski/pi-judgments",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "test": {
+      "cache": false
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/judgments",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    },
+    "pack": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "packages/judgments",
+        "command": "pnpm pack --pack-destination={args.packDestination} --json",
+        "forwardAllArgs": false
+      }
+    }
+  }
+}

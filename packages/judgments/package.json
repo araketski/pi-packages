@@ -1,0 +1,29 @@
+{
+  "name": "@araketski/pi-judgments",
+  "version": "0.0.1",
+  "description": "On-demand typed judgments with reusable scenarios and a generic escape hatch",
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "typebox": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:pi-host",
+    "typebox": "catalog:pi-host"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/judgments/index.ts"
+    ],
+    "skills": [
+      "./skills/judgments"
+    ]
+  }
+}
