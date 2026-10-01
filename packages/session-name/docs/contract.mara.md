@@ -21,10 +21,15 @@ an independently authored source TypeScript extension using the repository's
 
 ## Operational guide
 
-Load the source package with `pi -e ./packages/session-name`, or install its local
-path with `pi install ./packages/session-name`. These are development workflows,
-not evidence of npm publication. Once an unnamed session's first exchange settles,
-its opening text supplies the title request. Saved names appear in native session
+Load the source package for one invocation with `pi -e ./packages/session-name`.
+To enable it only for this repository, run
+`pi install ./packages/session-name --local` from the repository root. Pi records
+`../packages/session-name` in `.pi/settings.json`, relative to that settings file;
+the source is loaded in place, not copied or installed globally. Project trust
+must be granted for the declaration to load. Use native `/reload` in an existing
+session, or start Pi again. Omitting `--local` installs into user-level settings
+instead. These are development workflows, not evidence of npm publication.
+Once an unnamed session's first exchange settles, its opening text supplies the title request. Saved names appear in native session
 selection. Resuming an already named session needs no new title-model request.
 
 The only optional configuration file is `<agent-dir>/session-name.json`, normally
