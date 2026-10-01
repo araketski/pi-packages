@@ -4,6 +4,7 @@ import { basename, join, relative, sep } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { StatuslineStatus } from '@araketski/pi-statusline-protocol';
 import { addStatus, compact } from './shared.js';
+import { modelText } from './model.js';
 
 function projectName(cwd: string): string {
   const path = join(cwd, 'package.json');
@@ -43,7 +44,7 @@ export function collectCore(
   }
   if (keys.has('project')) addStatus(items, keys, 'project', projectName(ctx.cwd));
   if (keys.has('title')) addStatus(items, keys, 'title', ctx.sessionManager.getSessionName());
-  if (keys.has('model')) addStatus(items, keys, 'model', ctx.model?.id ?? 'unknown');
+  if (keys.has('model')) addStatus(items, keys, 'model', modelText(ctx));
   if (keys.has('thinking')) {
     const level = pi.getThinkingLevel();
     addStatus(items, keys, 'thinking', level, level);
