@@ -2,12 +2,14 @@
 
 The user approved this next-increment design after reviewing JSON-only,
 filename-based scenario identity, fixed/dynamic criteria, agent-facing preparation
-guidance and scope/loading rules. It extends the [core contract](contract.mara.md);
+guidance and scope/loading rules. The subsequently approved layout keeps a
+`config.json` for provider/model selection next to `scenarios/`. It extends the [core contract](contract.mara.md);
 the advisory/native-runtime boundaries remain authoritative.
 
 **Implementation state:** approved, not implemented. The current package still
 has three tools and a hardcoded Mara scenario. Its [initial verification](contract.mara.md#observed-initial-verification)
-does not verify the file loader, validation tool or revised input/result contract.
+does not verify configuration-file selection, the file loader, validation tool
+or revised input/result contract.
 This document is the canonical specification for those changes, not a claim of
 delivery or classifier quality.
 
@@ -43,6 +45,8 @@ Provide read-only validation of saved definitions without classification. Agents
 
 Store one JSON file per scenario under `<agent-dir>/judgments/scenarios/`, `<cwd>/.pi/judgments/scenarios/`, or the package's bundled `scenarios/` directory. The agent directory defaults to `~/.pi/agent` and follows Pi configuration. IDs come from filename stems; do not store another `id` inside the definition. JSON is the only supported definition format.
 
+Support optional package-owned JSON classifier-selection configuration at `<agent-dir>/judgments/config.json` and `<cwd>/.pi/judgments/config.json`, alongside each scope's `scenarios/` directory. Configuration contains `provider` and `model`, not a router setting. Resolve selection with explicit `--judgments-provider` / `--judgments-model` CLI overrides taking precedence over trusted project configuration, then global configuration, then the existing defaults `openrouter` and `~typesafe/jev-latest`. Default-valued flag registrations must not be mistaken for explicit user overrides. Keep credentials in Pi's existing credential management, not in this file; do not introduce router logic, rewrite host settings or create configuration automatically. The configuration file is not a scenario and must not enter scenario discovery. Project configuration follows the same host trust boundary as project scenario data.
+
 Use camelCase metadata: `formatVersion` (initially 1), `mode`, `purpose`, `useWhen`, `avoidWhen`, `inputSchema`, `questions` and `interpretation`. `inputSchema` is JSON Schema for supplied evidence; standard property `description` and optional `examples` explain input meanings and preparation. Types, required fields and constraints validate structure, not semantic adequacy. Do not create a separate input glossary or rename external source data such as Mara's schema keys.
 
 Questions are keyed by question ID and retain native classifier `type`, `instructions` and fixed `criteria`. With `mode: fixed`, every question must contain criteria; an omission is a definition error. With `mode: dynamic`, at least one question omits criteria, and each omitted question requires nonblank agent-facing `criteriaGuidance`. Fixed questions may coexist. The mode must match the question contents rather than being silently inferred or repaired.
@@ -70,6 +74,8 @@ The generic skill teaches discovery, preparation from scenario metadata, evaluat
 :verifies: DES-JUDGMENTS-DECLARATIVE
 
 Automate fixed, dynamic and mixed-question scenario fixtures using controlled native classifier responses. Confirm filename-based identity, JSON-only definitions, camelCase metadata, mode/criteria consistency, required dynamic preparation guidance, evidence-schema validation, matching criteria shapes and rejection of missing criteria, unknown question IDs or fixed-criteria overrides before classification. Confirm both valid modes produce ordinary native questions and retain raw typed answers and interpretation without domain executors, expression evaluation or a programmable result mapper.
+
+Exercise optional global and trusted project `judgments/config.json` files with explicit provider/model CLI overrides and absent configuration. Verify the approved selection precedence, preservation of the existing defaults and distinction between explicit flags and flag defaults. Declined project trust must exclude project configuration as well as scenarios. Confirm config.json is not discovered as a scenario, no router setting or separate credential store is introduced, and configuration reads do not rewrite host settings or create files. Configuration behavior remains intended, not verified by existing CLI-only tests.
 
 Use isolated agent and working directories to check bundled/global/project loading, configured agent-directory resolution, host project-trust allow/deny behavior, precedence, same-scope duplicates, invalid overrides blocking lower definitions, visible diagnostics and continued use of unrelated valid scenarios. Modify saved files between explicit calls and observe refreshed definitions without a watcher. Include a project containing only the custom scenario folder so native trust behavior is not assumed from conventional-resource tests.
 
