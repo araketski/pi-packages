@@ -7,8 +7,10 @@ guidance and scope/loading rules. The subsequently approved layout keeps a
 the advisory/native-runtime boundaries remain authoritative.
 
 **Implementation state:** partial. Pure JSON definition validation and native
-request assembly pass 28 controlled tests; the public tools are not wired to
-those definitions yet. The current package still has three tools and a hardcoded
+request assembly pass 28 controlled tests. Scoped JSON loading and pair-based
+classifier configuration pass another 14 tests, including duplicate/invalid
+blocks, refreshed reads and no automatic file creation. The public tools are not
+wired to those modules yet. The current package still has three tools and a hardcoded
 Mara scenario. Its [initial verification](contract.mara.md#observed-initial-verification)
 does not verify configuration-file selection, the file loader, validation tool
 or revised input/result contract.
