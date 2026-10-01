@@ -6,8 +6,10 @@ guidance and scope/loading rules. The subsequently approved layout keeps a
 `config.json` for provider/model selection next to `scenarios/`. It extends the [core contract](contract.mara.md);
 the advisory/native-runtime boundaries remain authoritative.
 
-**Implementation state:** approved, not implemented. The current package still
-has three tools and a hardcoded Mara scenario. Its [initial verification](contract.mara.md#observed-initial-verification)
+**Implementation state:** partial. Pure JSON definition validation and native
+request assembly pass 28 controlled tests; the public tools are not wired to
+those definitions yet. The current package still has three tools and a hardcoded
+Mara scenario. Its [initial verification](contract.mara.md#observed-initial-verification)
 does not verify configuration-file selection, the file loader, validation tool
 or revised input/result contract.
 This document is the canonical specification for those changes, not a claim of
@@ -18,7 +20,9 @@ and working-directory conventions, not a resource kind Pi already discovers.
 A custom scenario directory alone is not one of Pi's documented native
 project-trust triggers. Implementation must verify the actual host trust
 behavior rather than equating directory presence or command-line extension
-loading with project trust.
+loading with project trust. The observed host result is true for custom-data-only
+projects without a prompt. The user explicitly accepted that behavior: use the
+host's reported state, preserve denials, and add no extra trigger requirement.
 
 ## Approved contract
 
@@ -47,7 +51,7 @@ Store one JSON file per scenario under `<agent-dir>/judgments/scenarios/`, `<cwd
 
 Support optional package-owned JSON classifier-selection configuration at `<agent-dir>/judgments/config.json` and `<cwd>/.pi/judgments/config.json`, alongside each scope's `scenarios/` directory. Each configuration file contains a complete `provider` and `model` pair, not a router setting or a partial selection. Model IDs are provider-specific; do not independently merge these fields across configuration scopes. Select the trusted project pair over the global pair, then the existing default pair `openrouter` and `~typesafe/jev-latest`. Explicit `--judgments-provider` / `--judgments-model` CLI overrides take precedence: a model-only override applies to the selected provider, while changing that provider requires an explicit model. Default-valued flag registrations must not be mistaken for explicit user overrides. Invalid configuration produces explicit errors rather than being treated as absent or triggering lower-scope/default fallback. An unavailable provider/model combination returns an honest error without guessing a replacement. Keep credentials in Pi's existing credential management, not in this file; do not introduce router logic, rewrite host settings or create configuration automatically. The configuration file is not a scenario and must not enter scenario discovery. Project configuration follows the same host trust boundary as project scenario data.
 
-Use camelCase metadata: `formatVersion` (initially 1), `mode`, `purpose`, `useWhen`, `avoidWhen`, `inputSchema`, `questions` and `interpretation`. `inputSchema` is self-contained JSON Schema for supplied evidence, compatible with Pi's validation facilities; standard property `description` and optional `examples` explain input meanings and preparation. Do not fetch remote schemas or resolve external schema dependencies. Reject unsupported schema features explicitly during definition validation rather than silently ignoring constraints. Types, required fields and constraints validate structure, not semantic adequacy. Do not create a separate input glossary or rename external source data such as Mara's schema keys.
+Use camelCase metadata: `formatVersion` (initially 1), `mode`, `purpose`, `useWhen`, `avoidWhen`, `inputSchema`, `questions` and `interpretation`. `inputSchema` is self-contained JSON Schema for supplied evidence, compatible with Pi's validation facilities; standard property `description` and optional `examples` explain input meanings and preparation. Do not fetch remote schemas or resolve external schema dependencies. Reject unsupported schema features explicitly during definition validation rather than silently ignoring constraints. Version 1 supports boolean schemas, type, properties/patternProperties, additionalProperties, required, property-count constraints, items, array length/uniqueness, string length/pattern, numeric bounds/multipleOf, enum/const, allOf/anyOf/oneOf/not, and title/description/examples/default annotations. References (including local references), dialect declarations, formats and other keywords are explicitly unsupported in this increment. Types, required fields and constraints validate structure, not semantic adequacy. Do not create a separate input glossary or rename external source data such as Mara's schema keys.
 
 Questions are keyed by question ID and retain native classifier `type`, `instructions` and fixed `criteria`. With `mode: fixed`, every question must contain criteria; an omission is a definition error. With `mode: dynamic`, at least one question omits criteria, and each omitted question requires nonblank agent-facing `criteriaGuidance`. Fixed questions may coexist. The mode must match the question contents rather than being silently inferred or repaired.
 
@@ -55,7 +59,7 @@ Evaluate a scenario with `{scenario, input, criteria?}`. Validate evidence again
 
 Retain `judgments_list_scenarios`, `judgments_evaluate_scenario` and unchanged generic `judgments_evaluate`; add separate read-only `judgments_validate_scenario` for saved definitions, without a classifier request or file repair. Discovery returns scenario identity, purpose, invocation/exclusion guidance, evidence schema with descriptions/examples, required dynamic question IDs/types and criteria guidance, interpretation, and source/scope. Fixed classifier rubrics stay internal. A known suitable scenario remains directly callable without repeated discovery.
 
-Resolve project over global over bundled definitions. Same-scope duplicate IDs are errors. An invalid higher-scope definition blocks that ID instead of falling back to another scope. Discovery reports invalid files while leaving unrelated valid scenarios usable. Refresh definitions on explicit calls, not through a background watcher. Respect Pi's project-trust decision when loading project definitions; configuration-directory presence and an explicitly loaded extension are not independent permission to load untrusted project data.
+Resolve project over global over bundled definitions. Same-scope duplicate IDs are errors. An invalid higher-scope definition blocks that ID instead of falling back to another scope. Discovery reports invalid files while leaving unrelated valid scenarios usable. Refresh definitions on explicit calls, not through a background watcher. Gate project definitions and configuration on the host context's isProjectTrusted() result. A false result excludes project data. Accept Pi's true result for custom-data-only projects even when no native trust prompt ran; the user explicitly waived a separate trigger requirement. Do not introduce another approval system, inspect or change the host trust store, or automatically create conventional resources to force a prompt.
 
 Convert the bundled Mara scenario into JSON using the same capabilities as user-authored scenarios. Representation choices remain fixed; flavour criteria are caller-supplied, so its mode is dynamic. Its criteria guidance instructs the agent to follow the portable Mara skill, retrieve the selected project's actual schema and preserve description, use_when, avoid_when and distinguish_from in criterion descriptions, using JSON text when packaging multiple guidance fields. The agent supplies project vocabulary, not a preselected winning flavour or default engineering template. Relevant existing knowledge remains evidence supplied by the agent. The extension has no Mara connection.
 
