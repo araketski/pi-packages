@@ -55,6 +55,7 @@ function harness(
     beforeFactory?: () => void;
     interrupt?: 'ctrl+x';
     startup?: boolean;
+    tuiMode?: 'regular' | 'fullscreen';
   } = {},
 ) {
   let tool: ToolDefinition | undefined;
@@ -75,7 +76,11 @@ function harness(
   } as unknown as ExtensionAPI;
   const signal = new AbortController();
   const terminal = { rows: 40, columns: 80 };
-  const tui = { terminal, requestRender: vi.fn() } as unknown as TUI;
+  const tui = {
+    terminal,
+    mode: options.tuiMode ?? 'regular',
+    requestRender: vi.fn(),
+  } as unknown as TUI;
   const colors: Record<string, string> = {
     success: '\x1b[32m',
     accent: '\x1b[36m',
@@ -114,8 +119,8 @@ function harness(
     abort,
   } as unknown as ExtensionToolContext;
   questionsExtension(pi);
-  function emit(event: string) {
-    handlers.get(event)?.forEach((handler) => handler({ type: event }, ctx));
+  function emit(event: string, reason?: string) {
+    handlers.get(event)?.forEach((handler) => handler({ type: event, reason }, ctx));
   }
   if (options.startup !== false) emit('session_start');
   function definition() {
@@ -140,6 +145,7 @@ function harness(
     tui,
     terminal,
     theme,
+    kb,
     events,
     emissions,
     emit,
@@ -244,6 +250,22 @@ describe('Questions tool contract', () => {
     expect(h.emissions).toEqual([]);
   });
 
+  it('scopes only conflicting fullscreen page keys and restores owned bindings without losing other changes', async () => {
+    const h = harness({ tuiMode: 'fullscreen' });
+    h.kb.setUserBindings({ 'tui.altScreen.pageUp': ['pageUp', 'ctrl+p'] });
+    const result = h.start();
+    expect(h.kb.getKeys('tui.altScreen.pageUp')).toEqual(['ctrl+p']);
+    expect(h.kb.getKeys('tui.altScreen.pageDown')).toEqual([]);
+    h.kb.setUserBindings({ ...h.kb.getUserBindings(), 'tui.editor.undo': 'alt+z' });
+    h.key(escape);
+    await result;
+    expect(h.kb.getKeys('tui.altScreen.pageUp')).toEqual(['pageUp', 'ctrl+p']);
+    expect(h.kb.getKeys('tui.altScreen.pageDown')).toEqual(['pageDown']);
+    expect(h.kb.getUserBindings()['tui.editor.undo']).toBe('alt+z');
+    h.screen().dispose();
+    expect(h.kb.getKeys('tui.altScreen.pageUp')).toEqual(['pageUp', 'ctrl+p']);
+  });
+
   it('does not submit initial focus; Enter submits the recommended original option', async () => {
     const h = harness();
     const result = h.start();
@@ -339,6 +361,19 @@ describe('Questions tool contract', () => {
       answers: [{ kind: 'custom', answer: 'jkh123\nsecond  line' }],
     });
     expect(JSON.stringify((await result).content)).toContain('second  line');
+  });
+
+  it('keeps textual focus, recommendation and Chosen cues when semantic colors overlap', async () => {
+    const h = harness();
+    h.theme.fg = (_color, text) => `\x1b[32m${text}\x1b[39m`;
+    const result = h.start(two);
+    h.key(up);
+    h.key(enter);
+    h.key(left);
+    expect(h.text()).toContain('> 1. Files [Chosen]');
+    expect(h.text()).toContain('2. SQLite [Recommended]');
+    h.key(escape);
+    await result;
   });
 
   it('keeps recommendation semantic styling independent of focus and Chosen', async () => {
@@ -469,6 +504,26 @@ describe('invocation ownership and optional attention', () => {
       answers: [],
     });
   });
+
+  it.each([
+    ['reload', 'reload'],
+    ['new', 'session_changed'],
+    ['resume', 'session_changed'],
+    ['fork', 'session_changed'],
+    ['quit', 'shutdown'],
+  ])(
+    'uses public shutdown metadata %s without inventing a private reload event',
+    async (reason, expected) => {
+      const h = harness();
+      const result = h.start();
+      h.emit('session_shutdown', reason);
+      expect(expectPayload(await result, h)).toMatchObject({
+        status: 'cancelled',
+        reason: expected,
+        answers: [],
+      });
+    },
+  );
 
   it.each(['options', 'editor', 'review'])(
     'balances signal abort in %s and removes its listener',
@@ -627,6 +682,24 @@ describe('invocation ownership and optional attention', () => {
     await result;
     expect(count).toBe(1);
     h.events.emit('herdr:blocked', { active: false });
+    expect(count).toBe(0);
+  });
+
+  it('preserves Questions when the independent producer releases first', async () => {
+    vi.stubEnv('HERDR_ENV', '1');
+    const h = harness();
+    let count = 0;
+    h.events.on('herdr:blocked', (value) => {
+      count += (value as { active: boolean }).active ? 1 : -1;
+    });
+    h.events.emit('herdr:blocked', { active: true });
+    const result = h.start();
+    expect(count).toBe(2);
+    h.events.emit('herdr:blocked', { active: false });
+    expect(count).toBe(1);
+    expect(h.completions).toBe(0);
+    h.key(enter);
+    expect(expectPayload(await result, h)).toMatchObject({ status: 'answered' });
     expect(count).toBe(0);
   });
 

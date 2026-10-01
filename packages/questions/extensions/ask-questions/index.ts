@@ -104,8 +104,14 @@ export default function questionsExtension(pi: ExtensionAPI) {
   pi.on('session_before_tree', () => {
     active?.cancel('session_changed');
   });
-  pi.on('session_shutdown', () => {
-    active?.cancel('shutdown');
+  pi.on('session_shutdown', (event) => {
+    active?.cancel(
+      event.reason === 'reload'
+        ? 'reload'
+        : ['new', 'resume', 'fork'].includes(event.reason)
+          ? 'session_changed'
+          : 'shutdown',
+    );
     rootStarted = false;
   });
 

@@ -335,6 +335,23 @@ Invalidate layout on width/height/content/theme changes. Cache only correctly
 keyed layout; do not retain theme-styled strings across invalidation. Mouse
 support is optional; there is always a complete keyboard path in regular and
 fullscreen TUI.
+
+## Selected-host input adaptation
+
+Pi 0.99.1 fullscreen consumes its viewport paging keys before inline component
+input. While the questionnaire is live, use the supplied keybindings manager's
+public in-memory API to subtract only keys that collide with question/editor
+paging from the two fullscreen viewport-page actions. Keep noncolliding keys and
+all unrelated actions. Dispose restores only the exact overrides still owned by
+this invocation, preserving other changes; never write keybindings/settings files
+or replace Pi's layout root. Actual regular/fullscreen page dispatch and binding
+restoration have deterministic and controlled PTY checks.
+
+The explicit Escape editor-back/dialog-dismiss rule takes precedence over the
+host's default Escape interrupt collision. Other configured interrupts and Ctrl+C
+reach host abort before editor input; the selected-host PTY checks Ctrl+X and
+Ctrl+C. Host edit/paste processing supplies the editor value; Questions trims only
+its boundary whitespace, not internal text/line breaks in that submitted value.
 :::
 
 :::mara design DES-QUESTIONS-LIFECYCLE
@@ -384,9 +401,10 @@ cannot change the chosen outcome or call completion twice.
 
 Dismissal has reason dismissed; tool signal abort has reason aborted; session
 replacement/navigation has reason session_changed; runtime reload and shutdown
-use their corresponding reasons when distinguishable. If public lifecycle data
-does not distinguish reload from shutdown, use shutdown rather than inventing a
-private signal. Close through the completion callback supplied by
+use their corresponding reasons when distinguishable. The selected SDK exposes
+public session_shutdown.reason: map reload to reload, new/resume/fork to session_changed, and quit or unavailable reason data to shutdown.
+An earlier signal/pre-transition outcome still wins. Do not invent a private
+reload signal. Close through the completion callback supplied by
 `ctx.ui.custom()`, not by hiding an overlay or installing another component.
 Host behavior that suppresses aborted tool-result recording is not overridden.
 

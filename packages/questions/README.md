@@ -11,9 +11,9 @@ Not published. From this repository, install the checkout with:
 pi install ./packages/questions
 ```
 
-Source loading and deterministic behavior checks use Pi 0.99.1. Native TUI and
-packed-consumer verification remain pending; wildcard host peers do not promise
-compatibility with other Pi versions.
+Source, packed-consumer and controlled native TUI checks use Pi 0.99.1. Wildcard
+host peers do not promise compatibility with other Pi versions. Actual Herdr
+hook/server and Goal composition remain unverified.
 
 Canonical contract, design, verification and Herdr-attention documentation lives
 in `packages/questions/docs/` in the

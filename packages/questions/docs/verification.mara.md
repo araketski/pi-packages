@@ -74,16 +74,66 @@ mechanical originality proof, legal determination or publication approval.
   regenerated lockfile and frozen pnpm install succeeded without changing selected
   versions. Source pi-check emitted the existing nx-pi TypeScript-module loader
   warning but completed successfully; it is not a native-loading or release proof.
-- **Pending:** fresh packed-consumer loading/archive checks and actual Pi TUI
-  regular/fullscreen, interrupt/focus/IME/editor-restoration and lifecycle operations.
-  Actual selected Herdr hook/server composition, reload ordering, real Goal
-  integration and any live-model guidance assessment are not established.
+- The subsequent verification increment passed **82 tests**: 61 deterministic
+  tool/UI-fixture tests, five pure-flow tests, one source-loader test, one fresh
+  packed-consumer test and 14 actual-host PTY tests. Resolved Nx typecheck, lint and
+  source pi-check passed again. The packed test explicitly runs pi-check-package
+  on its newly created archive, installs it with Pi/TUI 0.99.1 and TypeBox 1.3.27
+  into an independent npm consumer outside the repository, and loads its installed
+  entrypoint/helpers without workspace fallback. Exactly seven selected files
+  (four extension helpers, package.json, README and LICENSE) are packed; tests,
+  development configuration and Mara knowledge are absent. Catalog-backed peers
+  resolve to wildcard host peers. The installed tool also returns unavailable for
+  a direct RPC-context fixture without calling custom UI. Consumers are removed.
+- Actual Linux util-linux script/stty PTYs exercise model-issued calls through
+  Pi 0.99.1 using its public Faux provider, isolated HOME/agent/session directories,
+  offline startup and no inherited provider credentials or Herdr socket/pane.
+  Regular and fullscreen checks observe independent focus/recommendation ANSI
+  styling, recommendation persistence, native theme changes, custom drafts and
+  Shift+Enter multiline editing, review/explicit submission, cursor-marker
+  forwarding and host consumption, main-editor draft restoration and one normal
+  post-tool continuation. A real SIGWINCH resizes 80×32 to 18×12, with bounded
+  Unicode wrapping, accessible question paging and visible focus after scrolling.
+  This verifies cursor protocol behavior, not an actual desktop IME candidate UI.
+- Controlled PTYs observe Ctrl+X/Ctrl+C signal abort, completion before host
+  component assignment, new session, fork, switch, a vetoed pre-transition and
+  actual SIGTERM-driven graceful shutdown. Cancelled outputs have empty answers;
+  fresh prompts inherit neither choices nor drafts. Exactly one Questions release
+  leaves the synthetic producer counted. Native session-start ordering precedes
+  Questions acquisition; no real hook/server delivery is inferred from this.
+- The first native run exposed fullscreen interception of page keys. A fresh
+  regression failed for scoped paging, then the public in-memory keybinding
+  adaptation restored native paging and preserves noncolliding/other-owner
+  changes on disposal. Additional red tests demonstrated loss of public shutdown
+  reasons; the adapter now maps the selected SDK's reason data without inventing
+  a reload event. Fixture-only failures (a wrapped-text assertion, attempting
+  guarded operations while streaming, and reading an invalidated ctx at shutdown)
+  were corrected separately rather than disguised as product failures.
+- Pi 0.99.1 rejects tree navigation while streaming and defers/refuses live
+  reload: the PTY confirms the prompt stays live until an explicit abort, then
+  exercises the actual idle tree/reload operation and a fresh prompt. Thus direct
+  pre-event cancellation is deterministic evidence; **live-prompt cancellation by
+  actual tree/reload is not claimed** where the host guards the operation. Actual
+  shutdown/new/fork/switch paths above have separate observations.
+- The synthetic producer is exercised in both release orders and ordinary host
+  activity; overlapping semantic colors retain authoritative textual markers in
+  the deterministic fixture. Pi AI 0.99.1 is an additional catalog-backed
+  **test-only** dependency for the public Faux provider, not a Questions runtime
+  peer/dependency. Frozen installation succeeds without changing existing pins.
+- **Remaining limitations:** actual selected Herdr hook/socket/server receipt and
+  reload bus/hook composition, actual Goal (not implemented), desktop IME and
+  exhaustive terminal/theme coverage, RPC/JSON/print child-process mode checks,
+  and any live-model assessment have not run. Non-TUI guards are deterministic
+  plus the isolated packed RPC-context check. Release-time latest-version
+  selection, registry publication and support for other Pi versions are not
+  established. These passing subsets do not claim every accepted verification
+  definition has been executed completely.
 
 The selected host defaults app.interrupt to Escape. The explicitly accepted
 Escape editor-back/dialog-dismiss behavior takes precedence over that default
 collision; non-Escape configured interrupts and Ctrl+C route to host abort before
-editor input. The deterministic fixture checks a Ctrl+X remapping; actual host
-key dispatch still needs separate verification. Host editor edit/paste processing
+editor input. The deterministic and actual-host fixtures check a Ctrl+X remapping
+and Ctrl+C. Host editor edit/paste processing
 produces the submitted text; Questions trims only its outer whitespace, retaining
 internal text and line breaks from that editor value.
 

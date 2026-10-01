@@ -42,6 +42,7 @@ export class QuestionScreen implements Component, Focusable {
   private focusStart = 0;
   private focusEnd = 0;
   private readonly viewport: ScrollView;
+  private restorePaging?: () => void;
   constructor(
     private readonly tui: TUI,
     private readonly theme: Theme,
@@ -50,10 +51,46 @@ export class QuestionScreen implements Component, Focusable {
     actions: Actions,
   ) {
     this.actions = actions;
+    this.scopeFullscreenPaging();
     this.viewport = new ScrollView(
       { render: (width) => this.content(width), invalidate: () => {} },
       { scrollbar: 'hidden', overscroll: 'contain' },
     );
+  }
+  private scopeFullscreenPaging() {
+    if (this.tui.mode !== 'fullscreen') return;
+    // Fullscreen intercepts viewport keys before inline components. Temporarily
+    // subtract only keys owned by this dialog/editor from those two actions.
+    // Public in-memory bindings API; never write the user's keybindings file.
+    const previous = this.kb.getUserBindings();
+    const scoped = { ...previous };
+    const ownedKeys = new Set([
+      ...this.kb.getKeys('tui.select.pageUp'),
+      ...this.kb.getKeys('tui.select.pageDown'),
+      ...this.kb.getKeys('tui.editor.pageUp'),
+      ...this.kb.getKeys('tui.editor.pageDown'),
+    ]);
+    const changes = (['tui.altScreen.pageUp', 'tui.altScreen.pageDown'] as const).flatMap(
+      (action) => {
+        const keys = this.kb.getKeys(action);
+        const override = keys.filter((key) => !ownedKeys.has(key));
+        if (override.length === keys.length) return [];
+        scoped[action] = override;
+        return [{ action, override }];
+      },
+    );
+    if (!changes.length) return;
+    this.kb.setUserBindings(scoped);
+    this.restorePaging = () => {
+      const current = this.kb.getUserBindings();
+      for (const { action, override } of changes) {
+        // Preserve changes another producer made during our interval.
+        if (current[action] !== override) continue;
+        if (previous[action] === undefined) delete current[action];
+        else current[action] = previous[action];
+      }
+      this.kb.setUserBindings(current);
+    };
   }
   get focused() {
     return this.hasFocus;
@@ -304,6 +341,9 @@ export class QuestionScreen implements Component, Focusable {
     this.actions = undefined;
     this.dropEditor();
     this.flow.clear();
+    const restorePaging = this.restorePaging;
+    this.restorePaging = undefined;
+    restorePaging?.();
     // Host disposal without a prior completion still cancels this invocation.
     actions?.dismiss();
   }

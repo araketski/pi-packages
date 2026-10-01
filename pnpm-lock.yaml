@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@earendil-works/pi-ai':
+      specifier: 0.99.1
+      version: 0.99.1
     '@earendil-works/pi-coding-agent':
       specifier: 0.99.1
       version: 0.99.1
@@ -193,6 +196,9 @@ importers:
 
   packages/questions:
     devDependencies:
+      '@earendil-works/pi-ai':
+        specifier: 'catalog:'
+        version: 0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(supports-color@8.1.1)(undici@8.10.2)(ws@8.22.0)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(supports-color@8.1.1)(ws@8.22.0)
