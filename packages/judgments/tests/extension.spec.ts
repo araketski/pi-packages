@@ -3,8 +3,16 @@ import type {
   ExtensionToolContext,
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
-import { readFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const directories: string[] = [];
+afterEach(() => {
+  vi.unstubAllEnvs();
+  directories.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }));
+});
 import { Value } from 'typebox/value';
 import extension from '../extensions/judgments/index.ts';
 
@@ -40,6 +48,18 @@ const input = {
     },
   },
 };
+const criteria = {
+  flavour: {
+    ...Object.fromEntries(
+      Object.entries(input.flavours).map(([name, guidance], i) => [
+        `f${i}`,
+        JSON.stringify({ name, ...guidance }),
+      ]),
+    ),
+    none: 'No declared flavour fits',
+    insufficient: 'Missing context',
+  },
+};
 const questions = {
   approved: {
     type: 'bool',
@@ -49,6 +69,9 @@ const questions = {
 };
 
 function setup(flags: Record<string, string> = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'judgments-regression-'));
+  directories.push(dir);
+  vi.stubEnv('PI_CODING_AGENT_DIR', dir);
   const tools = new Map<string, ToolDefinition>();
   const registeredFlags = new Map();
   const api = {
@@ -72,11 +95,17 @@ function setup(flags: Record<string, string> = {}) {
     getAvailableOfType: vi.fn().mockResolvedValue([model]),
     classify,
   };
-  const ctx = { modelRegistry: registry } as unknown as ExtensionToolContext;
+  const ctx = {
+    cwd: dir,
+    isProjectTrusted: () => false,
+    modelRegistry: registry,
+  } as unknown as ExtensionToolContext;
   async function call(name: string, args: unknown, signal?: AbortSignal) {
     const tool = tools.get(name);
     expect(tool, `registered tool ${name}`).toBeDefined();
-    const result = await tool!.execute('test-call', args, signal, undefined, ctx);
+    const prepared =
+      name === 'judgments_evaluate_scenario' ? { ...(args as object), criteria } : args;
+    const result = await tool!.execute('test-call', prepared, signal, undefined, ctx);
     expect(Value.Check(tool!.outputSchema!, result.structuredContent)).toBe(true);
     return result;
   }
@@ -88,12 +117,13 @@ function setup(flags: Record<string, string> = {}) {
 // @mara checks REQ-JUDGMENTS-NATIVE-CLASSIFIER
 // @mara checks REQ-JUDGMENTS-MARA-CONTEXT
 describe('on-demand judgment tools', () => {
-  it('registers three uniquely named, structured tools without lifecycle observers', async () => {
+  it('registers four uniquely named, structured tools without lifecycle observers', async () => {
     const { tools, api, classify, call } = setup();
     expect([...tools.keys()]).toEqual([
       'judgments_list_scenarios',
       'judgments_evaluate_scenario',
       'judgments_evaluate',
+      'judgments_validate_scenario',
     ]);
     expect(api.on).not.toHaveBeenCalled();
     for (const tool of tools.values()) {
@@ -105,10 +135,10 @@ describe('on-demand judgment tools', () => {
       scenarios: [
         {
           id: 'mara-representation',
-          use_when: expect.any(Array),
-          avoid_when: expect.any(Array),
-          inputs: expect.any(Object),
-          outcomes: expect.any(Object),
+          useWhen: expect.any(Array),
+          avoidWhen: expect.any(Array),
+          inputSchema: expect.any(Object),
+          dynamicQuestions: expect.any(Object),
         },
       ],
     });
@@ -198,7 +228,8 @@ describe('on-demand judgment tools', () => {
     expect(JSON.stringify(request.questions.flavour)).toContain('distinguish_from');
     expect(result.structuredContent).toMatchObject({
       status: 'assessed',
-      assessment: { representation: 'item', flavour: 'obligation' },
+      answers: { representation: { choice: 'item' }, flavour: { choice: 'f0' } },
+      interpretation: expect.stringContaining('no computed assessment'),
     });
   });
 
@@ -236,12 +267,10 @@ describe('on-demand judgment tools', () => {
         input,
       });
       expect(result.structuredContent).toMatchObject({
-        status: representation === 'insufficient' ? 'inconclusive' : 'assessed',
-        assessment: { representation },
+        status: 'assessed',
+        answers: { representation: { choice: representation } },
       });
-      expect((result.structuredContent as { assessment: object }).assessment).not.toHaveProperty(
-        'flavour',
-      );
+      expect(result.structuredContent).not.toHaveProperty('assessment');
     },
   );
 
@@ -267,7 +296,7 @@ describe('on-demand judgment tools', () => {
     expect(
       (await call('judgments_evaluate_scenario', { scenario: 'mara-representation', input }))
         .structuredContent,
-    ).toMatchObject({ status: 'inconclusive', assessment: { representation: 'no_fit' } });
+    ).toMatchObject({ status: 'assessed', answers: { flavour: { choice: 'none' } } });
   });
 
   it('distinguishes missing flavour context from no fitting flavour and explains dynamic labels', async () => {
@@ -293,9 +322,9 @@ describe('on-demand judgment tools', () => {
       (await call('judgments_evaluate_scenario', { scenario: 'mara-representation', input }))
         .structuredContent,
     ).toMatchObject({
-      status: 'inconclusive',
-      assessment: { representation: 'insufficient' },
-      flavour_labels: { f0: 'obligation', f1: 'architecture' },
+      status: 'assessed',
+      answers: { flavour: { choice: 'insufficient' } },
+      interpretation: expect.stringContaining('missing context, not no fit'),
     });
   });
 

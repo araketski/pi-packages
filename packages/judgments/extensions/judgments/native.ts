@@ -1,6 +1,7 @@
 import type { AgentToolResult, ExtensionToolContext } from '@earendil-works/pi-coding-agent';
 import { Value } from 'typebox/value';
 import { answer } from './schemas.ts';
+import type { Source } from './loading.ts';
 
 export type Request = Parameters<ExtensionToolContext['modelRegistry']['classify']>[1];
 export type NativeResult = Awaited<ReturnType<ExtensionToolContext['modelRegistry']['classify']>>;
@@ -16,8 +17,8 @@ export type Evaluation = {
   answers?: NativeResult['answers'];
   usage?: NativeResult['usage'];
   scenario?: string;
-  assessment?: Record<string, string>;
-  flavour_labels?: Record<string, string>;
+  interpretation?: string;
+  source?: Source;
 };
 
 function validAnswers(request: Request, result: NativeResult): boolean {
@@ -87,13 +88,14 @@ export async function evaluate(
   }
 }
 
-export function toolResult(data: Evaluation | { scenarios: readonly object[] }): AgentToolResult {
+export function toolResult<T extends object>(data: T): AgentToolResult {
+  const result = data as { usage?: AgentToolResult['usage']; status?: string; valid?: boolean };
   return {
     content: [{ type: 'text', text: JSON.stringify(data) }],
     details: {},
     structuredContent: data as AgentToolResult['structuredContent'],
-    ...('usage' in data && data.usage ? { usage: data.usage } : {}),
-    ...('status' in data && ['failed', 'unavailable', 'aborted'].includes(data.status)
+    ...(result.usage ? { usage: result.usage } : {}),
+    ...(result.valid === false || ['failed', 'unavailable', 'aborted'].includes(result.status ?? '')
       ? { isError: true }
       : {}),
   };

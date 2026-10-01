@@ -1,28 +1,26 @@
 # Lightweight Pi judgment assistance
 
-This records the user-agreed purpose and initial scope. The package is scaffolded at
-`packages/judgments` as `@araketski/pi-judgments`. The initial tools and skill are
-implemented and checked below; no quality/token-saving benefit is established.
-The [approved declarative-scenario design](declarative-scenarios.mara.md) extends
-this contract but is not implemented yet. Approval and the initial checks below
-do not establish delivery or verification of that next increment.
+This records the user-agreed purpose and scope of `@araketski/pi-judgments` at
+`packages/judgments`. The tools, generic skill and declarative JSON scenarios
+are implemented. The [declarative-scenario contract](declarative-scenarios.mara.md)
+records the current definition/loading interface and observed checks separately
+from approval. No quality/token-saving benefit is established.
 
 ## Initial scope and boundaries
 
-The implemented first increment provides three on-demand namespaced Pi tools:
-scenario listing, predefined scenario evaluation and generic question evaluation.
-It bundles one generic judgment skill and one Mara representation/flavour scenario.
-User-defined scenario files, clarification and proportionality scenarios, Work
-integration, automatic supervision, persistent decision state and review gates
-were deferred in that first increment. JSON definitions and read-only validation
-are now approved in [the next-increment contract](declarative-scenarios.mara.md);
-the other exclusions remain. Do not build a scenario marketplace, separate
+The package provides four on-demand namespaced Pi tools: scenario listing,
+saved scenario evaluation, generic question evaluation and read-only saved
+scenario validation. It bundles one generic judgment skill and one data-only
+Mara representation/flavour scenario. JSON definitions and scoped classifier
+configuration follow [the declarative contract](declarative-scenarios.mara.md).
+Clarification and proportionality scenarios, Work integration, automatic
+supervision, persistent decision state and review gates remain excluded. Do not build a scenario marketplace, separate
 process, tool broker, provider client or shared framework before a concrete need
 exists.
 
 A judgment scenario is a saved classifier question set and its usage guidance,
-not a Mara `scenario` item or an executable action. The initial public interface
-is recorded below. Each tool has one coherent responsibility and must preserve
+not a Mara `scenario` item or an executable action. The current public interface
+is summarized below. Each tool has one coherent responsibility and must preserve
 [native atomic tool conventions](../../../docs/workflow-contracts.mara.md).
 
 The portable Mara skill and Mara/Work operations remain agent-agnostic. Pi-specific
@@ -37,51 +35,54 @@ The goal extension's [classifier policy](../../../docs/planned/goal/classifiers.
 contract. Its per-active-goal cadence, pause behavior, cutoffs and reference model
 are not inherited by this on-demand assistant.
 
-## Implemented first-increment interface
+## Implemented interface
 
-- `judgments_list_scenarios({})` returns `scenarios` with ID, purpose,
-  `use_when`, `avoid_when`, input descriptions and JSON `input_schema`,
-  outcomes and interpretation. It makes no classifier request.
-- `judgments_evaluate_scenario({scenario, input})` currently accepts
-  `mara-representation`. Required input is `content`, `purpose` and the
-  project's `flavours` mapping. Each flavour supplies `description`,
-  nonempty `use_when`, `avoid_when` (possibly empty) and
-  `distinguish_from` (possibly empty). Extra per-flavour schema fields may
-  be retained. Optional `context` supplies relevant existing knowledge.
-- `judgments_evaluate({state, questions})` accepts JSON-object state and a
-  nonempty named mapping of native `choice`, `bool` and `score` questions.
-  Each has nonblank instructions and criteria: a nonempty label-to-description
-  mapping, `true`/`false` descriptions, or an ordered description array.
+- `judgments_list_scenarios({})` discovers authorized bundled/global/project
+  definitions and diagnostics without classification. Metadata includes `id`,
+  `mode`, `purpose`, `useWhen`, `avoidWhen`, `inputSchema`, `dynamicQuestions`,
+  `interpretation` and `source`. Fixed questions stay internal.
+- `judgments_evaluate_scenario({scenario, input, criteria?})` evaluates a saved
+  definition. Supply JSON-object evidence and criteria keyed by each required
+  dynamic question ID. Fixed criteria cannot be overridden. The bundled
+  `mara-representation` takes `content`, `purpose`, actual project `flavours`
+  guidance and optional `context`, plus caller-prepared flavour criteria.
+- `judgments_evaluate({state, questions})` retains the generic native `choice`,
+  `bool` and `score` interface for judgments outside saved scenarios.
+- `judgments_validate_scenario({scenario})` validates the selected saved definition
+  and returns identity, provenance and diagnostics without classification,
+  repair or writes. Invalid/missing definitions set the host error flag.
 
 Tools share native namespace `judgments` while retaining unique registration
 names. Essential delegation/data-flow/authority guidance is in descriptions;
 the bundled skill remains entirely generic. Scenario metadata supplies the
 Mara checkpoint, schema-retrieval instructions and authoring responsibilities.
 
-Flags `--judgments-provider=<provider>` and `--judgments-model=<model-id>`
-select the native classifier; defaults are `openrouter` and
-`~typesafe/jev-latest`. No settings file, provider client or credentials are
-owned by the package. Supplied context is sent to the selected provider through
-Pi and may incur charges. Each evaluation submits one native request with
-automatic transport retries disabled; host cancellation is forwarded and late
-results after cancellation are not treated as assessments.
+Classifier selection uses explicit CLI flags over the trusted project
+`judgments/config.json` pair, the global pair and defaults
+`openrouter/~typesafe/jev-latest`. Config files must supply both provider and
+model; a CLI provider change requires an explicit model. Credentials remain in
+Pi. See [the declarative design](declarative-scenarios.mara.md) for complete
+selection, loading, validation and host-trust rules. Supplied context goes to
+that classifier and may incur charges. Each evaluation submits one native
+request with automatic transport retries disabled; cancellation is forwarded
+and late results after cancellation are not treated as assessments.
 
-Evaluation returns `advisory: true`, `classifier`, `guidance` and `status`:
-`assessed`, `inconclusive`, `unavailable`, `failed` or `aborted`.
-Successful native responses retain raw typed `answers`; native `usage` is
-included in structured and host tool results only when reported. Unavailable,
-failed and aborted results set the host error flag. Invalid arguments are
-rejected before classification, without echoing evidence. Provider diagnostics
-are not propagated because they can echo submitted content or credentials.
+Evaluation returns `advisory: true`, `classifier`, `guidance` and runtime
+`status`. Successful native responses retain raw typed `answers`; native `usage`
+is included in structured and host tool results only when reported. Saved
+scenarios also return identity, source and interpretation. There is no computed
+`assessment` or `flavour_labels` mapper. `assessed` means a valid native response,
+including no-fit or insufficient-information answers, not a favorable judgment.
+The agent interprets those answers against the rubric and evidence. Unavailable,
+failed and aborted results set the host error flag. Invalid inputs are rejected
+before classification without echoing evidence; provider diagnostics are sanitized.
 
 The bundled scenario asks independent representation and conditional-flavour
-questions in one request. Returned `assessment.representation` is `item`,
-`narrative`, `mixed`, `insufficient` or `no_fit`. Only `item` includes a
-schema-declared `assessment.flavour`. `flavour_labels` maps internal `fN`
-probability labels to exact project names, avoiding collisions with custom
-names. Missing flavour context is distinct from no fit; both are inconclusive.
-There is no confidence cutoff or automatic action. Read uncertainty against
-evidence rather than interpreting `assessed` as truth.
+questions in one request. Flavour criteria preserve the actual project schema
+rather than a hardcoded vocabulary; the agent supplies and interprets labels.
+Missing flavour context is distinct from no fit. There is no confidence cutoff
+or automatic action. Read uncertainty against evidence rather than interpreting
+`assessed` as truth.
 
 ## Observed initial verification
 
@@ -129,9 +130,9 @@ Reduce repeated question-design work for agents through reusable, narrow classif
 :kind: functional
 :contributes_to: GOAL-JUDGMENTS-ASSISTANCE
 
-Expose three separate, single-purpose namespaced tools: list available scenarios, evaluate a named scenario with its required inputs, and evaluate generic state with typed questions. Preserve globally unique registration names as well as native namespace metadata. Retain generic evaluation for judgments outside bundled scenarios.
+Expose three separate core, single-purpose namespaced tools: list available scenarios, evaluate a named scenario with its required inputs, and evaluate generic state with typed questions. Preserve globally unique registration names as well as native namespace metadata. Retain generic evaluation for judgments outside bundled scenarios. The declarative increment adds a fourth read-only definition-validation tool under [[REQ-JUDGMENTS-DECLARATIVE]].
 
-Scenario listing returns selection metadata: ID, purpose, use-when and avoid-when guidance, required inputs, expected outcomes and interpretation guidance. Fixed classifier questions remain internal to scenario execution so the agent need not reconstruct the rubric. Listing does not call a classifier. Known suitable scenarios may be evaluated directly; unfamiliar judgments warrant catalog inspection; when none fits, use generic evaluation. Do not require a listing call on every turn or repeated listing of already-known scenarios.
+Scenario listing returns selection metadata: ID, purpose, use-when and avoid-when guidance, required inputs, dynamic criteria preparation and interpretation guidance. Fixed classifier questions remain internal to scenario execution so the agent need not reconstruct the rubric. Listing does not call a classifier. Known suitable scenarios may be evaluated directly; unfamiliar judgments warrant catalog inspection; when none fits, use generic evaluation. Do not require a listing call on every turn or repeated listing of already-known scenarios.
 
 Bundle one generic judgment skill covering when to delegate, scenario selection, input preparation, probabilities, uncertainty and failure handling. It contains no Mara-specific instructions; those belong to the bundled scenario metadata. Keep essential invocation guidance in the tool descriptions rather than relying on automatic skill loading.
 
@@ -189,7 +190,7 @@ The agent follows the portable Mara skill to gather selected-project guidance an
 :verifies: REQ-JUDGMENTS-MARA-CONTEXT
 :verifies: DES-JUDGMENTS-LIGHTWEIGHT
 
-Load the three tools together in Pi integration fixtures and inspect globally unique names, namespace metadata and distinct single-purpose argument contracts. List the bundled scenario and verify ID, purpose, invocation/exclusion guidance, required inputs, outcomes and interpretation metadata without a classifier request. Known scenarios must be directly callable without a preceding listing. Inspect the bundled skill for generic discovery/evaluation/uncertainty guidance and absence of Mara-specific instructions; keep scenario-specific instructions in metadata and essential usage guidance in tool descriptions.
+Load the core judgment tools together in Pi integration fixtures and inspect globally unique names, namespace metadata and distinct single-purpose argument contracts. The declarative increment also loads the fourth validation tool, checked by [[VER-JUDGMENTS-DECLARATIVE]]. List the bundled scenario and verify ID, purpose, invocation/exclusion guidance, required inputs, dynamic criteria preparation and interpretation metadata without a classifier request. Known scenarios must be directly callable without a preceding listing. Inspect the bundled skill for generic discovery/evaluation/uncertainty guidance and absence of Mara-specific instructions; keep scenario-specific instructions in metadata and essential usage guidance in tool descriptions.
 
 Use controlled classifier responses to exercise both evaluation tools: bundled scenario construction uses declared questions and required inputs, while generic questions reach the same native runtime without needing a scenario. Idle turns and unrelated tool activity must make no classifier calls. Inspect guidance against unnecessary repeated listing and unchanged-input assessment; do not claim these instructions guarantee agent invocation behavior.
 

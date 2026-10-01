@@ -1,5 +1,4 @@
-import { Type, type Static } from 'typebox';
-import * as Schema from 'typebox/schema';
+import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { question, text } from './schemas.ts';
 import type { Request } from './native.ts';
@@ -147,7 +146,7 @@ export function prepareScenario(
   input: Record<string, unknown>,
   criteria: Record<string, unknown> = {},
 ): Request {
-  if (!Schema.Check(definition.inputSchema as Schema.XSchema, input))
+  if (!Value.Check(definition.inputSchema as TSchema, input))
     throw new Error('Invalid scenario evidence; consult inputSchema.');
   for (const id of Object.keys(criteria)) {
     if (!Object.hasOwn(definition.questions, id)) throw new Error('Unknown criteria question ID.');

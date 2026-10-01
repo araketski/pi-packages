@@ -6,6 +6,7 @@
   "files": [
     "extensions",
     "skills",
+    "scenarios",
     "README.md",
     "LICENSE"
   ],

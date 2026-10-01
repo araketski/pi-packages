@@ -6,16 +6,35 @@ guidance and scope/loading rules. The subsequently approved layout keeps a
 `config.json` for provider/model selection next to `scenarios/`. It extends the [core contract](contract.mara.md);
 the advisory/native-runtime boundaries remain authoritative.
 
-**Implementation state:** partial. Pure JSON definition validation and native
-request assembly pass 28 controlled tests. Scoped JSON loading and pair-based
-classifier configuration pass another 14 tests, including duplicate/invalid
-blocks, refreshed reads and no automatic file creation. The public tools are not
-wired to those modules yet. The current package still has three tools and a hardcoded
-Mara scenario. Its [initial verification](contract.mara.md#observed-initial-verification)
-does not verify configuration-file selection, the file loader, validation tool
-or revised input/result contract.
-This document is the canonical specification for those changes, not a claim of
-delivery or classifier quality.
+**Implementation state:** implemented. The four public tools now use the shared
+JSON definition validator, scoped loader and provider/model-pair selection.
+The bundled Mara scenario is data-only, with fixed representation and
+caller-prepared flavour criteria. The generic skill teaches intentional
+project-local authoring, validation and reuse without automatic persistence.
+
+## Observed declarative verification
+
+On Node 26.7.0, pnpm 12.8.1, Nx 23.2.1 and Pi SDK 0.99.1, all 66 tests passed:
+28 definition/request-assembly cases, 14 scoped loading/config cases, 5 public
+declarative-tool cases, 16 retained native/authority-boundary cases, one source
+Pi replay and two fresh, independently installed npm/pnpm consumer replays.
+Source `typecheck`, `lint` and `pi-check` passed. The consumer tests explicitly
+packed fresh archives and passed `pi-check-package` on each before installation.
+
+The replays exercise choice, bool and score answers through real Pi tool and
+native classifier execution against local HTTP; they check authentication,
+reported usage, refresh-on-call, invalid override blocking, config selection,
+host trust denials and acceptance of custom-data-only projects without a native
+trust trigger. Discovery/validation make no classifier calls; configuration
+and model selection are not rewritten. The archives include the JSON scenario
+and exclude tests and repository-only Mara specifications.
+
+The earlier definition and loading increments were committed as `c6fd1fa` and
+`d244f19`. Reproduction commands are in the
+[core verification notes](contract.mara.md#observed-initial-verification).
+These controlled tests are not a live accuracy campaign and do not establish
+quality improvements, token savings, reliable agent invocation, compatibility
+with other Pi versions, license completeness or publication readiness.
 
 These folders are extension-owned data locations following Pi's agent-directory
 and working-directory conventions, not a resource kind Pi already discovers.
@@ -81,11 +100,11 @@ The generic skill teaches discovery, preparation from scenario metadata, evaluat
 
 Automate fixed, dynamic and mixed-question scenario fixtures using controlled native classifier responses. Confirm filename-based identity, JSON-only definitions, camelCase metadata, mode/criteria consistency, required dynamic preparation guidance, evidence-schema validation, matching criteria shapes and rejection of missing criteria, unknown question IDs or fixed-criteria overrides before classification. Include self-contained supported input schemas and reject unsupported features or external schema dependencies without fetching remote schemas or making classifier requests. Confirm both valid modes produce ordinary native questions and retain raw typed answers and interpretation without domain executors, expression evaluation or a programmable result mapper.
 
-Exercise optional global and trusted project `judgments/config.json` files with explicit provider/model CLI overrides and absent configuration. Verify pair-based scope precedence, preservation of the existing default pair and distinction between explicit flags and flag defaults. Use different provider-specific model IDs to prove project selection replaces the global pair without cross-scope field merging. Check that each config requires both fields, a model-only CLI override retains the selected provider, and a CLI provider change requires an explicit model. Malformed or incomplete configuration must produce explicit errors without lower-scope/default fallback; unavailable provider/model combinations must not trigger a guessed replacement. Declined project trust must exclude project configuration as well as scenarios. Confirm config.json is not discovered as a scenario, no router setting or separate credential store is introduced, and configuration reads do not rewrite host settings or create files. Configuration behavior remains intended, not verified by existing CLI-only tests.
+Exercise optional global and trusted project `judgments/config.json` files with explicit provider/model CLI overrides and absent configuration. Verify pair-based scope precedence, preservation of the existing default pair and distinction between explicit flags and flag defaults. Use different provider-specific model IDs to prove project selection replaces the global pair without cross-scope field merging. Check that each config requires both fields, a model-only CLI override retains the selected provider, and a CLI provider change requires an explicit model. Malformed or incomplete configuration must produce explicit errors without lower-scope/default fallback; unavailable provider/model combinations must not trigger a guessed replacement. Declined project trust must exclude project configuration as well as scenarios. Confirm config.json is not discovered as a scenario, no router setting or separate credential store is introduced, and configuration reads do not rewrite host settings or create files.
 
 Use isolated agent and working directories to check bundled/global/project loading, configured agent-directory resolution, host project-trust allow/deny behavior, precedence, same-scope duplicates, invalid overrides blocking lower definitions, visible diagnostics and continued use of unrelated valid scenarios. Modify saved files between explicit calls and observe refreshed definitions without a watcher. Include a project containing only the custom scenario folder so native trust behavior is not assumed from conventional-resource tests.
 
 Inspect discovery for evidence descriptions/examples, required dynamic question IDs/types, criteria guidance and provenance without classifier requests. Validation of saved definitions makes no classifier calls or writes. Check generic skill guidance for intentional authoring/validation, no automatic persistence/global promotion, no unchanged-input reassessment, and no Mara-specific content. Load a data-only Mara definition with fixed representation and caller-supplied custom flavour guidance; preserve its schema guidance and explicit no-fit/insufficient options without fetching Mara or authoring knowledge.
 
-Rerun applicable source checks, fresh explicit archive checks and independently installed Pi consumer tests. Verify the JSON definition ships in the artifact and loads independently from source TypeScript, while tests and repository-only specifications remain excluded. Preserve native authentication/selection, failure/cancellation, usage and authority-boundary coverage from the core contract. These are acceptance criteria for implementation, not observed passing results; current initial tests do not establish delivery, accuracy, token savings or reliable invocation of the declarative design.
+Rerun applicable source checks, fresh explicit archive checks and independently installed Pi consumer tests. Verify the JSON definition ships in the artifact and loads independently from source TypeScript, while tests and repository-only specifications remain excluded. Preserve native authentication/selection, failure/cancellation, usage and authority-boundary coverage from the core contract. These are repeatable acceptance checks; observed results and their limitations are recorded separately in the Observed declarative verification section. An accepted verification definition does not itself establish delivery, accuracy, token savings or reliable invocation.
 :::

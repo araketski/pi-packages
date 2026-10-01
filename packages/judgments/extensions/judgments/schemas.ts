@@ -1,31 +1,23 @@
-import { Type, type Static } from 'typebox';
+import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 
 export const text = Type.String({ minLength: 1, pattern: '\\S' });
-const strings = Type.Record(Type.String(), text);
+export const criteriaShapes = {
+  choice: Type.Record(Type.String(), text, { minProperties: 1 }),
+  bool: Type.Object({ true: text, false: text }, { additionalProperties: false }),
+  score: Type.Array(text, { minItems: 1 }),
+};
 export const question = Type.Union([
   Type.Object(
-    {
-      type: Type.Literal('choice'),
-      instructions: text,
-      criteria: Type.Record(Type.String(), text, { minProperties: 1 }),
-    },
+    { type: Type.Literal('choice'), instructions: text, criteria: criteriaShapes.choice },
     { additionalProperties: false },
   ),
   Type.Object(
-    {
-      type: Type.Literal('bool'),
-      instructions: text,
-      criteria: Type.Object({ true: text, false: text }, { additionalProperties: false }),
-    },
+    { type: Type.Literal('bool'), instructions: text, criteria: criteriaShapes.bool },
     { additionalProperties: false },
   ),
   Type.Object(
-    {
-      type: Type.Literal('score'),
-      instructions: text,
-      criteria: Type.Array(text, { minItems: 1 }),
-    },
+    { type: Type.Literal('score'), instructions: text, criteria: criteriaShapes.score },
     { additionalProperties: false },
   ),
 ]);
@@ -36,31 +28,56 @@ export const genericInput = Type.Object(
   },
   { additionalProperties: false },
 );
-export const maraInput = Type.Object(
-  {
-    content: text,
-    purpose: text,
-    flavours: Type.Record(
-      Type.String(),
-      Type.Object({
-        description: text,
-        use_when: Type.Array(text, { minItems: 1 }),
-        avoid_when: Type.Array(text),
-        distinguish_from: strings,
-      }),
-    ),
-    context: Type.Optional(text),
-  },
-  { additionalProperties: false },
-);
 export const scenarioInput = Type.Object(
   {
-    scenario: Type.Literal('mara-representation'),
-    input: maraInput,
+    scenario: text,
+    input: Type.Record(Type.String(), Type.Unknown()),
+    criteria: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   },
   { additionalProperties: false },
 );
-
+export const validationInput = Type.Object({ scenario: text }, { additionalProperties: false });
+export const sourceSchema = Type.Object({
+  scope: Type.Union(['bundled', 'global', 'project'].map((s) => Type.Literal(s))),
+  path: Type.String(),
+});
+export const diagnosticSchema = Type.Object({
+  scope: sourceSchema.properties.scope,
+  path: Type.String(),
+  code: Type.String(),
+  message: Type.String(),
+  id: Type.Optional(Type.String()),
+});
+const diagnostics = Type.Array(diagnosticSchema);
+export const catalogOutput = Type.Object({
+  scenarios: Type.Array(
+    Type.Object({
+      id: text,
+      mode: Type.Union([Type.Literal('fixed'), Type.Literal('dynamic')]),
+      purpose: text,
+      useWhen: Type.Array(text),
+      avoidWhen: Type.Array(text),
+      inputSchema: Type.Union([Type.Boolean(), Type.Record(Type.String(), Type.Unknown())]),
+      dynamicQuestions: Type.Record(
+        Type.String(),
+        Type.Object({
+          type: Type.Union(['choice', 'bool', 'score'].map((t) => Type.Literal(t))),
+          criteriaGuidance: text,
+          criteriaSchema: Type.Record(Type.String(), Type.Unknown()),
+        }),
+      ),
+      interpretation: text,
+      source: sourceSchema,
+    }),
+  ),
+  diagnostics,
+});
+export const validationOutput = Type.Object({
+  valid: Type.Boolean(),
+  id: text,
+  source: Type.Optional(sourceSchema),
+  diagnostics,
+});
 export const probability = Type.Number({ minimum: 0, maximum: 1 });
 export const answer = Type.Union([
   Type.Object({
@@ -80,17 +97,13 @@ export const evaluationOutput = Type.Object({
   classifier: Type.Object({ provider: Type.String(), model: Type.String() }),
   message: Type.Optional(Type.String()),
   answers: Type.Optional(Type.Record(Type.String(), answer)),
-  assessment: Type.Optional(Type.Record(Type.String(), Type.String())),
-  flavour_labels: Type.Optional(Type.Record(Type.String(), Type.String())),
   scenario: Type.Optional(Type.String()),
+  source: Type.Optional(sourceSchema),
+  interpretation: Type.Optional(Type.String()),
   usage: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   guidance: Type.String(),
 });
-
-export function validate<T extends typeof genericInput | typeof scenarioInput>(
-  schema: T,
-  value: unknown,
-): asserts value is Static<T> {
+export function validate<T extends TSchema>(schema: T, value: unknown): asserts value is Static<T> {
   if (!Value.Check(schema, value))
     throw new Error(
       'Invalid judgment input. Consult the tool schema or scenario catalog for required fields.',

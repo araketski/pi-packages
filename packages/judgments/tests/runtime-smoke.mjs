@@ -1,6 +1,6 @@
 // Native Pi replay using a local HTTP provider, shared by source and packed consumers.
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -109,7 +109,9 @@ try {
     allowModelNetwork: false,
   });
   assert.ok(runtime.getModelOfType('classifier', 'openrouter', '~typesafe/jev-latest'));
-  const loader = new sdk.DefaultResourceLoader({ cwd: agentDir, agentDir });
+  const cwd = join(agentDir, 'workspace');
+  await mkdir(cwd);
+  const loader = new sdk.DefaultResourceLoader({ cwd, agentDir });
   await loader.reload();
   const loaded = loader.getExtensions();
   assert.deepEqual(loaded.errors, []);
@@ -125,15 +127,25 @@ try {
   assert.ok(
     skill.skills.some((s) => s.filePath === join(packageRoot, 'skills/judgments/SKILL.md')),
   );
-  const names = ['judgments_list_scenarios', 'judgments_evaluate_scenario', 'judgments_evaluate'];
+  const names = [
+    'judgments_list_scenarios',
+    'judgments_evaluate_scenario',
+    'judgments_evaluate',
+    'judgments_validate_scenario',
+  ];
   assert.deepEqual([...extension.tools.keys()], names);
   for (const { definition } of extension.tools.values()) {
     assert.equal(definition.namespace.name, 'judgments');
     assert.ok(definition.outputSchema);
   }
 
+  const settingsManager = sdk.SettingsManager.inMemory({
+    compaction: { enabled: false },
+    retry: { enabled: false },
+    cacheWarming: { mode: 'off' },
+  });
   ({ session } = await sdk.createAgentSession({
-    cwd: agentDir,
+    cwd,
     agentDir,
     modelRuntime: runtime,
     model: runtime.getModel('openrouter', 'offline-chat'),
@@ -141,11 +153,7 @@ try {
     resourceLoader: loader,
     tools: names,
     sessionManager: sdk.SessionManager.inMemory(),
-    settingsManager: sdk.SettingsManager.inMemory({
-      compaction: { enabled: false },
-      retry: { enabled: false },
-      cacheWarming: { mode: 'off' },
-    }),
+    settingsManager,
   }));
   await session.bindExtensions({});
   const completions = [];
@@ -194,6 +202,19 @@ try {
 
   const scenario = await run('judgments_evaluate_scenario', {
     scenario: 'mara-representation',
+    criteria: {
+      flavour: {
+        invariant: JSON.stringify({
+          name: 'invariant',
+          description: 'Durable invariant',
+          use_when: ['One obligation'],
+          avoid_when: [],
+          distinguish_from: {},
+        }),
+        none: 'No fitting flavour',
+        insufficient: 'Missing context',
+      },
+    },
     input: {
       content: 'One durable invariant',
       purpose: 'Record a referenced obligation',
@@ -207,9 +228,116 @@ try {
       },
     },
   });
-  assert.equal(scenario.structuredContent.assessment.flavour, 'invariant');
-  assert.equal(scenario.structuredContent.flavour_labels.f0, 'invariant');
+  assert.equal(scenario.structuredContent.answers.flavour.choice, 'invariant');
+  assert.equal(scenario.structuredContent.scenario, 'mara-representation');
+  assert.ok(scenario.structuredContent.interpretation.includes('no computed assessment'));
+  assert.ok(!('assessment' in scenario.structuredContent));
   assert.equal(requests.length, 2);
+  const saved = {
+    formatVersion: 1,
+    mode: 'dynamic',
+    purpose: 'Consumer-authored scenario',
+    useWhen: ['Relevant decision'],
+    avoidWhen: [],
+    inputSchema: {
+      type: 'object',
+      properties: { evidence: { type: 'string', description: 'Grounded evidence' } },
+      required: ['evidence'],
+    },
+    questions: {
+      x: {
+        type: 'bool',
+        instructions: 'Assess',
+        criteriaGuidance: 'Supply actual support and non-support descriptions',
+      },
+      strength: {
+        type: 'score',
+        instructions: 'Score supplied support',
+        criteria: ['Weak', 'Strong'],
+      },
+    },
+    interpretation: 'Advisory consumer fixture',
+  };
+  const projectRoot = join(cwd, '.pi/judgments');
+  const globalRoot = join(agentDir, 'judgments');
+  await mkdir(join(projectRoot, 'scenarios'), { recursive: true });
+  await mkdir(join(globalRoot, 'scenarios'), { recursive: true });
+  assert.equal(
+    sdk.hasTrustRequiringProjectResources(cwd),
+    false,
+    'custom-only data is not a native trust trigger',
+  );
+  await writeFile(join(projectRoot, 'scenarios/saved.json'), JSON.stringify(saved));
+  await writeFile(
+    join(globalRoot, 'scenarios/saved.json'),
+    JSON.stringify({ ...saved, purpose: 'Global fixture' }),
+  );
+  assert.equal(
+    (await run('judgments_validate_scenario', { scenario: 'saved' })).structuredContent.valid,
+    true,
+  );
+  assert.equal(requests.length, 2, 'validation never classifies');
+  const criteria = { x: { true: 'Supported observation', false: 'Not supported' } };
+  const project = await run('judgments_evaluate_scenario', {
+    scenario: 'saved',
+    input: { evidence: 'Observed' },
+    criteria,
+  });
+  assert.equal(project.structuredContent.source.scope, 'project');
+  assert.equal(project.structuredContent.answers.x.probability, 0.8);
+  assert.equal(project.structuredContent.answers.strength.score, 0.7);
+  await writeFile(
+    join(projectRoot, 'scenarios/saved.json'),
+    JSON.stringify({ ...saved, mode: 'fixed' }),
+  );
+  assert.equal(
+    (await run('judgments_validate_scenario', { scenario: 'saved' })).structuredContent.valid,
+    false,
+  );
+  const beforeInvalid = requests.length;
+  assert.equal(
+    (
+      await run('judgments_evaluate_scenario', {
+        scenario: 'saved',
+        input: { evidence: 'Observed' },
+        criteria,
+      })
+    ).isError,
+    true,
+  );
+  assert.equal(requests.length, beforeInvalid, 'invalid higher override never falls back');
+  await writeFile(join(projectRoot, 'scenarios/saved.json'), JSON.stringify(saved));
+  const globalConfig = JSON.stringify({ provider: 'openrouter', model: '~typesafe/jev-latest' });
+  const projectConfig = JSON.stringify({ provider: 'missing-provider', model: 'missing-model' });
+  await writeFile(join(globalRoot, 'config.json'), globalConfig);
+  await writeFile(join(projectRoot, 'config.json'), projectConfig);
+  assert.equal(
+    (
+      await run('judgments_evaluate_scenario', {
+        scenario: 'saved',
+        input: { evidence: 'Observed' },
+        criteria,
+      })
+    ).structuredContent.status,
+    'unavailable',
+  );
+  settingsManager.setProjectTrusted(false);
+  const denied = await run('judgments_evaluate_scenario', {
+    scenario: 'saved',
+    input: { evidence: 'Observed' },
+    criteria,
+  });
+  assert.equal(denied.structuredContent.source.scope, 'global');
+  assert.equal(
+    denied.structuredContent.status,
+    'assessed',
+    'denied project config cannot override global selection',
+  );
+  const deniedCatalog = await run('judgments_list_scenarios', {});
+  assert.ok(
+    deniedCatalog.structuredContent.diagnostics.some((d) => d.code === 'project_untrusted'),
+  );
+  const beforeFailure = requests.length;
   failure = true;
   const failed = await run('judgments_evaluate', {
     state: {},
@@ -220,8 +348,9 @@ try {
   assert.equal(failed.isError, true);
   assert.equal(failed.structuredContent.status, 'failed');
   assert.ok(!JSON.stringify(failed).includes('private diagnostic'));
-  assert.equal(requests.length, 3, 'no hidden retries or fallback');
+  assert.equal(requests.length, beforeFailure + 1, 'no hidden retries or fallback');
   session.extensionRunner.setFlagValue('judgments-provider', 'missing-provider');
+  session.extensionRunner.setFlagValue('judgments-model', 'missing-model');
   const unavailable = await run('judgments_evaluate', {
     state: {},
     questions: {
@@ -229,7 +358,9 @@ try {
     },
   });
   assert.equal(unavailable.structuredContent.status, 'unavailable');
-  assert.equal(requests.length, 3);
+  assert.equal(requests.length, beforeFailure + 1);
+  assert.equal(await readFile(join(projectRoot, 'config.json'), 'utf8'), projectConfig);
+  assert.equal(await readFile(join(globalRoot, 'config.json'), 'utf8'), globalConfig);
   assert.equal(session.model.id, 'offline-chat');
   assert.equal(await readFile(join(agentDir, 'models.json'), 'utf8'), config);
   console.log(

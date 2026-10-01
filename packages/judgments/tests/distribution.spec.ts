@@ -41,7 +41,9 @@ it.each(['npm', 'pnpm'])(
           'package/skills/judgments/SKILL.md',
           'package/extensions/judgments/index.ts',
           'package/extensions/judgments/native.ts',
-          'package/extensions/judgments/mara.ts',
+          'package/extensions/judgments/definitions.ts',
+          'package/extensions/judgments/loading.ts',
+          'package/scenarios/mara-representation.json',
           'package/extensions/judgments/schemas.ts',
         ]),
       );
