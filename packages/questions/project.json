@@ -1,0 +1,16 @@
+{
+  "name": "@araketski/pi-questions",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "test": {
+      "cache": false
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/questions",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    }
+  }
+}

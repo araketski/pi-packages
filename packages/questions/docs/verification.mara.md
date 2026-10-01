@@ -1,8 +1,10 @@
 # Questions verification plan
 
-These are future repeatable checks, **not observed passing results**. No
-questions package or executable tests exists in this increment. Documentation
-validation checks corpus integrity only.
+These are future repeatable checks, **not observed passing results**. The
+package is scaffolded, but questionnaire behavior is not implemented yet. Documentation
+validation checks corpus integrity only. The scaffolding increment passed source
+entrypoint loading, typecheck, lint and source pi-check against Pi 0.99.1; its
+no-op factory did not verify questionnaire registration, behavior or packed loading.
 
 Derive implementation tests from [the agreed contract](./contract.mara.md) and
 the accepted [design](./design.mara.md). Use
@@ -161,7 +163,7 @@ implementation is present and this inspection has not been performed.
 :verifies: REQ-QUESTIONS-LIFETIME
 :verifies: REQ-QUESTIONS-INDEPENDENT
 
-Follow [the repository load-check policy](../../testing.mara.md) after scaffolding.
+Follow [the repository load-check policy](../../../docs/testing.mara.md) after scaffolding.
 Use the package's resolved Nx test target for source DefaultResourceLoader checks
 in an isolated agent directory. Require no loader errors, discovery of every
 declared entrypoint and exactly one ask_questions registration with the approved
@@ -182,7 +184,7 @@ Nx tests. Use available package test/typecheck/lint and applicable build checks,
 and complete Mara validation. Resolve project targets before running them; no
 test target or resource package is created by these definitions.
 
-Follow [release compatibility policy](../../pi-compatibility.mara.md) before a
+Follow [release compatibility policy](../../../docs/pi-compatibility.mara.md) before a
 release. Record the selected host version; neither wildcard host-peer syntax,
 local SDK loading, static archive checks nor source inspection promises support
 for other versions. Run the real TUI checks in VER-QUESTIONS-INTERACTION and

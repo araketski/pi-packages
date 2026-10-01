@@ -15,13 +15,10 @@ declaration was found in that checkout. This is provenance for the discussion,
 not a legal determination, dependency, compatibility promise, or authority to
 copy code. Do not copy upstream source, tests, assets, or authored documentation.
 
-**This increment is documentation only.** No package, extension, executable
-tests, dependency changes, or implementation campaign are authorized here.
-Accepted items below record agreed intent, not completed behavior. The
-[design](./design.mara.md) records accepted implementation-level contracts.
-Acceptance does not authorize implementation in this documentation increment.
-The [verification plan](./verification.mara.md) defines future checks; none
-has run. Mara document validation is not extension verification.
+The user authorized implementation after accepting the design. The package and
+extension entrypoint are now scaffolded; the generated factory is a no-op pending
+behavioral implementation. Accepted knowledge is intended behavior, not passing
+runtime verification. The verification plan defines the required future checks.
 
 ## Agreed behavior
 
@@ -53,18 +50,11 @@ only, not a new gate/job dependency or a claim of implemented runtime behavior.
 
 ## Package and documentation lifecycle
 
-Keep this documentation in `docs/planned/questions/` until successful
-scaffolding. Use the local [nx-pi generators](../../../packages/nx-pi/README.md)
-for the new resource package and extension entrypoint, after inspecting installed
-help and dry runs. Choose the package version at that time consistently with
-[workspace release policy](../../release.mara.md); do not fix a future version
-or publish anything as part of this specification.
-
-In the scaffolding increment, move structured items with Mara into
-`packages/questions/docs/`, preserving IDs, MIDs and relations. Relocate the
-supporting narrative, repair relative and incoming links (including the root
-README), validate completely, and remove accounted-for staging documents.
-Do not create the package directory just to house drafts.
+The local nx-pi package and extension generators scaffolded `packages/questions`
+after help and dry-run inspection, with version 0.1.0 matching the current
+workspace package version. Canonical knowledge moved here with Mara operations,
+preserving identities and relationships. Future versions/publication follow the
+[workspace release policy](../../../docs/release.mara.md).
 
 Select publication files explicitly: extension entrypoint/helpers, consumer
 README and applicable license material. Repository-only `*.mara.md`, tests and
@@ -79,7 +69,7 @@ inspected for this design is 0.99.2; relevant mode/tool/custom-UI declarations a
 custom-screen implementation were also inspected in the workspace's pinned SDK.
 Neither source inspection proves runtime conformance. Verify the intentionally
 selected development host before implementing host-dependent mechanisms and
-follow [release-time compatibility policy](../../pi-compatibility.mara.md)
+follow [release-time compatibility policy](../../../docs/pi-compatibility.mara.md)
 without silently upgrading dependencies or advertising broad version support.
 
 ## Structured agreed knowledge
