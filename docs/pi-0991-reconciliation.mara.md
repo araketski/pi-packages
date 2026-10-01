@@ -68,8 +68,14 @@ the protocol first. That unchanged target-ordering issue is tracked separately
 as `w-4021e096`, not silently counted as fixed. The user subsequently approved
 merging the repair branch: `rework` now contains `d31b087`, with the same 109 tests
 and scoped checks passing again in that checkout. The user separately authorized
-the build-order follow-up; its execution is tracked in Work. No interactive QA,
-live fast-service support or publication is claimed. The workflow campaign stays
+the build-order follow-up. It is now fixed by `05ca10e`, integrated unchanged into
+`rework` as `c6023bb`: standalone fast-mode typecheck automatically builds its
+protocol prerequisite. Worker red/green and an independent coordinator cold-output
+replay verified this without manual prebuild; the integrated 109-test/scoped-check
+run and complete Mara validation passed. The Sol 6.1/xhigh review was explicitly
+clean. The repeatable method is in [[VER-FAST-REQUEST]] and full execution evidence
+is in Work item `w-4021e096`. No interactive QA, live fast-service support or
+publication is claimed. The workflow campaign stays
 paused. Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK
 baseline.
 
