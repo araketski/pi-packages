@@ -6,7 +6,7 @@
         "mcp"
       ],
       "cwd": ".",
-      "exposure": "codemode"
+      "exposure": "direct"
     },
     "work": {
       "command": "work",
@@ -14,7 +14,17 @@
         "mcp"
       ],
       "cwd": ".",
-      "exposure": "codemode"
+      "exposure": "direct"
+    },
+    "nx": {
+      "command": "npx",
+      "args" :[
+        "-y",
+        "nx",
+        "mcp"
+      ],
+      "cwd": ".",
+      "exposure": "direct"
     }
   }
 }

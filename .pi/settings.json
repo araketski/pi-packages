@@ -1,3 +1,14 @@
 {
-  "packages": ["../packages/session-name"]
+  "packages": [
+    "../packages/session-name",
+    "../packages/session-activity",
+    "../packages/questions",
+    "../packages/judgments",
+    "../packages/fast-mode",
+    "../packages/statusline"
+  ],
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-6.1-sol",
+  "defaultThinkingLevel": "high",
+  "defaultTools": ["+codemode"]
 }
