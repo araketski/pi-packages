@@ -27,6 +27,9 @@ The proposed choices are explicit so an implementer need not invent policy:
 7. Treat signal abort/session invalidation as cancellation, close through Pi's
    completion callback and release owned listeners exactly once. Actual host
    lifecycle integration must be verified, not assumed.
+8. The [optional Herdr attention proposal](./herdr-integration.mara.md) holds one
+   boolean-only blocked activation across the complete user-input flow and
+   balances it on every terminal path without releasing other producers.
 
 These are reviewable design decisions, not additional user approvals. Updating
 an item's status to accepted must reflect review; its presence in this file does
@@ -430,8 +433,14 @@ promised.
 
 ## Integration boundary
 
-No model/provider calls, telemetry emission, network access, filesystem writes,
-subagents, jobs-core, gates-protocol or statusline integration are required.
+No model/provider calls, analytics telemetry, direct network access, filesystem
+writes, subagents, jobs-core, gates-protocol or statusline integration are required.
+The optional presentation-only proposal in [[DES-QUESTIONS-HERDR-ATTENTION]]
+uses Pi's existing event bus to signal a live questionnaire's human-input wait;
+it introduces no Herdr backend client or package dependency. If adopted, release
+its invocation-owned activation through this same terminal cleanup path, not
+from a renderer or a separate global shutdown reset. The installed hook alone
+owns any resulting Herdr transport/reporting.
 Questions/answers still enter Pi's ordinary tool transcript and may be visible
 to its configured provider, history/export and host telemetry. Do not describe the
 tool as confidential or telemetry-free. The extension makes no extra inference

@@ -46,6 +46,11 @@ policy, disposal/abort handling, exact theme-token choice, custom-editor draft
 retention, bounded viewport behavior, and model-only versus nested-tool exposure.
 The complete proposals are in the design rather than inferred from the reference.
 
+An additional [draft Herdr attention integration](./herdr-integration.mara.md)
+proposes a balanced, boolean-only herdr:blocked activation while the questionnaire
+awaits human input, following the existing Goal convention. It is optional
+presentation, not a new gate/job dependency or accepted runtime behavior.
+
 ## Package and documentation lifecycle
 
 Keep this documentation in `docs/planned/questions/` until successful

@@ -9,6 +9,10 @@ the [design](./design.mara.md) after its draft items are accepted. Use
 red–green–refactor for each behavioral increment, with repository Vitest tests
 reachable through resolved Nx targets. Do not copy upstream tests.
 
+The [optional Herdr attention proposal](./herdr-integration.mara.md) has its own
+future verification for balanced events and independent Goal blockers. That
+proposal is draft; no Herdr integration or runtime result is implied by this plan.
+
 ## Observable acceptance examples
 
 | Case | Action | Expected outcome |
