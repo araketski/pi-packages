@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -24,3 +25,20 @@ it('loads the source extension without commands or tools', async () => {
     rmSync(agentDir, { recursive: true, force: true });
   }
 });
+
+// @mara implements VER-SESSION-ACTIVITY-CONTRACT
+it('reports only in the native Pi 0.99.1 TUI lifecycle with offline providers', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(import.meta.dirname, 'runtime-smoke.mjs'),
+      resolve(
+        import.meta.dirname,
+        '../../../node_modules/@earendil-works/pi-coding-agent/dist/index.js',
+      ),
+      resolve(import.meta.dirname, '..'),
+    ],
+    { env: { ...process.env, PI_OFFLINE: '1' }, encoding: 'utf8', timeout: 90000 },
+  );
+  expect(result.status, result.stdout + result.stderr || String(result.error)).toBe(0);
+}, 95000);
