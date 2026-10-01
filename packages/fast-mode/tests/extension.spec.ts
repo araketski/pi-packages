@@ -125,11 +125,10 @@ describe('fast mode Pi extension', () => {
     expect(await f.event('before_provider_request', { payload })).toEqual({
       ...payload,
       speed: 'fast',
+      betas: ['fast-mode-2026-02-01'],
     });
     expect(payload).toEqual({ model: 'claude-opus-5', messages: [] });
-    const headers = { 'Anthropic-Beta': 'user' };
-    await f.event('before_provider_headers', { headers });
-    expect(headers).toEqual({ 'Anthropic-Beta': 'user,fast-mode-2026-02-01' });
+    expect(f.handlers.has('before_provider_headers')).toBe(false);
     await f.command('off');
     expect(await f.event('before_provider_request', { payload })).toBeUndefined();
   });
@@ -165,15 +164,24 @@ describe('fast mode Pi extension', () => {
     },
   );
 
-  it('restores Claude OAuth betas and preserves outgoing header casing', async () => {
+  it('restores Claude OAuth betas after native beta generation without changing the original payload', async () => {
     const f = fixture(true);
     f.setOAuth(true);
     await f.event('session_start');
-    const headers = { 'Anthropic-Beta': 'user,fast-mode-2026-02-01,user' };
-    await f.event('before_provider_headers', { headers });
-    expect(headers).toEqual({
-      'Anthropic-Beta': 'user,fast-mode-2026-02-01,claude-code-20250219,oauth-2025-04-20',
+    const payload = { model: 'claude-opus-5', messages: [], betas: ['native-required', 'user'] };
+    expect(await f.event('before_provider_request', { payload })).toEqual({
+      ...payload,
+      speed: 'fast',
+      betas: [
+        'native-required',
+        'user',
+        'claude-code-20250219',
+        'oauth-2025-04-20',
+        'fast-mode-2026-02-01',
+      ],
     });
+    expect(payload.betas).toEqual(['native-required', 'user']);
+    expect(f.handlers.has('before_provider_headers')).toBe(false);
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
   });
 
@@ -215,9 +223,7 @@ describe('fast mode Pi extension', () => {
         expect(await f.event('before_provider_request', { payload })).toBeUndefined();
         expect(payload).toEqual(before);
       }
-      const headers = { 'Anthropic-Beta': 'user,fast-mode-2026-02-01', 'X-User': null };
-      await f.event('before_provider_headers', { headers });
-      expect(headers).toEqual({ 'Anthropic-Beta': 'user,fast-mode-2026-02-01', 'X-User': null });
+      expect(f.handlers.has('before_provider_headers')).toBe(false);
       expect(selectedAuth).not.toHaveBeenCalled();
       expect(f.appendEntry).not.toHaveBeenCalled();
       await f.command('off');
@@ -329,15 +335,23 @@ describe('fast mode Pi extension', () => {
     expect(snapshot).not.toHaveBeenCalled();
   });
 
-  it('preserves authored fields, disabled headers and mismatched payloads', async () => {
+  it('preserves authored fields, disabled requests and mismatched payloads', async () => {
     const f = fixture();
     await f.event('session_start');
-    const headers = { 'anthropic-beta': 'authored' };
-    await f.event('before_provider_headers', { headers });
-    expect(headers).toEqual({ 'anthropic-beta': 'authored' });
+    const authored = { model: 'claude-opus-5', messages: [], speed: 'user-value', betas: ['user'] };
+    expect(await f.event('before_provider_request', { payload: authored })).toBeUndefined();
     await f.command('on');
+    expect(await f.event('before_provider_request', { payload: authored })).toEqual({
+      ...authored,
+      betas: ['user', 'fast-mode-2026-02-01'],
+    });
+    expect(authored).toEqual({
+      model: 'claude-opus-5',
+      messages: [],
+      speed: 'user-value',
+      betas: ['user'],
+    });
     for (const payload of [
-      { model: 'claude-opus-5', messages: [], speed: 'user-value' },
       { model: 'claude-opus-5', input: [] },
       { model: 'other', messages: [] },
       null,

@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { registerStatus, type StatusHandle } from '@araketski/pi-statusline-protocol';
-import { applyFastHeaders, getFastPayload, getModelEligibility } from './src/request.ts';
+import { getFastPayload, getModelEligibility } from './src/request.ts';
 import { restoreFastState, type FastState } from './src/session.ts';
 
 // Restore the supported direct-selection path. This is a compatibility hint,
@@ -103,9 +103,6 @@ export default function fastMode(pi: ExtensionAPI): void {
     statusHandles.get(ctx.sessionManager)?.dispose();
     statusHandles.delete(ctx.sessionManager);
     states.delete(ctx.sessionManager);
-  });
-  pi.on('before_provider_headers', (event, ctx) => {
-    applyFastHeaders(event.headers, selectedContext(ctx), state(ctx).enabled);
   });
   pi.on('before_provider_request', (event, ctx) => {
     updateStatus(ctx);

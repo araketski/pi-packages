@@ -84,13 +84,19 @@ The user explicitly requested usable fast mode after encountering the no-op
 warning. [[REQ-FAST-ELIGIBILITY]] and [[DES-FAST-REQUEST]] now restore the existing
 direct-selection compatibility path, with exact model IDs, configured OAuth and
 payload-shape checks. This is not immutable physical request identity. Virtual
-routes remain unsupported, and header-only/nested/same-ID auth races retain
-explicit limitations rather than silently disabling all direct use.
+routes remain unsupported, and nested/same-ID auth races retain explicit
+limitations rather than silently disabling all direct use.
 
 Positive SDK 0.99.1 loopback requests and isolated installed CLI 0.99.2 print-mode
 requests now verify Claude fast speed/betas and OpenAI/OAuth Codex priority on
 the wire. Off mode, authored fields and the Completions-to-Responses mismatch
-regression remain covered. No live service acceptance or speedup is claimed.
+regression remain covered. Independent review exposed an early Claude beta
+header override suppressing Pi-generated catalog flags. A red/green regression
+now uses a real catalog model with high reasoning; the fix merges the fast beta
+into the native payload list after Pi generates its defaults, preserving effort,
+thinking-binding and OAuth betas. The SDK serializes this list into the HTTP
+header; the extension no longer registers a header-only mutation handler.
+No live service acceptance or speedup is claimed.
 Work item `w-4d6781fd` records execution/check evidence. The workflow campaign
 remains paused; no dependency upgrade or settings rewrite accompanies restoration.
 

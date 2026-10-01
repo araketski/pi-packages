@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyFastHeaders,
   getModelEligibility,
   getFastPayload,
   type FastSelection,
@@ -25,6 +24,26 @@ const openai = [
 ];
 
 describe('selected-model compatibility and outgoing request transformations', () => {
+  it('preserves native Claude betas while adding fast service at the payload boundary', () => {
+    const ctx = context(
+      { provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' },
+      true,
+    );
+    const payload = { model: 'claude-opus-5', messages: [], betas: ['native-required', 'user'] };
+    expect(getFastPayload(payload, ctx, true)).toEqual({
+      ...payload,
+      speed: 'fast',
+      betas: [
+        'native-required',
+        'user',
+        'claude-code-20250219',
+        'oauth-2025-04-20',
+        'fast-mode-2026-02-01',
+      ],
+    });
+    expect(payload.betas).toEqual(['native-required', 'user']);
+  });
+
   it('rejects incompatible or ambiguous payload shapes even with a matching selected ID', () => {
     const responses = context({ provider: 'openai', api: 'openai-responses', id: 'gpt-5.4' });
     for (const body of [{ messages: [] }, {}, { input: 'text' }, { input: [], messages: [] }]) {
@@ -45,21 +64,19 @@ describe('selected-model compatibility and outgoing request transformations', ()
       model: { provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' },
     } as FastSelection;
     expect(getModelEligibility(ctx).supported).toBe(false);
-    const headers = { 'anthropic-beta': 'user' };
-    applyFastHeaders(headers, ctx, true);
-    expect(headers).toEqual({ 'anthropic-beta': 'user' });
     expect(getFastPayload({ model: 'claude-opus-5' }, ctx, true)).toBeUndefined();
   });
   it.each(claude)('adds Claude fast speed and beta for %s', (id) => {
     const model = { provider: 'anthropic', api: 'anthropic-messages', id };
     const ctx = context(model);
     const payload = { model: id, messages: [] };
-    const headers: Record<string, string | null> = {};
     expect(getModelEligibility(ctx).supported).toBe(true);
-    expect(getFastPayload(payload, ctx, true)).toEqual({ ...payload, speed: 'fast' });
+    expect(getFastPayload(payload, ctx, true)).toEqual({
+      ...payload,
+      speed: 'fast',
+      betas: ['fast-mode-2026-02-01'],
+    });
     expect(payload).toEqual({ model: id, messages: [] });
-    applyFastHeaders(headers, ctx, true);
-    expect(headers).toEqual({ 'anthropic-beta': 'fast-mode-2026-02-01' });
   });
 
   it.each(openai)('adds priority for OpenAI Responses model %s', (id) => {
@@ -92,6 +109,7 @@ describe('selected-model compatibility and outgoing request transformations', ()
       model: 'anthropic/claude-opus-5',
       messages: [],
       speed: 'fast',
+      betas: ['fast-mode-2026-02-01'],
     });
     expect(getFastPayload({ model: 'claude-opus-5', messages: [] }, ctx, true)).toBeUndefined();
     const openaiCtx = context({
@@ -114,11 +132,8 @@ describe('selected-model compatibility and outgoing request transformations', ()
     ['other', 'claude-opus-5'],
   ])('does not inject for unsupported %s/%s', (api, id) => {
     const ctx = context({ provider: 'proxy', api, id }, true);
-    const headers: Record<string, string | null> = {};
     expect(getModelEligibility(ctx).supported).toBe(false);
-    expect(getFastPayload({ model: id }, ctx, true)).toBeUndefined();
-    applyFastHeaders(headers, ctx, true);
-    expect(headers).toEqual({});
+    expect(getFastPayload({ model: id, messages: [], betas: ['user'] }, ctx, true)).toBeUndefined();
   });
 
   it('does not inject with no selected model or into disabled, invalid, or already configured payloads', () => {
@@ -131,7 +146,8 @@ describe('selected-model compatibility and outgoing request transformations', ()
       [],
       'text',
       5,
-      { model: 'claude-opus-5', messages: [], speed: null },
+      { model: 'claude-opus-5', messages: [], betas: null },
+      { model: 'claude-opus-5', messages: [], betas: [42] },
     ]) {
       expect(getFastPayload(payload, ctx, true)).toBeUndefined();
     }
@@ -139,29 +155,38 @@ describe('selected-model compatibility and outgoing request transformations', ()
     expect(
       getFastPayload({ model: 'gpt-5.4', input: [], service_tier: 'default' }, openaiCtx, true),
     ).toBeUndefined();
-    const headers: Record<string, string | null> = {
-      'anthropic-beta': 'existing,fast-mode-2026-02-01',
-    };
-    applyFastHeaders(headers, ctx, false);
-    expect(headers['anthropic-beta']).toBe('existing,fast-mode-2026-02-01');
+    expect(
+      getFastPayload({ model: 'claude-opus-5', messages: [], speed: null }, ctx, true),
+    ).toEqual({
+      model: 'claude-opus-5',
+      messages: [],
+      speed: null,
+      betas: ['fast-mode-2026-02-01'],
+    });
   });
 
-  it('merges outgoing Claude OAuth betas without mutating model headers or duplicating tokens', () => {
+  it('merges native and authored Claude betas without mutating model headers or the original payload', () => {
     const model: FastModel = {
       provider: 'proxy',
       api: 'anthropic-messages',
       id: 'anthropic/claude-opus-5-5',
-      headers: { 'anthropic-beta': 'original' },
+      headers: { 'Anthropic-Beta': 'original' },
     };
     const ctx = context(model, true);
-    const headers: Record<string, string | null> = {
-      'Anthropic-Beta': 'user, fast-mode-2026-02-01,user',
+    const payload = {
+      model: model.id,
+      messages: [],
+      speed: 'user-value',
+      betas: ['native', 'user', ' fast-mode-2026-02-01', 'user'],
     };
-    applyFastHeaders(headers, ctx, true);
-    applyFastHeaders(headers, ctx, true);
-    expect(headers).toEqual({
-      'Anthropic-Beta': 'user,fast-mode-2026-02-01,claude-code-20250219,oauth-2025-04-20',
-    });
-    expect(model.headers).toEqual({ 'anthropic-beta': 'original' });
+    const expected = {
+      ...payload,
+      betas: ['native', 'user', 'fast-mode-2026-02-01', 'claude-code-20250219', 'oauth-2025-04-20'],
+    };
+    expect(getFastPayload(payload, ctx, true)).toEqual(expected);
+    expect(getFastPayload(expected, ctx, true)).toEqual(expected);
+    expect(getFastPayload(payload, ctx, false)).toBeUndefined();
+    expect(payload.betas).toEqual(['native', 'user', ' fast-mode-2026-02-01', 'user']);
+    expect(model.headers).toEqual({ 'Anthropic-Beta': 'original' });
   });
 });

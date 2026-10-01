@@ -99,7 +99,8 @@ try {
     JSON.stringify({
       providers: {
         'restore-claude': provider('anthropic-messages', 'claude-opus-5'),
-        anthropic: provider('anthropic-messages', 'claude-opus-5', null),
+        // Keep real catalog compatibility flags; a synthetic model would miss native betas.
+        anthropic: { baseUrl },
         'restore-openai': provider('openai-responses', 'gpt-5.4'),
         'openai-codex': provider('openai-codex-responses', 'gpt-5.4', null),
         'restore-codex-key': provider('openai-codex-responses', 'gpt-5.4', token),
@@ -171,6 +172,7 @@ try {
       agentDir,
       modelRuntime: runtime,
       model,
+      thinkingLevel: 'high',
       resourceLoader: loader,
       tools: [],
       sessionManager: sdk.SessionManager.inMemory(agentDir),
@@ -204,6 +206,10 @@ try {
           const betas = wire.headers['anthropic-beta']?.split(',') ?? [];
           assert.equal(betas.includes('fast-mode-2026-02-01'), mode !== 'off');
           if (name === 'anthropic') {
+            assert.equal(model.compat.supportsMidConvoEffort, true);
+            assert.ok(betas.includes('mid-conversation-output-config-2026-07-01'));
+            assert.ok(betas.includes('thinking-binding-controls-2026-08-01'));
+            assert.equal(wire.payload.betas, undefined, 'SDK must serialize betas as headers');
             assert.ok(betas.includes('claude-code-20250219'));
             assert.ok(betas.includes('oauth-2025-04-20'));
           }

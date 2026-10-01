@@ -81,28 +81,25 @@ export function getFastPayload(
   } else if (!Array.isArray(payload.messages) || 'input' in payload) {
     return undefined;
   }
+  if (eligibility.option === 'speed') {
+    // Pi computes its native beta list before this hook. Changing headers earlier
+    // makes Pi treat them as an override and drops required catalog feature betas.
+    const existing = payload.betas;
+    if (
+      existing !== undefined &&
+      (!Array.isArray(existing) || !existing.every((value) => typeof value === 'string'))
+    ) {
+      return undefined;
+    }
+    const tokens = (existing ?? []).map((token: string) => token.trim()).filter(Boolean);
+    const required = ctx?.oauth ? [...OAUTH_BETAS, FAST_BETA] : [FAST_BETA];
+    return {
+      ...payload,
+      ...('speed' in payload ? {} : { speed: 'fast' }),
+      // The native Anthropic SDK serializes betas to the HTTP header, not the body.
+      betas: [...new Set([...tokens, ...required])],
+    };
+  }
   if (eligibility.option in payload) return undefined;
-  return { ...payload, [eligibility.option]: eligibility.option === 'speed' ? 'fast' : 'priority' };
-}
-
-export function applyFastHeaders(
-  headers: Record<string, string | null>,
-  ctx: FastSelection | undefined,
-  enabled: boolean,
-): void {
-  if (!enabled || ctx?.model.api !== 'anthropic-messages' || !getModelEligibility(ctx).supported)
-    return;
-  const key =
-    Object.keys(headers).find((name) => name.toLowerCase() === 'anthropic-beta') ??
-    'anthropic-beta';
-  const existing = headers[key];
-  const tokens =
-    typeof existing === 'string'
-      ? existing
-          .split(',')
-          .map((token) => token.trim())
-          .filter(Boolean)
-      : [];
-  const required = ctx.oauth ? [...OAUTH_BETAS, FAST_BETA] : [FAST_BETA];
-  headers[key] = [...new Set([...tokens, ...required])].join(',');
+  return { ...payload, service_tier: 'priority' };
 }
