@@ -65,9 +65,12 @@ limitations are recorded in repair Work item `w-7b1cafa2`.
 The first fresh fast-only check exposed missing protocol declarations when
 its typecheck ran concurrently with the build; final checks explicitly built
 the protocol first. That unchanged target-ordering issue is tracked separately
-as `w-4021e096`, not silently counted as fixed. No interactive QA, live fast-service
-support, publication or merge into `rework` is claimed. The workflow campaign
-stays paused. Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK
+as `w-4021e096`, not silently counted as fixed. The user subsequently approved
+merging the repair branch: `rework` now contains `d31b087`, with the same 109 tests
+and scoped checks passing again in that checkout. The user separately authorized
+the build-order follow-up; its execution is tracked in Work. No interactive QA,
+live fast-service support or publication is claimed. The workflow campaign stays
+paused. Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK
 baseline.
 
 ## Inspection provenance
