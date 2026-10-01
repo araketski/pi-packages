@@ -44,8 +44,10 @@ are not inherited by this on-demand assistant.
 - `judgments_evaluate_scenario({scenario, input, criteria?})` evaluates a saved
   definition. Supply JSON-object evidence and criteria keyed by each required
   dynamic question ID. Fixed criteria cannot be overridden. The bundled
-  `mara-representation` takes `content`, `purpose`, actual project `flavours`
-  guidance and optional `context`, plus caller-prepared flavour criteria.
+  `mara-representation` requires `content` and actual project `flavours` guidance,
+  plus caller-prepared flavour criteria. Optional `purpose` describes intended
+  use rather than a preselected flavour; optional `context` supplies relevant
+  knowledge. Neither must be invented before delegation.
 - `judgments_evaluate({state, questions})` retains the generic native `choice`,
   `bool` and `score` interface for judgments outside saved scenarios.
 - `judgments_validate_scenario({scenario})` validates the selected saved definition
@@ -158,7 +160,7 @@ Return explicit unavailable, failed or insufficient-information outcomes as appr
 :kind: functional
 :contributes_to: GOAL-JUDGMENTS-ASSISTANCE
 
-The initial bundled Mara scenario receives candidate content, its intended purpose and the selected project's actual flavour guidance retrieved by the agent through Mara, plus relevant existing knowledge where needed. The companion does not own a Mara connection or automatically retrieve the project corpus. Keep Mara's portable skill unchanged.
+The bundled Mara scenario requires candidate content and the selected project's actual flavour guidance retrieved by the agent through Mara. Intended-use purpose and relevant existing knowledge are optional context, supplied only when useful. Do not require the agent to choose or justify a flavour before delegating the judgment. Purpose explains why the knowledge will be used or preserved, not a preselected classification; its absence alone must not imply insufficient information. The companion does not own a Mara connection or automatically retrieve the project corpus. Keep Mara's portable skill unchanged.
 
 Recommend structured-item representation and a schema-declared flavour, narrative, separation of mixed concerns, or an explicit insufficient-information/no-fitting-flavour result. Use the supplied description, use_when, avoid_when and distinguish_from guidance rather than a hardcoded engineering vocabulary or flavour names alone; custom project flavours must remain eligible. Never force a flavour when none fits or treat classification as evidence of user acceptance. The agent remains responsible for grounded authoring and Mara validation; the judgment operation performs no Mara or Work writes.
 :::

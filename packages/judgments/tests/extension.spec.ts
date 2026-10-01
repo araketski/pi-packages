@@ -32,7 +32,7 @@ const model = {
 };
 const input = {
   content: 'Retries must preserve the submitted input.',
-  purpose: 'Record an independently verifiable obligation.',
+  purpose: 'Preserve this agreement for future implementation.',
   flavours: {
     obligation: {
       description: 'Observable obligation',
@@ -194,44 +194,48 @@ describe('on-demand judgment tools', () => {
     expect(registry.classify).not.toHaveBeenCalled();
   });
 
-  it('evaluates a known scenario directly with the supplied custom project vocabulary', async () => {
-    const { call, classify } = setup();
-    classify.mockResolvedValue({
-      stopReason: 'stop',
-      provider: model.provider,
-      model: model.id,
-      api: 'fixture',
-      timestamp: 1,
-      answers: {
-        representation: {
-          type: 'choice',
-          choice: 'item',
-          probabilities: { item: 1, narrative: 0, mixed: 0, insufficient: 0 },
-          confidence: 1,
+  it.each([false, true])(
+    'evaluates custom project vocabulary with purpose supplied: %s',
+    async (withPurpose) => {
+      const { call, classify } = setup();
+      const evidence = withPurpose ? input : { content: input.content, flavours: input.flavours };
+      classify.mockResolvedValue({
+        stopReason: 'stop',
+        provider: model.provider,
+        model: model.id,
+        api: 'fixture',
+        timestamp: 1,
+        answers: {
+          representation: {
+            type: 'choice',
+            choice: 'item',
+            probabilities: { item: 1, narrative: 0, mixed: 0, insufficient: 0 },
+            confidence: 1,
+          },
+          flavour: {
+            type: 'choice',
+            choice: 'f0',
+            probabilities: { f0: 1, f1: 0, none: 0, insufficient: 0 },
+            confidence: 1,
+          },
         },
-        flavour: {
-          type: 'choice',
-          choice: 'f0',
-          probabilities: { f0: 1, f1: 0, none: 0, insufficient: 0 },
-          confidence: 1,
-        },
-      },
-    });
-    const result = await call('judgments_evaluate_scenario', {
-      scenario: 'mara-representation',
-      input,
-    });
-    expect(classify).toHaveBeenCalledTimes(1);
-    const request = classify.mock.calls[0][1];
-    expect(request.state).toEqual(input);
-    expect(JSON.stringify(request.questions.flavour)).toContain('obligation');
-    expect(JSON.stringify(request.questions.flavour)).toContain('distinguish_from');
-    expect(result.structuredContent).toMatchObject({
-      status: 'assessed',
-      answers: { representation: { choice: 'item' }, flavour: { choice: 'f0' } },
-      interpretation: expect.stringContaining('no computed assessment'),
-    });
-  });
+      });
+      const result = await call('judgments_evaluate_scenario', {
+        scenario: 'mara-representation',
+        input: evidence,
+      });
+      expect(classify).toHaveBeenCalledTimes(1);
+      const request = classify.mock.calls[0][1];
+      expect(request.state).toEqual(evidence);
+      expect(JSON.stringify(request.questions.flavour)).toContain('obligation');
+      expect(JSON.stringify(request.questions.flavour)).toContain('distinguish_from');
+      expect(result.structuredContent).toMatchObject({
+        status: 'assessed',
+        answers: { representation: { choice: 'item' }, flavour: { choice: 'f0' } },
+        interpretation: expect.stringContaining('no computed assessment'),
+      });
+    },
+  );
 
   it.each(['narrative', 'mixed', 'insufficient'])(
     'preserves the scenario outcome %s without forcing a flavour',

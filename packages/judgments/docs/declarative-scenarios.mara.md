@@ -36,6 +36,16 @@ These controlled tests are not a live accuracy campaign and do not establish
 quality improvements, token savings, reliable agent invocation, compatibility
 with other Pi versions, license completeness or publication readiness.
 
+The subsequent purpose-input refinement was verified red–green: the minimal
+Mara input without `purpose` initially failed evidence validation; after making
+it optional, all 67 tests passed. Controlled cases cover both omitted and
+supplied intended-use purpose, with unchanged evidence reaching the classifier.
+The source and fresh npm/pnpm consumer replays use only candidate content and
+actual flavour guidance, plus dynamic criteria. Source typecheck, lint and
+`pi-check`, and both fresh archive `pi-check-package` checks passed. Rubric
+instructions distinguish genuine ambiguity from an absent optional field;
+these tests do not prove live classifier adherence or savings.
+
 These folders are extension-owned data locations following Pi's agent-directory
 and working-directory conventions, not a resource kind Pi already discovers.
 A custom scenario directory alone is not one of Pi's documented native
@@ -82,7 +92,7 @@ Retain `judgments_list_scenarios`, `judgments_evaluate_scenario` and unchanged g
 
 Resolve project over global over bundled definitions. Same-scope duplicate IDs are errors. An invalid higher-scope definition blocks that ID instead of falling back to another scope. Discovery reports invalid files while leaving unrelated valid scenarios usable. Refresh definitions on explicit calls, not through a background watcher. Gate project definitions and configuration on the host context's isProjectTrusted() result. A false result excludes project data. Accept Pi's true result for custom-data-only projects even when no native trust prompt ran; the user explicitly waived a separate trigger requirement. Do not introduce another approval system, inspect or change the host trust store, or automatically create conventional resources to force a prompt.
 
-Convert the bundled Mara scenario into JSON using the same capabilities as user-authored scenarios. Representation choices remain fixed; flavour criteria are caller-supplied, so its mode is dynamic. Its criteria guidance instructs the agent to follow the portable Mara skill, retrieve the selected project's actual schema and preserve description, use_when, avoid_when and distinguish_from in criterion descriptions, using JSON text when packaging multiple guidance fields. The agent supplies project vocabulary, not a preselected winning flavour or default engineering template. Relevant existing knowledge remains evidence supplied by the agent. The extension has no Mara connection.
+Convert the bundled Mara scenario into JSON using the same capabilities as user-authored scenarios. Representation choices remain fixed; flavour criteria are caller-supplied, so its mode is dynamic. Require candidate content and actual project flavour guidance; `input.purpose` and `input.context` are optional. Purpose describes intended use or preservation, not a preselected flavour or a justification the agent must construct before delegation. Missing optional purpose alone does not justify an insufficient-information answer; that option is for material ambiguity in the supplied evidence. This scenario-specific input is distinct from the required definition-level `purpose` describing the scenario itself. Its criteria guidance instructs the agent to follow the portable Mara skill, retrieve the selected project's actual schema and preserve description, use_when, avoid_when and distinguish_from in criterion descriptions, using JSON text when packaging multiple guidance fields. The agent supplies project vocabulary, not a preselected winning flavour or default engineering template. Relevant existing knowledge remains evidence supplied by the agent. The extension has no Mara connection.
 
 Return structured advisory results with runtime status, classifier identity, raw typed answers, reported usage when available, and scenario interpretation guidance. No-fit and insufficient-information meanings remain explicit in the rubric and are interpreted by the agent. Replace the current scenario-specific computed assessment/label mapper rather than inventing a programmable result-mapping language. A valid native response does not establish a favorable result, acceptance, authorization or verification. Native failures, unavailability and cancellation remain honest, without classifier-provider/model fallback or automatic actions.
 

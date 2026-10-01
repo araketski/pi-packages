@@ -217,7 +217,6 @@ try {
     },
     input: {
       content: 'One durable invariant',
-      purpose: 'Record a referenced obligation',
       flavours: {
         invariant: {
           description: 'Durable invariant',
