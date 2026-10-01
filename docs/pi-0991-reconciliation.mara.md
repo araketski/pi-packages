@@ -50,11 +50,25 @@ are historical inspection findings.
 At implementation revision `fab471dae79b5ce2a7ff07a235213ca60f099e3e`, uncached
 checks passed 51 statusline and 45 fast-mode tests, typechecking, lint and source
 Pi checks, including SDK 0.99.1 loopback and fresh packed npm loading. Worker
-Codex reviews completed clean after their fix loops. Combined review and additional
-consumer verification are tracked by repair Work item `w-7b1cafa2`; this checkpoint
-does not claim those have completed, interactive QA, live fast-service support,
-publication, or integration into `rework`. The workflow campaign stays paused.
-Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK baseline.
+Codex reviews completed clean after their fix loops.
+
+Final combined review at `7df7f6963c7ecddd9e9db645ae6f4413514b1fc2`, against the
+unchanged `4a8cc2fb42b3748494d73cda0c64adcdd95e185d` base, also completed explicitly
+clean (Codex Sol 6.1, xhigh, read-only). Independent coordinator checks passed
+109 tests: 51 statusline, 45 fast-mode and 13 statusline-protocol, plus their
+resolved typecheck/lint/source Pi targets, frozen install, protocol build,
+fresh archive checks and complete Mara validation. Fresh npm and pnpm consumers
+loaded both extensions together on SDK 0.99.1 and replayed the bounded loopback
+no-mutation/persisted-intent case. Full reports, commands, artifact hashes and
+limitations are recorded in repair Work item `w-7b1cafa2`.
+
+The first fresh fast-only check exposed missing protocol declarations when
+its typecheck ran concurrently with the build; final checks explicitly built
+the protocol first. That unchanged target-ordering issue is tracked separately
+as `w-4021e096`, not silently counted as fixed. No interactive QA, live fast-service
+support, publication or merge into `rework` is claimed. The workflow campaign
+stays paused. Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK
+baseline.
 
 ## Inspection provenance
 

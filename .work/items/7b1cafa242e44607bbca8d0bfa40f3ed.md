@@ -3,11 +3,12 @@ format_version: 1
 id: '7b1cafa242e44607bbca8d0bfa40f3ed'
 title: 'Coordinate three parallel native Pi compatibility repairs'
 completion: manual
-state: open
+state: done
 priority: 2
 labels: ['repair', 'role:coordinator']
 model: 'gpt-6-astra'
 thinking: 'high'
+close_reason: 'Three repairs integrated and verified on repair/native-pi-integration; combined Sol 6.1 xhigh review clean, 109 tests and fresh npm/pnpm checks passed. Retain limitations and separate w-4021e096; awaiting user approval for rework merge.'
 ---
 
 ## Scope and authority
@@ -44,8 +45,23 @@ All three workers supplied committed, clean candidates and completed Codex revie
 - Model: `4929ad0d033b4daa2cbd8c6b2ad127e54b35616f` (commits 30078a0, 4929ad0), 40 worker tests. Review 1 found in-flight selection attribution; regression/fix followed by clean review 2 (wK:t3/wK:p3; session 01a0f5a5-dd42-7b50-81e2-7fcbe6b463fb). Evidence: `/home/araketski/.cache/repair-model-d64cbf4d/`, including HANDOFF.md, both full review logs/meta/status/reports and checks-fix-final.log. Integrated by fab471d.
 - Fast: `32950925eb307dbcb18ddd803bcab5a3f3084919`, 45 worker tests. Clean review 1 (wM:t2/wM:p2; session 01a0f5a0-fde7-7122-a656-98b54f7823f2). Evidence: `/home/araketski/.cache/repair-fast-c96f1b68/`, including handoff.md, full review-1.log/meta/exit/report and checks-final.log plus independent npm/pnpm replay logs. Integrated by b071676. No native fast-service mutation is claimed.
 
-The sole merge conflict was the statusline contract's implementation-state paragraph. Mara updates retained both completed slices, removed their mutually stale gap claims and preserved IDs/MIDs/relationships. Implementation/test files are unchanged from reviewed worker trees. Full combined review remains required.
+The sole merge conflict was the statusline contract's implementation-state paragraph. Mara updates retained both completed slices, removed their mutually stale gap claims and preserved IDs/MIDs/relationships. Implementation/test files are unchanged from reviewed worker trees. A fresh combined review was required and is recorded below.
 
 Coordinator evidence directory: `/home/araketski/.cache/repair-integration-7b1cafa2/`. Initial fast-only check failed with TS2307 while its typecheck raced the fresh protocol declaration build; fast-checks.log retains this failure. A coordinator script failed to gate the first merge commit on that command's status. This was not a passing checkpoint: subsequent usage-fast-checks.log and combined-checks.log explicitly reran all four targets successfully after protocol build. The latter passed 51 statusline plus 45 fast-mode tests; the earlier one passed 33 plus 45. Protocol build ordering must be explicit for fresh checkouts; no task-configuration fix or dependency change is claimed here. Complete Mara validation and scoped format/diff checks passed at the combined implementation checkpoint `fab471dae79b5ce2a7ff07a235213ca60f099e3e`.
 
-Combined review, fresh final archives and additional npm/pnpm consumer checks are pending. Repair items remain open until final integration checks and review are complete. The workflow campaign remains paused; no final merge into rework, publication or resource cleanup is authorized by this checkpoint.
+## Completed integration evidence
+
+Combined implementation/reviewed HEAD: `7df7f6963c7ecddd9e9db645ae6f4413514b1fc2`. Immutable review base remains `4a8cc2fb42b3748494d73cda0c64adcdd95e185d`. Fresh review resource wH:t2/wH:p2, label `repair / integration / review 1 / w-7b1cafa2`, recognized reviewer `repair-cx-integ-7b1cafa2-r1`; Codex session `01a0f5c7-4359-71f0-8afa-905044a5a845`. Effective header confirms Codex 0.159.3, gpt-6.1-sol/xhigh/read-only; both model overrides supplied. Actual review and log capture exits were 0. Explicit completed verdict: “No actionable regressions were found. In-memory behavioral probes and diff checks passed; full Nx checks and Mara validation were blocked by the read-only environment.” No review fix was requested. Coordinator checks below independently satisfy verification, not the reviewer's unavailable Nx execution.
+
+Evidence under `/home/araketski/.cache/repair-integration-7b1cafa2/`:
+
+- `review-1.log` full 8003-line completed output, SHA256 `b0fcf3450a436ada358ae35eeb14f8c9d5dadd8d918322bfb37aafcfaad7670b`; `review-1.meta`, `review-1.status`, `review-1.sh` and `review-1-report.json` retain base/HEAD/command/settings/exit/verdict.
+- `final-checks.log`: uncached test/typecheck/lint/pi-check for statusline, fast-mode and statusline-protocol, **51 + 45 + 13 = 109 tests**. `final-protocol-build.log` explicitly precedes the run. No whole-workspace or interactive QA claim.
+- `frozen-install.log`: pnpm frozen install passed without dependency changes. `pack-*.json` and `archive-*.log`: all three fresh packages passed explicit-tarball pi-check-package. Extensions remain source-distributed; only protocol build was required.
+- `npm-consumer-runtime.log` and `pnpm-consumer-runtime.log`: both fresh consumers loaded the two installed extensions together on SDK 0.99.1, consumed a loopback response, preserved enabled intent and left the same-ID in-flight API-mismatch request untouched. `combined-runtime.mjs` reuses the tracked fast runtime replay with multiple additional extension roots/loading assertions; SHA256 `763cbb4aed691e3cc678cb36a68c5c76b1b3aae10a3f0083f4c4fdebb2cff80c`. Consumer-only protocol overrides select its unpublished fresh artifact; repository infrastructure is unchanged.
+- `final-schema_validate.json` and `final-project_validate.json`: valid, complete, no continuation or diagnostics. Work diagnostics and scoped Nx formatting/Git diff checks also pass. Mara identities/relationships and non-shared worker files were checked unchanged; the sole document conflict was reconciled through Mara.
+- Fresh archive SHA256: statusline `249edd3243eea0f13330594b7cf97e08b951b843f56a8790903d1fe5fdba5056`; fast-mode `b190cb8d4c97e313778ca68af640cbbdab79bcb3e7207c08a20c735f36421653`; protocol `832aa64fb1149f8c7ed5061c68ed05fbbf583c8ce4900c8b8f532a117db18b7a`. Archives retained in `artifacts/`; `final-hashes.txt` records paths.
+
+No implementation changes followed the combined reviewed HEAD; the final checkpoint changes only execution tracking and observed-verification narrative. All three repair increments are integrated and verified. The fresh fast-mode typecheck ordering issue remains a separate, undispatched Work follow-up `w-4021e096`, not a repaired capability. Other limitations remain those in package contracts: unsupported fast mutation, omitted/unavailable usage/route attribution, no live provider service or interactive terminal QA. Remaining workflow feasibility probes did not run in this integration.
+
+Final integration stays on `repair/native-pi-integration` pending user approval to merge into `rework`. The workflow campaign remains paused; no publication/tags or unrelated-resource changes. Worker worktrees and the final review pane are retained for inspection.
