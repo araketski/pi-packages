@@ -100,6 +100,13 @@ No live service acceptance or speedup is claimed.
 Work item `w-4d6781fd` records execution/check evidence. The workflow campaign
 remains paused; no dependency upgrade or settings rewrite accompanies restoration.
 
+The user subsequently reported that `openai/gpt-6.1-sol` was still excluded.
+That exact ID is now explicitly allowlisted for OpenAI Responses and OAuth Codex
+Responses. Positive source/fresh-packed SDK and installed CLI loopback checks
+verify priority transmission on both APIs, with off/authored-value/OAuth guards.
+This is not inferred family-wide support or live service entitlement/speedup.
+Work item `w-f2547453` records this follow-up.
+
 ## Inspection provenance
 
 Compared the installed 0.99.1 documentation and its 0.99.0/0.99.1 changelog entries
@@ -263,8 +270,9 @@ integration were not reverified by this bounded repair.
   do not establish these new behaviors.
 - At inspection, [[REQ-FAST-ELIGIBILITY]] required actual-request identity.
   Its later direct-mode restoration above supersedes blanket omission; routed
-  support remains unavailable. Sol 6.1 is not automatically added to the support
-  list merely because it is available or selected for workers.
+  support remains unavailable. Sol 6.1 was subsequently explicitly added after
+  the user's exclusion report and positive direct-wire checks, not automatically
+  because it was available or selected for workers.
 - [[DES-GOAL-CLASSIFIER-POLICY]] and [[EVD-GOAL-CLASSIFIER-PILOT]] separate agreed
   provisional policy from actual limited calls and still-unverified goal runtime.
   [[REQ-CAFFEINATE-AUTO-HOLD]] includes active classifier work outside assistant

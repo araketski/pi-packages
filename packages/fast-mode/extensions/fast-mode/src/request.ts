@@ -28,6 +28,7 @@ const OPENAI_MODELS = new Set([
   'gpt-6-astra',
   'gpt-6-sol',
   'gpt-6-luna',
+  'gpt-6.1-sol',
 ]);
 const FAST_BETA = 'fast-mode-2026-02-01';
 const OAUTH_BETAS = ['claude-code-20250219', 'oauth-2025-04-20'];

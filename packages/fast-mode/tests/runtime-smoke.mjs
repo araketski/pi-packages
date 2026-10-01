@@ -92,7 +92,7 @@ try {
     api,
     baseUrl,
     ...(apiKey ? { apiKey } : {}),
-    models: [{ id, contextWindow: 8192, maxTokens: 128 }],
+    models: [id].flat().map((id) => ({ id, contextWindow: 8192, maxTokens: 128 })),
   });
   await writeFile(
     join(agentDir, 'models.json'),
@@ -102,7 +102,8 @@ try {
         // Keep real catalog compatibility flags; a synthetic model would miss native betas.
         anthropic: { baseUrl },
         'restore-openai': provider('openai-responses', 'gpt-5.4'),
-        'openai-codex': provider('openai-codex-responses', 'gpt-5.4', null),
+        'restore-openai-sol61': provider('openai-responses', 'gpt-6.1-sol'),
+        'openai-codex': provider('openai-codex-responses', ['gpt-5.4', 'gpt-6.1-sol'], null),
         'restore-codex-key': provider('openai-codex-responses', 'gpt-5.4', token),
         'restore-completions': provider('openai-completions', 'gpt-5.4'),
       },
@@ -131,15 +132,16 @@ try {
     modelsStorePath: join(agentDir, 'models-store.json'),
     allowModelNetwork: false,
   });
-  for (const name of [
-    'restore-claude',
-    'anthropic',
-    'restore-openai',
-    'openai-codex',
-    'restore-codex-key',
-    'restore-completions',
+  for (const [name, id] of [
+    ['restore-claude', 'claude-opus-5'],
+    ['anthropic', 'claude-opus-5'],
+    ['restore-openai', 'gpt-5.4'],
+    ['restore-openai-sol61', 'gpt-6.1-sol'],
+    ['openai-codex', 'gpt-5.4'],
+    ['openai-codex', 'gpt-6.1-sol'],
+    ['restore-codex-key', 'gpt-5.4'],
+    ['restore-completions', 'gpt-5.4'],
   ]) {
-    const id = name === 'restore-claude' || name === 'anthropic' ? 'claude-opus-5' : 'gpt-5.4';
     const model = runtime.getModel(name, id);
     assert.ok(model);
     assert.equal(model.baseUrl, baseUrl);
@@ -232,7 +234,7 @@ try {
               entry.data?.enabled === true,
           ),
       );
-      console.log(`PASS: ${name} wire options, completed response and persisted intent`);
+      console.log(`PASS: ${name}/${id} wire options, completed response and persisted intent`);
     } finally {
       session.dispose();
     }
@@ -252,6 +254,8 @@ try {
       ['restore-claude', 'claude-opus-5', 'speed'],
       ['restore-openai', 'gpt-5.4', 'service_tier'],
       ['openai-codex', 'gpt-5.4', 'service_tier'],
+      ['restore-openai-sol61', 'gpt-6.1-sol', 'service_tier'],
+      ['openai-codex', 'gpt-6.1-sol', 'service_tier'],
     ]) {
       const before = requests.length;
       const execution = promisify(execFile)(
@@ -293,7 +297,7 @@ try {
       assert.equal(stdout.trim(), 'ok');
       assert.equal(requests.length, before + 1);
       assert.equal(requests.at(-1).payload[option], option === 'speed' ? 'fast' : 'priority');
-      console.log(`PASS: installed CLI ${provider} sends ${option} and completes`);
+      console.log(`PASS: installed CLI ${provider}/${model} sends ${option} and completes`);
     }
   }
 } finally {

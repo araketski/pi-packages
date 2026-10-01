@@ -21,6 +21,7 @@ const openai = [
   'gpt-6-astra',
   'gpt-6-sol',
   'gpt-6-luna',
+  'gpt-6.1-sol',
 ];
 
 describe('selected-model compatibility and outgoing request transformations', () => {
@@ -98,6 +99,24 @@ describe('selected-model compatibility and outgoing request transformations', ()
       service_tier: 'priority',
     });
   });
+
+  it.each(['openai-responses', 'openai-codex-responses'])(
+    'supports prefixed Sol 6.1 on %s while retaining original-ID and auth guards',
+    (api) => {
+      const ctx: FastSelection = {
+        model: { provider: 'openai', api, id: 'openai/gpt-6.1-sol' },
+        oauth: true,
+      };
+      const payload = { model: ctx.model.id, input: [] };
+      expect(getFastPayload(payload, ctx, true)).toEqual({ ...payload, service_tier: 'priority' });
+      expect(getFastPayload({ ...payload, model: 'gpt-6.1-sol' }, ctx, true)).toBeUndefined();
+      expect(getFastPayload({ ...payload, service_tier: 'default' }, ctx, true)).toBeUndefined();
+      expect(getFastPayload(payload, ctx, false)).toBeUndefined();
+      expect(getFastPayload(payload, { ...ctx, oauth: false }, true)).toEqual(
+        api === 'openai-codex-responses' ? undefined : { ...payload, service_tier: 'priority' },
+      );
+    },
+  );
 
   it('matches proxy-prefixed IDs on the wire API, but requires the exact original payload model', () => {
     const ctx = context({

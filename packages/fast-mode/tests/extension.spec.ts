@@ -133,36 +133,40 @@ describe('fast mode Pi extension', () => {
     expect(await f.event('before_provider_request', { payload })).toBeUndefined();
   });
 
-  it.each(['openai-responses', 'openai-codex-responses'])(
-    'restores direct priority on %s',
-    async (api) => {
-      const f = fixture(true);
-      f.setModel({ provider: 'openai', api, id: 'gpt-6-astra' });
-      f.setOAuth(api === 'openai-codex-responses');
-      await f.event('session_start');
-      const payload = { model: 'gpt-6-astra', input: [] };
-      expect(await f.event('before_provider_request', { payload })).toEqual({
-        ...payload,
-        service_tier: 'priority',
-      });
-      expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
-      expect(
-        await f.event('before_provider_request', {
-          payload: { ...payload, service_tier: 'default' },
-        }),
-      ).toBeUndefined();
-      expect(
-        await f.event('before_provider_request', {
-          payload: { model: 'gpt-6-astra', messages: [] },
-        }),
-      ).toBeUndefined();
-      if (api === 'openai-codex-responses') {
-        f.setOAuth(false);
-        expect(await f.event('before_provider_request', { payload })).toBeUndefined();
-        expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
-      }
-    },
-  );
+  it.each([
+    ['openai-responses', 'gpt-6-astra'],
+    ['openai-codex-responses', 'gpt-6-astra'],
+    ['openai-responses', 'gpt-6.1-sol'],
+    ['openai-codex-responses', 'gpt-6.1-sol'],
+  ])('restores direct priority on %s/%s', async (api, id) => {
+    const f = fixture(true);
+    f.setModel({ provider: 'openai', api, id });
+    f.setOAuth(api === 'openai-codex-responses');
+    await f.event('session_start');
+    const payload = { model: id, input: [] };
+    expect(await f.event('before_provider_request', { payload })).toEqual({
+      ...payload,
+      service_tier: 'priority',
+    });
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
+    await f.command('status');
+    expect(f.notify).toHaveBeenLastCalledWith(expect.stringContaining('Fast mode is on.'), 'info');
+    expect(
+      await f.event('before_provider_request', {
+        payload: { ...payload, service_tier: 'default' },
+      }),
+    ).toBeUndefined();
+    expect(
+      await f.event('before_provider_request', {
+        payload: { model: id, messages: [] },
+      }),
+    ).toBeUndefined();
+    if (api === 'openai-codex-responses') {
+      f.setOAuth(false);
+      expect(await f.event('before_provider_request', { payload })).toBeUndefined();
+      expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    }
+  });
 
   it('restores Claude OAuth betas after native beta generation without changing the original payload', async () => {
     const f = fixture(true);
@@ -202,7 +206,7 @@ describe('fast mode Pi extension', () => {
 
   it.each([
     ['pi-virtual', 'gpt-5.4'],
-    ['openai-responses', 'gpt-6.1-sol'],
+    ['openai-responses', 'unknown-model'],
   ])(
     'preserves authored data and preference for unsupported %s/%s without auth lookup',
     async (api, id) => {
