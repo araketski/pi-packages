@@ -1,7 +1,10 @@
 # Planned `pi-gates` visibility extension
 
-This planned Pi extension shows the protocol's gate history and current state;
-it is included in the agreed implementation scope but is not yet implemented. Its coordination dependency is
+This planned Pi extension shows the protocol's gate history and current state,
+with a separate explicit user recovery action under [[REQ-GATES-USER-ABANDONMENT]].
+Inspection stays read-only; recovery abandons a selected wait without inventing
+completion or taking execution ownership. The extension is included in the
+agreed implementation scope but is not yet implemented. Its coordination dependency is
 specified in [the protocol contract](../../../packages/gates-protocol/docs/contract.mara.md).
 Pi custom session entries can appear in the interactive chat through an entry
 renderer without becoming model-visible messages. The extension does not need
@@ -42,7 +45,7 @@ With a Pi session fixture, render an acquired and a cleared gate as user-visible
 :kind: functional
 :contributes_to: GOAL-GATES-COORDINATION
 
-Retain the reference inspector user commands /gates, /gates refresh, /gates stale, and /gates diagnostics using the current gates protocol. Show current-session owner/gate state, confirmation/discovery status, and available health diagnostics without interpreting which extension produced a gate. A refresh requests reconciliation; it does not prove an immediate response or confirmed empty state. Distinguish unconfirmed or unavailable state from no gates, bound diagnostic presentation, and do not invent unavailable metadata from the old protocol. Inspection never acquires/releases gates belonging to other owners, delivers results, starts a model turn, or exposes a force-clear control. Apply [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]; no jobs-core or Herdr dependency is needed.
+Retain the reference inspector user commands /gates, /gates refresh, /gates stale, and /gates diagnostics using the current gates protocol. Show current-session owner/gate state, confirmation/discovery status, and available health diagnostics without interpreting which extension produced a gate. A refresh requests reconciliation; it does not prove an immediate response or confirmed empty state. Distinguish unconfirmed or unavailable state from no gates, bound diagnostic presentation, and do not invent unavailable metadata from the old protocol. These four inspection/refresh routes never acquire/release other owners' gates, deliver results, start a model turn or expose an outcome-fabricating force-clear. Separately provide the explicit user-only, confirmed recovery action in [[REQ-GATES-USER-ABANDONMENT]]; it abandons one wait obligation with an audit and unresolved outcome, rather than converting inspection or timeout into owner clearance. Its exact command/confirmation interface requires design before implementation. Apply [[REQ-WORKFLOW-PRODUCER-INDEPENDENCE]]; no jobs-core or Herdr dependency is needed.
 :::
 
 :::mara verification VER-GATES-READONLY-CONTROLS
@@ -54,4 +57,6 @@ Retain the reference inspector user commands /gates, /gates refresh, /gates stal
 :verifies: REQ-GATES-READONLY-CONTROLS
 
 With actual Pi command registration and generic owners, exercise all four inspection routes, unsupported input, delayed/no owner responses, stale leases, session changes, and confirmed-empty versus unconfirmed state. Refresh must request current state without pretending a pending response has arrived. Bound diagnostic output and verify no owner mutation, force clearing, job inspection, model-context insertion, or model turn. Combine with the separately required lifecycle-history rendering and notice suppression checks. These are future checks, not passing evidence.
+
+Verify the separate user recovery action under [[VER-GATES-USER-ABANDONMENT]] without changing the four read-only routes into mutating operations. The new recovery action is planned, not implemented or verified.
 :::

@@ -4,7 +4,9 @@ This is the intended contract for the coordination library. Its owner/observer
 API, journal replay, diagnostics, and Pi SDK integration fixtures are
 implemented; consuming packages are not yet migrated. The legacy
 continuation-gate package is reference material, not its API or architecture. `pi-gates` is the separately planned,
-optional visibility extension. The protocol is not itself a Pi resource.
+optional visibility and user-recovery extension. The protocol is not itself a Pi resource.
+The newly accepted [[REQ-GATES-USER-ABANDONMENT]] and its discovery exception
+are not implemented by the existing owner/observer API or covered by its past tests.
 
 ## Motivation and boundary
 
@@ -52,8 +54,13 @@ single Pi session owns its live projection across tree navigation. Reconstruct
 intent from gate entries in the full session tree, then ask the work owner to
 verify external reality. An owner explicitly publishes verified snapshots; an
 unresponsive owner never turns an unresolved wait into confirmed empty. The
-protocol supplies diagnostics, while `goal` remains paused and `caffeinate`
-retains its hold with warnings. No force-clear operation is provided here.
+protocol supplies diagnostics, while `goal` defers normal autonomous progression
+and `caffeinate` retains its gate-derived hold under its user-override policy.
+Timeouts and missing owners never imply clearance. Separately,
+[[REQ-GATES-USER-ABANDONMENT]] permits explicit confirmed user recovery of one
+wait obligation without claiming a verified work outcome. This new recovery
+policy still needs protocol design and implementation; the existing API has no
+such control.
 
 If appending a custom session entry throws, reject that state transition and
 do not broadcast an unrecorded acquisition, clearance, or reconciliation.
@@ -86,7 +93,7 @@ Extensions that await work can communicate pending state so other extensions can
 :kind: functional
 :contributes_to: GOAL-GATES-COORDINATION
 
-A work-owning extension can announce that awaited work is pending. An independent observer can determine that it remains pending while the owner waits and that it is no longer pending after the owner ends the wait. This state enables consumers such as `goal` to defer autonomous continuation or completion and `caffeinate` to retain an awake hold while work is awaited; each consumer owns its own response.
+A work-owning extension can announce that awaited work is pending. An independent observer can determine that it remains pending while the owner waits and that it is no longer pending after the owner ends the wait. This state enables consumers such as `goal` to defer autonomous continuation or completion and `caffeinate` to retain an awake hold while work is awaited; each consumer owns its own response. Separately, [[REQ-GATES-USER-ABANDONMENT]] permits an explicit audited user action to end a selected wait obligation without claiming its external work succeeded, stopped or delivered a result. Ordinary missing-owner, lease and reconciliation behavior never implies that action.
 :::
 
 :::mara verification VER-GATES-PENDING-STATE
@@ -170,7 +177,7 @@ Announce two gates with the same local ID from distinct owners in one session an
 :kind: functional
 :contributes_to: GOAL-GATES-COORDINATION
 
-An observer joining after an acquisition or resuming a session with historical entries can request current state from each known owner. It distinguishes unreconciled state from an owner-confirmed empty set or owner-confirmed pending gates. A valid owner report replaces only that owner's state; an invalid report does not clear existing gates. Historical absence, including before known owners respond, is not a confirmed absence of awaited work.
+An observer joining after an acquisition or resuming a session with historical entries can request current state from each known owner. It distinguishes unreconciled state from an owner-confirmed empty set or owner-confirmed pending gates. A valid owner report replaces only that owner's state; an invalid report does not clear existing gates. Historical absence, including before known owners respond, is not a confirmed absence of awaited work. Apply recorded user abandonment under [[REQ-GATES-USER-ABANDONMENT]] when computing effective obligations; an ordinary late owner snapshot for the same abandoned obligation cannot silently undo that user decision. This exception is explicit recovery state, not an inference of owner death or successful execution.
 :::
 
 :::mara verification VER-GATES-RECONCILIATION
@@ -292,7 +299,9 @@ Use the actual Pi 0.99.1 SessionManager and EventBus in a temporary file-backed 
 :kind: interface
 :satisfies: REQ-GATES-RECONCILIATION
 
-An observer starts a session by replaying journalled intent and requesting current owner state. Its session readiness stays unconfirmed, including when no owner is yet known, until its integrating extension calls finishDiscovery after relevant Pi extensions have registered their owners. Readiness is confirmed only when discovery is complete and every known owner has confirmed current state. A newly announced owner or refresh returns that owner to unconfirmed without clearing its known gates. Integrations must not call finishDiscovery from an early session_start handler if other owners might register later; the owner-registration boundary belongs to the integrating consumer.
+An observer starts a session by replaying journalled intent and requesting current owner state. Its session readiness stays unconfirmed, including when no owner is yet known, until its integrating extension calls finishDiscovery after relevant Pi extensions have registered their owners. Readiness is confirmed only when discovery is complete and every known owner has confirmed current state, subject to the explicit user recovery exception below. A newly announced owner or refresh returns that owner's non-abandoned obligations to unconfirmed without clearing its known gates. Integrations must not call finishDiscovery from an early session_start handler if other owners might register later; the owner-registration boundary belongs to the integrating consumer.
+
+Under [[REQ-GATES-USER-ABANDONMENT]], an unanswered owner report is no longer required solely to resolve the selected abandoned obligation. Once discovery has genuinely finished, an absent historical owner with only abandoned obligations and no other unresolved state must not keep the session unconfirmed forever. Preserve the owner's diagnostic history and the abandoned obligation's unknown external outcome. Do not treat this as an owner-confirmed empty snapshot or blanket trust of other missing owners. Other obligations, unresolved discovery and genuinely new owner acquisitions still require normal confirmation. The effective-state representation and acquisition identity require design and integration tests; this recovery exception is accepted but not implemented.
 :::
 
 :::mara verification VER-GATES-DISCOVERY-BOUNDARY
@@ -305,6 +314,8 @@ An observer starts a session by replaying journalled intent and requesting curre
 :verifies: REQ-GATES-RECONCILIATION
 
 With an observer started before any owner, assert empty owners and unconfirmed readiness. After explicit discovery completion assert confirmed empty; register a late owner and assert readiness becomes unconfirmed until the owner reconciles with an empty or pending snapshot. Refresh a known owner without a response, preserving its last gates and returning readiness to unconfirmed until it responds.
+
+Exercise [[VER-GATES-USER-ABANDONMENT]] with an absent historical owner whose only effective obligation is explicitly abandoned by the user. After genuine discovery completion, require usable confirmed-unblocked eligibility without a fabricated empty owner response. Retain unresolved/abandoned diagnostics and reject any claim of verified work outcome. A different missing owner, another unconfirmed obligation from the same owner, incomplete discovery or a genuinely new acquisition must still prevent confirmed emptiness. Ordinary refresh or late replay of the same abandoned obligation cannot silently reverse the user decision. These recovery cases remain planned, not executed conformance evidence.
 :::
 
 :::mara verification VER-GATES-PI-EXTENSION-RUNTIME
@@ -318,4 +329,33 @@ With an observer started before any owner, assert empty owners and unconfirmed r
 :verifies: REQ-GATES-RECONCILIATION
 
 Create a Pi SDK agent session with two independently registered extension factories, bind their extensions so session_start is emitted, register a gate owner and a gate observer, and have the owner verify its empty initial state. Complete owner discovery, acquire a gate, and assert the independent observer reports it while Pi model context stays empty and no model prompt was invoked. This exercises extension loading and lifecycle startup, not interactive UI, result delivery, session replacement, or integration with goal/caffeinate.
+:::
+
+:::mara requirement REQ-GATES-USER-ABANDONMENT
+:mid: 01M3W22ZXF5WGTX02M4R24VPEW
+:title: Allow explicit scoped user abandonment without inventing a work outcome
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-GATES-COORDINATION
+
+Provide a separate explicit user recovery action to abandon one selected current-session wait obligation, including a historical wait whose owner is permanently unavailable. Display the exact session, owner, gate and current confirmation state, warn that work or result delivery may remain unresolved, and require user confirmation. Reject stale confirmations after session or selected-wait changes. No model-callable abandonment or automatic abandonment based on timeouts, stale leases, missing backends or absent owners is permitted.
+
+Record abandonment in Pi's append-only non-model session history before publishing the changed effective wait state, following [[REQ-GATES-PERSIST-BEFORE-SIGNAL]]. Preserve the original gate history and label the selected obligation abandoned by the user, not owner-confirmed completion, termination or delivery. All generic observers, including goal and caffeinate, see the same effective wait state through the public gates contract; do not add consumer-specific bypass sets or producer-name rules. Other gates and unresolved owners remain unaffected. When no other obligations or discovery uncertainty remain, the abandoned obligation no longer prevents confirmed-unblocked eligibility. Consumers still apply their normal pause, budget, scheduling and completion policies; abandonment neither completes nor resumes a goal by itself.
+
+Abandonment does not stop external work, take execution ownership, alter its outcome, consume a saved result, or suppress independent owner delivery. A late report for the same abandoned obligation must not silently reacquire it; a genuinely new wait remains subject to normal owner acquisition and observation. Preserve this distinction through reload, resumable-session recovery and tree navigation. Exact acquisition identity, audit fields, confirmation interface and public protocol representation require design and tests before implementation. This is a newly accepted recovery contract, not an implemented control or authorization to fabricate a force-clear outcome.
+:::
+
+:::mara verification VER-GATES-USER-ABANDONMENT
+:mid: 01M3W23K4XVTVKRVXT7GSJKNMV
+:title: Verify orphan-wait recovery and isolation without false completion
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-GATES-USER-ABANDONMENT
+
+Restore a pending gate whose owner is absent. Confirm normal discovery/reconciliation leaves it unresolved, inspection alone cannot clear it, and timeout/lease expiry does not abandon it. Through an explicit user recovery control, display the selected obligation and warning, reject cancellation or stale/session-changed confirmation, then confirm abandonment. Require the append-only audit before the effective state change; failed appends preserve the unresolved obligation. No model tool, nested call, automatic continuation or producer message can impersonate this user action.
+
+With no other unresolved state, generic observers report that the abandoned wait no longer blocks eligibility while its history and external execution outcome remain visibly unresolved/abandoned. Repeat with another owner's gate, another gate from the same owner and another session: none is released. Exercise goal and caffeinate without producer-specific inspection: abandonment removes only the selected gate reason, does not override goal pause/budgets or other awake reasons, and does not itself deliver a result or dispatch a turn. Normal goal eligibility may be reevaluated under its own policy.
+
+Reload, navigate the tree and resume the same durable session without restoring the abandoned obligation as pending. Inject late snapshots and delayed acquisition reports for that same obligation; they must not undo abandonment. Acquire a genuinely new wait, including reuse of an owner-local name, and require normal blocking. Verify independent execution and final-result delivery remain intact, no process is killed, and no successful execution, cancellation or delivery receipt is invented. Require public protocol and actual user-control/consumer integration checks in addition to isolated projection tests. These are future checks for the new recovery policy, not passing runtime evidence.
 :::
