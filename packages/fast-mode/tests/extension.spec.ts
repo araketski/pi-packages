@@ -113,38 +113,90 @@ function fixture(flag = false) {
 }
 
 describe('fast mode Pi extension', () => {
-  it('does not treat selected Claude identity as proof for identity-free header hooks', async () => {
-    const f = fixture(true);
+  it('restores direct Claude fast requests and an honest on status', async () => {
+    const f = fixture();
     await f.event('session_start');
-    const headers = { 'Anthropic-Beta': 'user', Authorization: 'unrelated-request' };
+    await f.command('on');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
+    expect(
+      f.notify.mock.calls.some(([message]) => message.includes('requests are left unchanged')),
+    ).toBe(false);
+    const payload = { model: 'claude-opus-5', messages: [] };
+    expect(await f.event('before_provider_request', { payload })).toEqual({
+      ...payload,
+      speed: 'fast',
+    });
+    expect(payload).toEqual({ model: 'claude-opus-5', messages: [] });
+    const headers = { 'Anthropic-Beta': 'user' };
     await f.event('before_provider_headers', { headers });
-    expect(headers).toEqual({ 'Anthropic-Beta': 'user', Authorization: 'unrelated-request' });
-    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    expect(headers).toEqual({ 'Anthropic-Beta': 'user,fast-mode-2026-02-01' });
+    await f.command('off');
+    expect(await f.event('before_provider_request', { payload })).toBeUndefined();
   });
 
-  it('does not borrow selected Codex OAuth for an identity-free same-ID payload', async () => {
+  it.each(['openai-responses', 'openai-codex-responses'])(
+    'restores direct priority on %s',
+    async (api) => {
+      const f = fixture(true);
+      f.setModel({ provider: 'openai', api, id: 'gpt-6-astra' });
+      f.setOAuth(api === 'openai-codex-responses');
+      await f.event('session_start');
+      const payload = { model: 'gpt-6-astra', input: [] };
+      expect(await f.event('before_provider_request', { payload })).toEqual({
+        ...payload,
+        service_tier: 'priority',
+      });
+      expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
+      expect(
+        await f.event('before_provider_request', {
+          payload: { ...payload, service_tier: 'default' },
+        }),
+      ).toBeUndefined();
+      expect(
+        await f.event('before_provider_request', {
+          payload: { model: 'gpt-6-astra', messages: [] },
+        }),
+      ).toBeUndefined();
+      if (api === 'openai-codex-responses') {
+        f.setOAuth(false);
+        expect(await f.event('before_provider_request', { payload })).toBeUndefined();
+        expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+      }
+    },
+  );
+
+  it('restores Claude OAuth betas and preserves outgoing header casing', async () => {
     const f = fixture(true);
-    f.setModel({ provider: 'openai-codex', api: 'openai-codex-responses', id: 'gpt-5.4' });
     f.setOAuth(true);
     await f.event('session_start');
-    const payload = { model: 'gpt-5.4', service_tier: undefined };
+    const headers = { 'Anthropic-Beta': 'user,fast-mode-2026-02-01,user' };
+    await f.event('before_provider_headers', { headers });
+    expect(headers).toEqual({
+      'Anthropic-Beta': 'user,fast-mode-2026-02-01,claude-code-20250219,oauth-2025-04-20',
+    });
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
+  });
+
+  it('does not bypass the configured Codex OAuth requirement', async () => {
+    const f = fixture(true);
+    f.setModel({ provider: 'openai-codex', api: 'openai-codex-responses', id: 'gpt-5.4' });
+    f.setOAuth(false);
+    await f.event('session_start');
+    const payload = { input: [], model: 'gpt-5.4', service_tier: undefined };
     expect(
-      await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } }),
+      await f.event('before_provider_request', { payload: { input: [], model: 'gpt-5.4' } }),
     ).toBeUndefined();
     expect(await f.event('before_provider_request', { payload })).toBeUndefined();
-    expect(payload).toEqual({ model: 'gpt-5.4', service_tier: undefined });
+    expect(payload).toEqual({ input: [], model: 'gpt-5.4', service_tier: undefined });
     await f.command('status');
     expect(f.notify).toHaveBeenLastCalledWith(expect.stringContaining('unavailable'), 'info');
   });
 
   it.each([
-    ['anthropic-messages', 'claude-opus-5'],
-    ['openai-responses', 'gpt-5.4'],
-    ['openai-codex-responses', 'gpt-5.4'],
     ['pi-virtual', 'gpt-5.4'],
     ['openai-responses', 'gpt-6.1-sol'],
   ])(
-    'preserves authored data and preference for %s/%s without consulting selected auth',
+    'preserves authored data and preference for unsupported %s/%s without auth lookup',
     async (api, id) => {
       const f = fixture(true);
       f.setModel({ provider: 'proxy', api, id });
@@ -221,12 +273,12 @@ describe('fast mode Pi extension', () => {
       { type: 'custom', customType: 'fast', data: { enabled: 'invalid' } },
     ]);
     await f.event('session_start');
-    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
     expect(f.appendEntry).not.toHaveBeenCalled();
     await f.command('off');
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<muted>fast off</muted>');
     await f.event('session_tree');
-    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
   });
 
   it('uses branch state without --fast, ignores malformed entries, and follows a different branch', async () => {
@@ -236,7 +288,7 @@ describe('fast mode Pi extension', () => {
       { type: 'custom', customType: 'other', data: { enabled: false } },
     ]);
     await f.event('session_start');
-    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
     f.setBranch([{ type: 'custom', customType: 'fast', data: { enabled: null } }]);
     await f.event('session_tree');
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<muted>fast off</muted>');
@@ -247,7 +299,7 @@ describe('fast mode Pi extension', () => {
     await f.event('session_start');
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<muted>fast off</muted>');
     await f.command('on');
-    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
     f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-sonnet-5' });
     await f.event('model_select');
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
@@ -269,7 +321,7 @@ describe('fast mode Pi extension', () => {
     });
     f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' });
     await f.event('model_select');
-    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<warning>fast n/a</warning>');
+    expect(f.setStatus).toHaveBeenLastCalledWith('fast', '<accent>fast on</accent>');
     await f.event('session_shutdown');
     expect(f.setStatus).toHaveBeenLastCalledWith('fast', undefined);
     snapshot.mockClear();
@@ -277,25 +329,24 @@ describe('fast mode Pi extension', () => {
     expect(snapshot).not.toHaveBeenCalled();
   });
 
-  it('keeps all identity-free hooks untouched, even previously working-looking direct paths', async () => {
+  it('preserves authored fields, disabled headers and mismatched payloads', async () => {
     const f = fixture();
     await f.event('session_start');
-    await f.command('on');
-    const headers: Record<string, string | null> = {};
+    const headers = { 'anthropic-beta': 'authored' };
     await f.event('before_provider_headers', { headers });
-    expect(headers).toEqual({});
-    f.setModel({ provider: 'openai', api: 'openai-codex-responses', id: 'gpt-5.4' });
-    expect(
-      await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } }),
-    ).toBeUndefined();
-    f.setOAuth(true);
-    expect(
-      await f.event('before_provider_request', { payload: { model: 'gpt-5.4' } }),
-    ).toBeUndefined();
-    f.setModel({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' });
-    expect(
-      await f.event('before_provider_request', { payload: { model: 'claude-opus-5' } }),
-    ).toBeUndefined();
+    expect(headers).toEqual({ 'anthropic-beta': 'authored' });
+    await f.command('on');
+    for (const payload of [
+      { model: 'claude-opus-5', messages: [], speed: 'user-value' },
+      { model: 'claude-opus-5', input: [] },
+      { model: 'other', messages: [] },
+      null,
+      [],
+    ]) {
+      const before = structuredClone(payload);
+      expect(await f.event('before_provider_request', { payload })).toBeUndefined();
+      expect(payload).toEqual(before);
+    }
     expect(f.appendEntry).toHaveBeenCalledTimes(1);
   });
 });

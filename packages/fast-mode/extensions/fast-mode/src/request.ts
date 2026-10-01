@@ -5,10 +5,8 @@ export type FastModel = {
   headers?: Record<string, string>;
 };
 
-/** Verified facts about this actual request, never the live chat selection.
- * Pi 0.99.1's extension hooks cannot supply these facts; isolated helper tests can.
- */
-export type FastRequestFacts = {
+/** Selected direct model and configured authentication; not routed request identity. */
+export type FastSelection = {
   model: FastModel;
   oauth: boolean;
 };
@@ -34,15 +32,15 @@ const OPENAI_MODELS = new Set([
 const FAST_BETA = 'fast-mode-2026-02-01';
 const OAUTH_BETAS = ['claude-code-20250219', 'oauth-2025-04-20'];
 
-export function getModelEligibility(ctx: FastRequestFacts | undefined): Eligibility {
+export function getModelEligibility(ctx: FastSelection | undefined): Eligibility {
   const model = ctx?.model;
   if (!model)
     return {
       supported: false,
-      reason: 'Request identity/API/authentication unavailable from public Pi hooks',
+      reason: 'No model is selected',
     };
   if (typeof ctx?.oauth !== 'boolean') {
-    return { supported: false, reason: 'Request authentication is unavailable' };
+    return { supported: false, reason: 'Selected model authentication is unavailable' };
   }
   const id = model.id.replace(/^(?:anthropic|openai)\//u, '');
   if (model.api === 'anthropic-messages' && CLAUDE_MODELS.has(id)) {
@@ -69,20 +67,27 @@ function isRecord(payload: unknown): payload is Record<string, unknown> {
 
 export function getFastPayload(
   payload: unknown,
-  ctx: FastRequestFacts | undefined,
+  ctx: FastSelection | undefined,
   enabled: boolean,
 ): Record<string, unknown> | undefined {
   if (!enabled || !isRecord(payload)) return undefined;
   const eligibility = getModelEligibility(ctx);
   if (!eligibility.supported || !eligibility.option || payload.model !== ctx?.model.id)
     return undefined;
+  // Reject incompatible/ambiguous envelopes, including a same-ID Completions
+  // request after another extension changes selection to Responses in flight.
+  if (eligibility.option === 'service_tier') {
+    if (!Array.isArray(payload.input) || 'messages' in payload) return undefined;
+  } else if (!Array.isArray(payload.messages) || 'input' in payload) {
+    return undefined;
+  }
   if (eligibility.option in payload) return undefined;
   return { ...payload, [eligibility.option]: eligibility.option === 'speed' ? 'fast' : 'priority' };
 }
 
 export function applyFastHeaders(
   headers: Record<string, string | null>,
-  ctx: FastRequestFacts | undefined,
+  ctx: FastSelection | undefined,
   enabled: boolean,
 ): void {
   if (!enabled || ctx?.model.api !== 'anthropic-messages' || !getModelEligibility(ctx).supported)

@@ -3,11 +3,20 @@ import { registerStatus, type StatusHandle } from '@araketski/pi-statusline-prot
 import { applyFastHeaders, getFastPayload, getModelEligibility } from './src/request.ts';
 import { restoreFastState, type FastState } from './src/session.ts';
 
-// Pi 0.99.1 exposes only payload/headers at these hooks. Neither identifies the
-// dispatched provider/API/authentication. ctx.model is a mutable selection, even
-// during a physical request. Do not turn it (or a payload ID) into request facts.
-function hostEligibility() {
-  return getModelEligibility(undefined);
+// Restore the supported direct-selection path. This is a compatibility hint,
+// not an immutable physical request identity or evidence of a virtual route.
+function selectedContext(ctx: ExtensionContext) {
+  const model = ctx.model;
+  if (!model) return undefined;
+  const oauth =
+    model.api === 'anthropic-messages' || model.api === 'openai-codex-responses'
+      ? ctx.modelRegistry.isUsingOAuth(model)
+      : false;
+  return { model, oauth };
+}
+
+function hostEligibility(ctx: ExtensionContext) {
+  return getModelEligibility(selectedContext(ctx));
 }
 
 export default function fastMode(pi: ExtensionAPI): void {
@@ -30,7 +39,7 @@ export default function fastMode(pi: ExtensionAPI): void {
   const updateStatus = (ctx: ExtensionContext) => {
     if (!ctx.hasUI) return;
     const enabled = state(ctx).enabled;
-    const supported = hostEligibility().supported;
+    const supported = hostEligibility(ctx).supported;
     statusHandles
       .get(ctx.sessionManager)
       ?.update(
@@ -44,7 +53,7 @@ export default function fastMode(pi: ExtensionAPI): void {
   const announce = (ctx: ExtensionContext) => {
     if (!ctx.hasUI) return;
     const enabled = state(ctx).enabled;
-    const eligibility = hostEligibility();
+    const eligibility = hostEligibility(ctx);
     ctx.ui.notify(
       `Fast mode is ${enabled ? 'on' : 'off'}${enabled && !eligibility.supported ? ` (unavailable: ${eligibility.reason})` : ''}.`,
       'info',
@@ -60,11 +69,8 @@ export default function fastMode(pi: ExtensionAPI): void {
     pi.appendEntry('fast', { enabled: value });
     updateStatus(ctx);
     announce(ctx);
-    if (value && !hostEligibility().supported && ctx.hasUI) {
-      ctx.ui.notify(
-        'Fast preference saved, but public Pi hooks cannot establish request identity/API/authentication; requests are left unchanged.',
-        'warning',
-      );
+    if (value && !hostEligibility(ctx).supported && ctx.hasUI) {
+      ctx.ui.notify(`${hostEligibility(ctx).reason}. Fast preference saved.`, 'warning');
     }
   };
 
@@ -99,11 +105,11 @@ export default function fastMode(pi: ExtensionAPI): void {
     states.delete(ctx.sessionManager);
   });
   pi.on('before_provider_headers', (event, ctx) => {
-    applyFastHeaders(event.headers, undefined, state(ctx).enabled);
+    applyFastHeaders(event.headers, selectedContext(ctx), state(ctx).enabled);
   });
   pi.on('before_provider_request', (event, ctx) => {
     updateStatus(ctx);
-    return getFastPayload(event.payload, undefined, state(ctx).enabled);
+    return getFastPayload(event.payload, selectedContext(ctx), state(ctx).enabled);
   });
   pi.registerCommand('fast', {
     description: 'Toggle or set fast mode; /fast status reports current state',

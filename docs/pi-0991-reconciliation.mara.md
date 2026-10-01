@@ -38,14 +38,13 @@ integration checkout. Record actual repair assignments and evidence in Work.
 
 ## Repair implementation checkpoint (2026-10-01)
 
-The separate `repair/native-pi-integration` branch now combines the reviewed
+At this checkpoint, `repair/native-pi-integration` combined the reviewed
 statusline accounting and observed-model repairs in
-[[DES-STATUSLINE-BUILTIN-VALUES]], and the conservative fast-mode omission in
-[[DES-FAST-REQUEST]]. Unsupported attribution remains omitted or visibly unknown;
-fast wire mutation is unavailable on the inspected hooks, including direct
-selections, while enabled intent is preserved. These package-local contracts
-record current behavior and bounded verification; earlier gap descriptions below
-are historical inspection findings.
+[[DES-STATUSLINE-BUILTIN-VALUES]] with a conservative fast-mode omission. That
+omission disabled all fast wire mutations, including direct selections, while
+preserving intent. The user subsequently rejected that loss of functionality;
+the restoration below supersedes the blanket no-op policy. Earlier verification
+here remains historical evidence, not proof that the disabled feature worked.
 
 At implementation revision `fab471dae79b5ce2a7ff07a235213ca60f099e3e`, uncached
 checks passed 51 statusline and 45 fast-mode tests, typechecking, lint and source
@@ -78,6 +77,22 @@ is in Work item `w-4021e096`. No interactive QA, live fast-service support or
 publication is claimed. The workflow campaign stays
 paused. Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK
 baseline.
+
+## User-requested fast-mode restoration (2026-10-01)
+
+The user explicitly requested usable fast mode after encountering the no-op
+warning. [[REQ-FAST-ELIGIBILITY]] and [[DES-FAST-REQUEST]] now restore the existing
+direct-selection compatibility path, with exact model IDs, configured OAuth and
+payload-shape checks. This is not immutable physical request identity. Virtual
+routes remain unsupported, and header-only/nested/same-ID auth races retain
+explicit limitations rather than silently disabling all direct use.
+
+Positive SDK 0.99.1 loopback requests and isolated installed CLI 0.99.2 print-mode
+requests now verify Claude fast speed/betas and OpenAI/OAuth Codex priority on
+the wire. Off mode, authored fields and the Completions-to-Responses mismatch
+regression remain covered. No live service acceptance or speedup is claimed.
+Work item `w-4d6781fd` records execution/check evidence. The workflow campaign
+remains paused; no dependency upgrade or settings rewrite accompanies restoration.
 
 ## Inspection provenance
 
@@ -135,8 +150,8 @@ interfaces and proof mechanisms remain unverified; the campaign is still paused.
   Actual goal integration and calibrated production accuracy remain unverified.
 - Support configured native virtual models; do not build a separate routing
   extension. The statusline will show selected versus observed actual model, and
-  fast-mode must establish actual request identity and support or remain
-  unsupported. Image-generation features remain unselected.
+  routed fast-mode remains unsupported without actual request identity.
+  Direct fast mode follows the restored compatibility scope above. Image-generation features remain unselected.
   Count all Pi-attributed active-branch usage in the statusline and relevant goal
   budgets without counting nested/aggregate usage twice. Do not classify command lifetime, ownership, or
   delivery receipts from semantic model judgments.
@@ -240,10 +255,10 @@ integration were not reverified by this bounded repair.
   tool-result/native usage and selected-to-actual model display. Current code is
   still assistant-usage-only and selected-model-only. Earlier passing fixtures
   do not establish these new behaviors.
-- [[REQ-FAST-ELIGIBILITY]] requires safely established actual-request identity,
-  wire API/authentication and fast-service support, otherwise unsupported. Public
-  hook feasibility and regressions remain necessary. Sol 6.1 is not automatically
-  added to the support list merely because it is available or selected for workers.
+- At inspection, [[REQ-FAST-ELIGIBILITY]] required actual-request identity.
+  Its later direct-mode restoration above supersedes blanket omission; routed
+  support remains unavailable. Sol 6.1 is not automatically added to the support
+  list merely because it is available or selected for workers.
 - [[DES-GOAL-CLASSIFIER-POLICY]] and [[EVD-GOAL-CLASSIFIER-PILOT]] separate agreed
   provisional policy from actual limited calls and still-unverified goal runtime.
   [[REQ-CAFFEINATE-AUTO-HOLD]] includes active classifier work outside assistant

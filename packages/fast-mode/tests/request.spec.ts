@@ -3,12 +3,12 @@ import {
   applyFastHeaders,
   getModelEligibility,
   getFastPayload,
-  type FastRequestFacts,
+  type FastSelection,
   type FastModel,
 } from '../extensions/fast-mode/src/request.ts';
 
-// These are explicitly verified request facts, not ExtensionContext.model.
-function context(model?: FastModel, oauth = false): FastRequestFacts | undefined {
+// Compatibility inputs from the selected direct model, not routed identity.
+function context(model?: FastModel, oauth = false): FastSelection | undefined {
   return model ? { model, oauth } : undefined;
 }
 
@@ -24,11 +24,26 @@ const openai = [
   'gpt-6-luna',
 ];
 
-describe('isolated transformations with verified request facts (not native hook support)', () => {
+describe('selected-model compatibility and outgoing request transformations', () => {
+  it('rejects incompatible or ambiguous payload shapes even with a matching selected ID', () => {
+    const responses = context({ provider: 'openai', api: 'openai-responses', id: 'gpt-5.4' });
+    for (const body of [{ messages: [] }, {}, { input: 'text' }, { input: [], messages: [] }]) {
+      expect(getFastPayload({ model: 'gpt-5.4', ...body }, responses, true)).toBeUndefined();
+    }
+    const anthropic = context({
+      provider: 'anthropic',
+      api: 'anthropic-messages',
+      id: 'claude-opus-5',
+    });
+    for (const body of [{ input: [] }, {}, { messages: 'text' }, { input: [], messages: [] }]) {
+      expect(getFastPayload({ model: 'claude-opus-5', ...body }, anthropic, true)).toBeUndefined();
+    }
+  });
+
   it('rejects unavailable request authentication even with an allowlisted model', () => {
     const ctx = {
       model: { provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' },
-    } as FastRequestFacts;
+    } as FastSelection;
     expect(getModelEligibility(ctx).supported).toBe(false);
     const headers = { 'anthropic-beta': 'user' };
     applyFastHeaders(headers, ctx, true);
@@ -49,8 +64,9 @@ describe('isolated transformations with verified request facts (not native hook 
 
   it.each(openai)('adds priority for OpenAI Responses model %s', (id) => {
     const ctx = context({ provider: 'proxy', api: 'openai-responses', id });
-    expect(getFastPayload({ model: id }, ctx, true)).toEqual({
+    expect(getFastPayload({ model: id, input: [] }, ctx, true)).toEqual({
       model: id,
+      input: [],
       service_tier: 'priority',
     });
   });
@@ -58,9 +74,10 @@ describe('isolated transformations with verified request facts (not native hook 
   it.each(openai)('requires OAuth for Codex Responses model %s', (id) => {
     const model = { provider: 'openai-codex', api: 'openai-codex-responses', id };
     expect(getModelEligibility(context(model)).supported).toBe(false);
-    expect(getFastPayload({ model: id }, context(model), true)).toBeUndefined();
-    expect(getFastPayload({ model: id }, context(model, true), true)).toEqual({
+    expect(getFastPayload({ model: id, input: [] }, context(model), true)).toBeUndefined();
+    expect(getFastPayload({ model: id, input: [] }, context(model, true), true)).toEqual({
       model: id,
+      input: [],
       service_tier: 'priority',
     });
   });
@@ -71,18 +88,20 @@ describe('isolated transformations with verified request facts (not native hook 
       api: 'anthropic-messages',
       id: 'anthropic/claude-opus-5',
     });
-    expect(getFastPayload({ model: 'anthropic/claude-opus-5' }, ctx, true)).toEqual({
+    expect(getFastPayload({ model: 'anthropic/claude-opus-5', messages: [] }, ctx, true)).toEqual({
       model: 'anthropic/claude-opus-5',
+      messages: [],
       speed: 'fast',
     });
-    expect(getFastPayload({ model: 'claude-opus-5' }, ctx, true)).toBeUndefined();
+    expect(getFastPayload({ model: 'claude-opus-5', messages: [] }, ctx, true)).toBeUndefined();
     const openaiCtx = context({
       provider: 'litellm',
       api: 'openai-responses',
       id: 'openai/gpt-6-sol',
     });
-    expect(getFastPayload({ model: 'openai/gpt-6-sol' }, openaiCtx, true)).toEqual({
+    expect(getFastPayload({ model: 'openai/gpt-6-sol', input: [] }, openaiCtx, true)).toEqual({
       model: 'openai/gpt-6-sol',
+      input: [],
       service_tier: 'priority',
     });
   });
@@ -107,12 +126,18 @@ describe('isolated transformations with verified request facts (not native hook 
     expect(getModelEligibility(context()).supported).toBe(false);
     expect(getFastPayload({ model: 'claude-opus-5' }, context(), true)).toBeUndefined();
     expect(getFastPayload({ model: 'claude-opus-5' }, ctx, false)).toBeUndefined();
-    for (const payload of [null, [], 'text', 5, { model: 'claude-opus-5', speed: null }]) {
+    for (const payload of [
+      null,
+      [],
+      'text',
+      5,
+      { model: 'claude-opus-5', messages: [], speed: null },
+    ]) {
       expect(getFastPayload(payload, ctx, true)).toBeUndefined();
     }
     const openaiCtx = context({ provider: 'openai', api: 'openai-responses', id: 'gpt-5.4' });
     expect(
-      getFastPayload({ model: 'gpt-5.4', service_tier: 'default' }, openaiCtx, true),
+      getFastPayload({ model: 'gpt-5.4', input: [], service_tier: 'default' }, openaiCtx, true),
     ).toBeUndefined();
     const headers: Record<string, string | null> = {
       'anthropic-beta': 'existing,fast-mode-2026-02-01',

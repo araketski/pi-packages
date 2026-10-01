@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { DefaultResourceLoader } from '@earendil-works/pi-coding-agent';
 import { expect, it } from 'vitest';
 
-it('does not borrow an in-flight same-ID selection in the native Pi 0.99.1 pipeline', () => {
+it('sends direct fast options through native Pi while preserving off, authored options and incompatible-API requests', () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -15,10 +15,12 @@ it('does not borrow an in-flight same-ID selection in the native Pi 0.99.1 pipel
         '../../../node_modules/@earendil-works/pi-coding-agent/dist/index.js',
       ),
       resolve(import.meta.dirname, '..'),
+      ...(process.env.FAST_MODE_CLI ? [process.env.FAST_MODE_CLI] : []),
     ],
     { env: { ...process.env, PI_OFFLINE: '1' }, encoding: 'utf8', timeout: 60_000 },
   );
   expect(result.status, result.stdout + result.stderr || String(result.error)).toBe(0);
+  if (process.env.FAST_MODE_CLI) console.log(result.stdout);
 }, 65_000);
 
 it('loads the source extension through the Pi 0.99.1 resource loader', async () => {
