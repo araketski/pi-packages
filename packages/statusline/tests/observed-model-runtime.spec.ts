@@ -17,11 +17,15 @@ import { collectCore } from '../extensions/statusline/src/builtins/core.js';
 it('shows native routed identity through the public Pi 0.99.1 transcript with loopback transport', async () => {
   const root = mkdtempSync(join(tmpdir(), 'statusline-model-runtime-'));
   const requests: string[] = [];
+  let hold: Promise<void> | undefined;
+  let requestStarted: (() => void) | undefined;
   const server = createServer(async (req, res) => {
     let raw = '';
     for await (const chunk of req) raw += chunk;
     const { model } = JSON.parse(raw) as { model: string };
     requests.push(model);
+    requestStarted?.();
+    if (hold) await hold;
     const item = {
       type: 'message',
       id: 'msg_1',
@@ -180,6 +184,29 @@ it('shows native routed identity through the public Pi 0.99.1 transcript with lo
     expect(text(ctx!)).toBe('physical');
     await session.setModel(virtual);
     expect(text(ctx!)).toBe('auto');
+    let release!: () => void;
+    hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      requestStarted = resolve;
+    });
+    const pending = session.prompt('Synthetic in-flight selection change');
+    try {
+      await started;
+      await session.setModel(modelRuntime.getModel('model-fixture', 'physical')!);
+      await session.setModel(virtual);
+    } finally {
+      release();
+      await pending;
+      hold = undefined;
+      requestStarted = undefined;
+    }
+    // The old response completes after two new selection entries. Completion
+    // order alone must not associate it with this fresh selection interval.
+    expect(text(ctx!)).toBe('auto');
+    await session.prompt('Synthetic fresh request after the selection change');
+    expect(text(ctx!)).toBe('auto → second');
     expect(errors).toEqual([]);
   } finally {
     session?.dispose();

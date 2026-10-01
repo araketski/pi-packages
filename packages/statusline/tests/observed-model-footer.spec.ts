@@ -20,6 +20,7 @@ it('refreshes observed models across footer selection, tree, compaction and sess
     };
     const manager = SessionManager.inMemory(root);
     const selection = manager.appendModelChange('router', 'auto');
+    manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     const response = manager.appendMessage({
       role: 'assistant',
       content: [],

@@ -21,10 +21,20 @@ export function modelText(ctx: ExtensionContext): string {
   )
     return fallback;
 
-  const latest = reversed
-    .slice(0, boundary)
-    .find((entry) => entry.type === 'message' && entry.message.role === 'assistant');
+  const interval = reversed.slice(0, boundary);
+  const responseIndex = interval.findIndex(
+    (entry) => entry.type === 'message' && entry.message.role === 'assistant',
+  );
+  const latest = interval[responseIndex];
   if (latest?.type !== 'message' || latest.message.role !== 'assistant') return fallback;
+  // Pi persists an assistant on completion: a model change can overtake an
+  // already dispatched stream. Require a user-run boundary AFTER the selection
+  // and BEFORE the response. Otherwise transcript-only attribution is ambiguous
+  // (including switches during tool follow-ups or custom-message-only runs).
+  const initiated = interval
+    .slice(responseIndex + 1)
+    .some((entry) => entry.type === 'message' && entry.message.role === 'user');
+  if (!initiated) return fallback;
   const actual = latest.message;
   // Failed requests may name the selected virtual model even if routing failed.
   // Never resurrect an older identity after missing/unfinished evidence.

@@ -48,6 +48,7 @@ describe('selected and observed request identity', () => {
   it('shows the latest observed route, not the next route or private router state', () => {
     const f = fixture();
     f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     expect(f.text()).toBe('auto');
     f.manager.appendCustomEntry('pi.virtual-model-state', {
       modelId: 'future',
@@ -65,15 +66,18 @@ describe('selected and observed request identity', () => {
   it('invalidates at each selection boundary, including switching away and back', () => {
     const f = fixture();
     f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     f.manager.appendMessage(assistant());
     expect(f.text()).toBe('auto → physical');
     f.ctx.model = { id: 'other', provider: 'router' } as never;
     expect(f.text()).toBe('other');
     f.manager.appendModelChange('router', 'other');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     f.manager.appendMessage(assistant('other-physical'));
     expect(f.text()).toBe('other → other-physical');
     f.ctx.model = { id: 'auto', provider: 'router' } as never;
     f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     expect(f.text()).toBe('auto');
     f.manager.appendMessage(assistant('fresh'));
     expect(f.text()).toBe('auto → fresh');
@@ -84,6 +88,7 @@ describe('selected and observed request identity', () => {
     f.manager.appendMessage(assistant());
     expect(f.text()).toBe('auto');
     f.manager.appendModelChange('different-router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     f.manager.appendMessage(assistant());
     expect(f.text()).toBe('auto');
     f.ctx.model = undefined;
@@ -93,6 +98,7 @@ describe('selected and observed request identity', () => {
   it('collapses identical identities but disambiguates equal IDs on different providers', () => {
     const f = fixture('same', 'host');
     f.manager.appendModelChange('host', 'same');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     f.manager.appendMessage(assistant('same'));
     expect(f.text()).toBe('same');
     f.manager.appendMessage(assistant('same', 'other-host'));
@@ -111,6 +117,7 @@ describe('selected and observed request identity', () => {
     (extra) => {
       const f = fixture();
       f.manager.appendModelChange('router', 'auto');
+      f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
       f.manager.appendMessage(assistant());
       f.manager.appendMessage(assistant('new', 'host', extra));
       expect(f.text()).toBe('auto');
@@ -120,6 +127,7 @@ describe('selected and observed request identity', () => {
   it('derives branch history afresh on navigation without reading abandoned entries', () => {
     const f = fixture();
     const selection = f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     const first = f.manager.appendMessage(assistant('first'));
     f.manager.appendMessage(assistant('abandoned'));
     expect(f.text()).toBe('auto → abandoned');
@@ -127,6 +135,7 @@ describe('selected and observed request identity', () => {
     expect(f.text()).toBe('auto → first');
     f.manager.branch(selection);
     expect(f.text()).toBe('auto');
+    f.manager.appendMessage({ role: 'user', content: 'New branch request', timestamp: 1 });
     f.manager.appendMessage(assistant('new-branch'));
     expect(f.text()).toBe('auto → new-branch');
   });
@@ -134,6 +143,7 @@ describe('selected and observed request identity', () => {
   it('drops observations omitted from current context instead of reviving older responses', () => {
     const f = fixture();
     f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     const first = f.manager.appendMessage(assistant('first'));
     const last = f.manager.appendMessage(assistant('last'));
     f.manager.appendContextEdit(last, null);
@@ -149,6 +159,7 @@ describe('selected and observed request identity', () => {
   it('reads restored history and never carries evidence to another session manager', () => {
     const f = fixture();
     f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage({ role: 'user', content: 'Synthetic request', timestamp: 1 });
     f.manager.appendMessage(assistant('restored'));
     expect(f.text()).toBe('auto → restored');
     const restored = SessionManager.inMemory('/tmp', undefined, [
@@ -158,6 +169,27 @@ describe('selected and observed request identity', () => {
     f.ctx.sessionManager = restored;
     expect(f.text()).toBe('auto → restored');
     f.ctx.sessionManager = SessionManager.inMemory('/tmp');
+    expect(f.text()).toBe('auto');
+  });
+
+  it('does not treat post-selection completion order as dispatch association', () => {
+    const f = fixture();
+    f.manager.appendModelChange('router', 'old');
+    f.manager.appendMessage({ role: 'user', content: 'Old request', timestamp: 1 });
+    f.manager.appendModelChange('router', 'auto');
+    f.manager.appendMessage(assistant('old-route'));
+    expect(f.text()).toBe('auto');
+    // A fresh native user run establishes a usable interval for new responses.
+    f.manager.appendMessage({ role: 'user', content: 'Fresh request', timestamp: 1 });
+    f.manager.appendMessage(assistant('fresh-route'));
+    expect(f.text()).toBe('auto → fresh-route');
+  });
+
+  it('omits custom-message-only and mid-continuation selection attribution', () => {
+    const f = fixture();
+    f.manager.appendModelChange('router', 'auto');
+    f.manager.appendCustomMessageEntry('extension-run', 'Continue', true);
+    f.manager.appendMessage(assistant());
     expect(f.text()).toBe('auto');
   });
 
