@@ -38,6 +38,7 @@ catalog:
 catalogs:
   pi-host:
     '@earendil-works/pi-coding-agent': '*'
+    '@earendil-works/pi-tui': '*'
     typebox: '*'
 minimumReleaseAgeExclude:
   - '@earendil-works/chord@0.99.1'

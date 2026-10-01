@@ -1,4 +1,4 @@
-# Planned questions extension
+# Questions extension contract
 
 ## Scope and authority
 
@@ -16,9 +16,11 @@ not a legal determination, dependency, compatibility promise, or authority to
 copy code. Do not copy upstream source, tests, assets, or authored documentation.
 
 The user authorized implementation after accepting the design. The package and
-extension entrypoint are now scaffolded; the generated factory is a no-op pending
-behavioral implementation. Accepted knowledge is intended behavior, not passing
-runtime verification. The verification plan defines the required future checks.
+extension entrypoint are scaffolded, and the independently authored tool, flow,
+TUI component and invocation lifecycle are implemented. Accepted knowledge remains
+the intended contract, not proof of complete runtime verification. The
+[verification progress observations](./verification.mara.md#progress-observations)
+separate deterministic/source checks from pending real-host and artifact checks.
 
 ## Agreed behavior
 

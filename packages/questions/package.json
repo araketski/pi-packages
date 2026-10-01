@@ -1,19 +1,27 @@
 {
   "name": "@araketski/pi-questions",
   "version": "0.1.0",
-  "license": "MIT",
   "description": "Interactive user questions with optional recommended answers",
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
-  "files": ["extensions", "README.md", "LICENSE"],
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "catalog:"
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@earendil-works/pi-tui": "catalog:",
+    "typebox": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:pi-host",
+    "@earendil-works/pi-tui": "catalog:pi-host",
+    "typebox": "catalog:pi-host"
   },
   "pi": {
     "extensions": [
       "./extensions/ask-questions/index.ts"
     ]
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "catalog:pi-host"
   }
 }

@@ -1,6 +1,8 @@
 # Questions tool and interaction design
 
-This is the **accepted design**, not implemented or verified behavior.
+This is the **accepted design**, not a claim of complete runtime verification.
+Implementation progress and observed checks are recorded in
+[the verification plan](./verification.mara.md#progress-observations).
 The user-approved product obligations are in [the contract](./contract.mara.md).
 Use this document, not upstream code, as the implementation blueprint. Keep
 reusable checks in [the verification plan](./verification.mara.md).
@@ -32,8 +34,8 @@ The choices are explicit so an implementer need not invent policy:
 
 The user confirmed model-only exposure, invalid-recommendation rejection and
 empty answers on cancellation. The documented design and optional attention
-integration are accepted; implementation remains a separate authorized increment.
-Accepted items and verification definitions are not evidence of working code.
+integration are accepted; implementation was subsequently authorized and begun.
+Accepted items and verification definitions are not evidence of passing execution.
 
 ## Structured design
 
@@ -74,11 +76,11 @@ move it first. Option numbering stays stable throughout an invocation.
 The top-level object contains `questions`, an ordered array of length 1–6.
 Each question contains:
 
-| Field | Meaning |
-| --- | --- |
-| `header?` | Optional nonblank short progress label; absent means Q1, Q2, etc. |
-| `question` | Required nonblank full question text |
-| `options` | Ordered array of 1–8 option objects |
+| Field                | Meaning                                                                |
+| -------------------- | ---------------------------------------------------------------------- |
+| `header?`            | Optional nonblank short progress label; absent means Q1, Q2, etc.      |
+| `question`           | Required nonblank full question text                                   |
+| `options`            | Ordered array of 1–8 option objects                                    |
 | `recommendedOption?` | Optional integer in 1–options.length; refers only to a supplied option |
 
 Each option has required nonblank `label` and optional nonblank
@@ -89,6 +91,7 @@ the agent may supply that answer as an ordinary option and reference it;
 recommending the built-in editor row or pre-filling custom text is outside scope.
 
 Example input:
+
 ```json
 {
   "questions": [
@@ -152,6 +155,7 @@ Do not add an acceptance flag based on the recommendation; comparison with
 `recommendedOption` is derivable, and agent advice is distinct from user choice.
 
 Example answered payload:
+
 ```json
 {
   "status": "answered",
@@ -256,15 +260,15 @@ that every option can stay visible at once in a tiny viewport.
 
 ## Controls outside the editor
 
-| Input | Question-options | Review |
-| --- | --- | --- |
-| Up/Down or k/j | Move one row; clamp at ends, no wrap | Scroll review content; do not change answers |
-| PageUp/PageDown | Scroll content without changing focus/answers | Scroll review content |
-| 1–9 | Immediately select that numbered row, including custom | No answer selection or submission |
-| Enter | Confirm supplied option or open custom editor | Submit all answers |
-| l | Same as option selection | No submission |
-| Left or h | Previous question when N > 1; no-op on first | Last question |
-| Escape | Cancel whole invocation | Cancel whole invocation |
+| Input           | Question-options                                       | Review                                       |
+| --------------- | ------------------------------------------------------ | -------------------------------------------- |
+| Up/Down or k/j  | Move one row; clamp at ends, no wrap                   | Scroll review content; do not change answers |
+| PageUp/PageDown | Scroll content without changing focus/answers          | Scroll review content                        |
+| 1–9             | Immediately select that numbered row, including custom | No answer selection or submission            |
+| Enter           | Confirm supplied option or open custom editor          | Submit all answers                           |
+| l               | Same as option selection                               | No submission                                |
+| Left or h       | Previous question when N > 1; no-op on first           | Last question                                |
+| Escape          | Cancel whole invocation                                | Cancel whole invocation                      |
 
 All transitions request a render only while the invocation is live. After terminal
 completion, ignore input. Shortcuts cannot be interpreted inside an active custom

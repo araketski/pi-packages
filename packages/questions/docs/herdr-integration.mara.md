@@ -11,9 +11,11 @@ one another to be installed.
 The user requested investigation of this integration and accepted the documented
 design after confirming the remaining Questions choices. The requirement, design
 and verification below are **accepted intended behavior**, not implementation or
-passing evidence. This increment changes documentation only. No questions code,
-hook changes, live event emission, Herdr session manipulation or runtime
-verification was performed.
+passing evidence. The original specification increment changed documentation only;
+it did not modify hooks or manipulate a live Herdr session. The subsequently
+authorized implementation balances invocation-owned events; see the
+[verification progress observations](./verification.mara.md#progress-observations)
+for observed deterministic checks and still-pending host/hook verification.
 
 ## Inspected integration
 
@@ -87,8 +89,7 @@ already-aborted call must not require backend operations or change the core
 questionnaire outcome. No label/message/reason, question text, answer content,
 extra notification integration, direct socket reporter or persistent attention
 state is added. The signal reports waiting for input, not task failure or a
-verified server-delivery result. This is accepted intended behavior, not an
-implemented feature.
+verified server-delivery result. This is the accepted contract; the verification progress observations distinguish implemented behavior, observed subsets and unverified runtime integration.
 :::
 
 :::mara design DES-QUESTIONS-HERDR-ATTENTION
@@ -114,9 +115,11 @@ startup ordering so an acquire ignored before root initialization cannot be
 followed by a release against another producer's count.
 
 Emit exactly:
+
 ```typescript
-pi.events.emit("herdr:blocked", { active: true });
+pi.events.emit('herdr:blocked', { active: true });
 ```
+
 Record the invocation's ownership of this emission, not a claim that a hook
 received it or the server displayed it. Guard acquisition so reentrant callbacks
 cannot acquire twice. If the UI subsequently fails to construct/open, balance the
@@ -147,8 +150,9 @@ answered, dismissed, aborted, invalidated and failed invocations. Release before
 the ordinary tool result returns and before session/runtime handoff completes.
 If attentionOwned is false, emit nothing. Otherwise consume/clear the local flag
 before emitting once:
+
 ```typescript
-pi.events.emit("herdr:blocked", { active: false });
+pi.events.emit('herdr:blocked', { active: false });
 ```
 
 Use the captured invocation/runtime emitter and liveness token for this release;
@@ -231,6 +235,5 @@ backend reporter. Until Goal exists, a synthetic two-producer counter test is
 partial evidence only, not actual Goal integration.
 
 Source inspection and the earlier Goal demo are not execution evidence for these
-checks. No Questions implementation or integration test has run; validate and
-record the actual selected host/hook and limitations when implementation occurs.
+checks. Observed deterministic event/ownership checks and remaining actual host/hook checks are recorded in the verification progress observations. Validate and record the selected host/hook and limitations before claiming runtime composition.
 :::

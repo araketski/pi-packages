@@ -1,10 +1,11 @@
 # Questions verification plan
 
-These are future repeatable checks, **not observed passing results**. The
-package is scaffolded, but questionnaire behavior is not implemented yet. Documentation
-validation checks corpus integrity only. The scaffolding increment passed source
-entrypoint loading, typecheck, lint and source pi-check against Pi 0.99.1; its
-no-op factory did not verify questionnaire registration, behavior or packed loading.
+These are repeatable verification definitions, **not themselves passing evidence**.
+The package and questionnaire behavior are implemented. Documentation validation
+checks corpus integrity only. The scaffolding increment passed source entrypoint
+loading, typecheck, lint and source pi-check against Pi 0.99.1; that no-op scaffold
+did not verify registration, behavior or packed loading. Subsequent observed subsets
+and remaining checks are recorded below, not inferred from accepted status.
 
 Derive implementation tests from [the agreed contract](./contract.mara.md) and
 the accepted [design](./design.mara.md). Use
@@ -12,32 +13,79 @@ red–green–refactor for each behavioral increment, with repository Vitest tes
 reachable through resolved Nx targets. Do not copy upstream tests.
 
 The accepted [optional Herdr attention integration](./herdr-integration.mara.md)
-has its own future verification for balanced events and independent Goal blockers.
+has its own verification for balanced events and independent Goal blockers.
 Acceptance does not imply implemented integration or an observed runtime result.
 
 ## Observable acceptance examples
 
-| Case | Action | Expected outcome |
-| --- | --- | --- |
-| No recommendation | Open a question with A and B | A is focused; neither row is marked recommended; no answer yet |
-| Recommendation is second | Supply `recommendedOption: 2` | B is initially focused and visibly marked Recommended; nothing is submitted |
-| Focus leaves recommendation | Move from B to A | A owns the focus indicator; B retains its recommendation label and recommendation color |
-| Follow recommendation | Confirm B in a single question | B is returned as the explicit user answer |
-| Disagree | Select A, or type a custom answer | The chosen answer is returned without replacement or forced confirmation of B |
-| Multiple recommendations | Open several questions with different recommendations | Each first visit uses its own default; review appears only after every question has an answer |
-| Backtracking | Answer, move back, change the answer, complete review | Only the latest confirmed answer for each question is submitted; focus is not reset to the recommendation |
-| Custom answer | Select Write your own answer, type and confirm | Trim boundary whitespace only; preserve internal text and line breaks |
-| Blank custom answer | Submit empty or whitespace-only text | Stay in the editor with actionable feedback; no answer is recorded |
-| Escape in editor | Type a draft, then Escape | Return to that question's options; do not cancel the whole questionnaire |
-| Escape outside editor | Dismiss question or review | Cancelled outcome, never answered; result has no partial answers |
-| Non-TUI | Run in RPC (including `hasUI: true`), JSON or print | Unavailable result, no custom component call, no dialog wait or automatic default answer |
-| Invalid recommendation | Supply 0, a fraction, or a value beyond available options | Input error before UI; no coercion, fallback answer or recommendation reassignment |
-| Abort or invalidation | Abort while choosing, editing or reviewing | Prompt closes, no submitted answers, owned listeners are released, next prompt still works |
+| Case                        | Action                                                    | Expected outcome                                                                                          |
+| --------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| No recommendation           | Open a question with A and B                              | A is focused; neither row is marked recommended; no answer yet                                            |
+| Recommendation is second    | Supply `recommendedOption: 2`                             | B is initially focused and visibly marked Recommended; nothing is submitted                               |
+| Focus leaves recommendation | Move from B to A                                          | A owns the focus indicator; B retains its recommendation label and recommendation color                   |
+| Follow recommendation       | Confirm B in a single question                            | B is returned as the explicit user answer                                                                 |
+| Disagree                    | Select A, or type a custom answer                         | The chosen answer is returned without replacement or forced confirmation of B                             |
+| Multiple recommendations    | Open several questions with different recommendations     | Each first visit uses its own default; review appears only after every question has an answer             |
+| Backtracking                | Answer, move back, change the answer, complete review     | Only the latest confirmed answer for each question is submitted; focus is not reset to the recommendation |
+| Custom answer               | Select Write your own answer, type and confirm            | Trim boundary whitespace only; preserve internal text and line breaks                                     |
+| Blank custom answer         | Submit empty or whitespace-only text                      | Stay in the editor with actionable feedback; no answer is recorded                                        |
+| Escape in editor            | Type a draft, then Escape                                 | Return to that question's options; do not cancel the whole questionnaire                                  |
+| Escape outside editor       | Dismiss question or review                                | Cancelled outcome, never answered; result has no partial answers                                          |
+| Non-TUI                     | Run in RPC (including `hasUI: true`), JSON or print       | Unavailable result, no custom component call, no dialog wait or automatic default answer                  |
+| Invalid recommendation      | Supply 0, a fraction, or a value beyond available options | Input error before UI; no coercion, fallback answer or recommendation reassignment                        |
+| Abort or invalidation       | Abort while choosing, editing or reviewing                | Prompt closes, no submitted answers, owned listeners are released, next prompt still works                |
 
 Serialization, editor-draft retention and lifecycle mechanics in this table
 follow the accepted design, alongside persistent recommendation marking,
 optional guidance and explicit confirmation. These are acceptance expectations,
 not observed results.
+
+## Progress observations
+
+The behavioral implementation increment runs against the catalog-selected Pi
+0.99.1, TUI 0.99.1 and TypeBox 1.3.27. Its source and tests were authored from the
+accepted contracts, without copying the inspected reference implementation,
+tests, documentation or assets. The authored diff contains no upstream package,
+vendored upstream code or restored upstream build stack. Host libraries are
+explicit development dependencies and catalog-backed wildcard host peers;
+publication selection remains deliberate. This is author inspection, not a
+mechanical originality proof, legal determination or publication approval.
+
+- Red: 51 behavioral tests failed because the scaffold did not register
+  ask_questions. Additional regressions demonstrated an unbounded call preview,
+  early ownership release permitting UI reentry, and embedded newlines in progress
+  headers. Green/refactor: the resolved Questions Nx test target passed **59 tests**
+  (53 tool/UI-fixture tests, five pure-flow tests and one isolated source-loader
+  test). These are deterministic/loader observations, not a live-model assessment.
+- The tool fixture observes validated schema/result agreement, recommendation and
+  focus/Chosen separation, optional guidance, custom editing/drafts, review and
+  backtracking, empty cancellation/unavailable payloads, owned listener cleanup,
+  first-terminal-event races, rendering failure propagation, reentry rejection,
+  bounded Unicode wrapping/scrolling and sanitized rendering. Pure transitions
+  include all six questions/eight supplied options, missing-answer safety and
+  independent result snapshots. The source loader discovers exactly one entrypoint
+  and one model-only/sequential ask_questions registration with schemas/guidance.
+- A controlled event bus observes one boolean-only acquire/release per completed
+  Herdr-eligible invocation, no reacquisition during navigation/editing/review,
+  balanced failure/abort/invalidation cleanup, no pre-startup/non-Herdr/non-TUI
+  emissions, harmless emission errors and a remaining synthetic producer's count.
+  There was **no actual Herdr socket/server or Goal integration** in these tests.
+- Resolved Nx test, typecheck, lint and inferred source pi-check passed. A
+  regenerated lockfile and frozen pnpm install succeeded without changing selected
+  versions. Source pi-check emitted the existing nx-pi TypeScript-module loader
+  warning but completed successfully; it is not a native-loading or release proof.
+- **Pending:** fresh packed-consumer loading/archive checks and actual Pi TUI
+  regular/fullscreen, interrupt/focus/IME/editor-restoration and lifecycle operations.
+  Actual selected Herdr hook/server composition, reload ordering, real Goal
+  integration and any live-model guidance assessment are not established.
+
+The selected host defaults app.interrupt to Escape. The explicitly accepted
+Escape editor-back/dialog-dismiss behavior takes precedence over that default
+collision; non-Escape configured interrupts and Ctrl+C route to host abort before
+editor input. The deterministic fixture checks a Ctrl+X remapping; actual host
+key dispatch still needs separate verification. Host editor edit/paste processing
+produces the submitted text; Questions trims only its outer whitespace, retaining
+internal text and line breaks from that editor value.
 
 ## Structured verification definitions
 
@@ -91,7 +139,7 @@ rendering without losing logical answer text.
 
 Observe red failures for the intended missing behavior before each implementation
 slice, then green results and refactoring. Record host version, mode and actual
-tested scope. These checks are definitions only; none has run for this package.
+tested scope. These are repeatable verification definitions. Observed subsets and remaining real-host checks are recorded in the progress observations below.
 :::
 
 :::mara verification VER-QUESTIONS-LIFETIME
@@ -129,7 +177,7 @@ timers, child processes, model/provider requests, extension-authored messages,
 session/draft/settings writes, gate acquisition or statusline changes. Pi's normal
 tool-result/session writes are expected host behavior, not extension side effects.
 Separate deterministic race tests from actual host observations and report any
-unsupported path as a limitation. These checks have not run.
+unsupported path as a limitation. Observed deterministic subsets and remaining actual-host lifecycle checks are recorded below; mock results alone do not satisfy this method.
 :::
 
 :::mara verification VER-QUESTIONS-INDEPENDENT
@@ -150,8 +198,7 @@ Inspect package identity, deliberate publication files, applicable license
 material, host peers and catalog/workspace references. Ensure Mara items/narrative
 were relocated with stable identities in the successful scaffold increment and
 staging copies removed only after references were repaired. Source/packed checks
-cannot replace attribution/license review or authorize publication. No
-implementation is present and this inspection has not been performed.
+cannot replace attribution/license review or authorize publication. Observed author inspection and remaining distribution checks are recorded below. No mechanical check proves originality or authorizes publication.
 :::
 
 :::mara verification VER-QUESTIONS-LOADING
@@ -189,5 +236,5 @@ release. Record the selected host version; neither wildcard host-peer syntax,
 local SDK loading, static archive checks nor source inspection promises support
 for other versions. Run the real TUI checks in VER-QUESTIONS-INTERACTION and
 VER-QUESTIONS-LIFETIME separately: loaders do not exercise keyboard/focus/cancel
-behavior. No archive, loading test or release check exists or has run here.
+behavior. Observed source-loading checks and remaining packed-consumer and release checks are recorded below. Neither source loading nor static checks establishes the complete method.
 :::
