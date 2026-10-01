@@ -31,12 +31,12 @@ function state(...counters: Counter[]): string | undefined {
 function attributedUsage(
   entry: SessionEntry,
 ): Extract<SessionEntry, { type: 'usage' }>['usage'] | undefined | null {
-  if (entry.type === 'usage') return entry.usage;
+  if (entry.type === 'usage') return entry.usage ?? undefined;
   if (entry.type === 'compaction' || entry.type === 'branch_summary') {
     return entry.usage ?? (entry.fromHook ? null : undefined);
   }
   if (entry.type === 'message') {
-    if (entry.message.role === 'assistant') return entry.message.usage;
+    if (entry.message.role === 'assistant') return entry.message.usage ?? undefined;
     // Pi has already added nested usage to this outer transcript result.
     if (entry.message.role === 'toolResult') return entry.message.usage ?? null;
   }

@@ -143,6 +143,27 @@ describe('native active-branch usage accounting', () => {
     expect(collect(manager).get('cost')?.state).toBe('unknown');
   });
 
+  it.each(['assistant', 'native'] as const)(
+    'treats serialized null %s accounting as unknown rather than unattributed',
+    (kind) => {
+      const dir = mkdtempSync(join(tmpdir(), 'statusline-null-usage-'));
+      roots.push(dir);
+      const manager = SessionManager.create(dir, dir);
+      manager.appendMessage({ role: 'user', content: 'root', timestamp: 0 });
+      if (kind === 'assistant') {
+        manager.appendMessage({ ...assistant(), usage: null } as unknown as Message);
+      } else {
+        manager.appendUsage('fixture', 'fixture', 'fixture', null as unknown as Usage);
+      }
+      const restored = SessionManager.open(manager.getSessionFile()!, dir);
+      expect(texts(restored)).toEqual(['?↑ ?↓', '?/? ?%', '$?']);
+      for (const item of collect(restored).values()) expect(item.state).toBe('unknown');
+      restored.appendMessage(assistant());
+      expect(texts(restored)).toEqual(['100+?↑ 20+?↓', '9+?/1+? ?%', '$0.10+?']);
+      for (const item of collect(restored).values()) expect(item.state).toBe('partial');
+    },
+  );
+
   it('retains independent known subtotals for minimal classifier and missing pricing records', () => {
     const manager = SessionManager.inMemory();
     manager.appendMessage(assistant());
