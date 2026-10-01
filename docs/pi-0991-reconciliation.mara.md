@@ -36,6 +36,26 @@ Herdr worktrees and the review/provenance rules in
 the workflow-package campaign, authorize publishing, or revive the retired
 integration checkout. Record actual repair assignments and evidence in Work.
 
+## Repair implementation checkpoint (2026-10-01)
+
+The separate `repair/native-pi-integration` branch now combines the reviewed
+statusline accounting and observed-model repairs in
+[[DES-STATUSLINE-BUILTIN-VALUES]], and the conservative fast-mode omission in
+[[DES-FAST-REQUEST]]. Unsupported attribution remains omitted or visibly unknown;
+fast wire mutation is unavailable on the inspected hooks, including direct
+selections, while enabled intent is preserved. These package-local contracts
+record current behavior and bounded verification; earlier gap descriptions below
+are historical inspection findings.
+
+At implementation revision `fab471dae79b5ce2a7ff07a235213ca60f099e3e`, uncached
+checks passed 51 statusline and 45 fast-mode tests, typechecking, lint and source
+Pi checks, including SDK 0.99.1 loopback and fresh packed npm loading. Worker
+Codex reviews completed clean after their fix loops. Combined review and additional
+consumer verification are tracked by repair Work item `w-7b1cafa2`; this checkpoint
+does not claim those have completed, interactive QA, live fast-service support,
+publication, or integration into `rework`. The workflow campaign stays paused.
+Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK baseline.
+
 ## Inspection provenance
 
 Compared the installed 0.99.1 documentation and its 0.99.0/0.99.1 changelog entries
