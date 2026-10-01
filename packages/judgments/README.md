@@ -20,6 +20,10 @@ See the canonical [contract and interface](https://github.com/araketski/pi-packa
 for agent guidance. Scenario-specific instructions are exposed by
 `judgments_list_scenarios`.
 
+The [approved declarative JSON scenario design](https://github.com/araketski/pi-packages/blob/main/packages/judgments/docs/declarative-scenarios.mara.md)
+(repository: `docs/declarative-scenarios.mara.md`) is the next increment, not yet
+implemented.
+
 This package is not published. Development checks target Pi **0.99.1**.
 Judgments do not authorize actions or prove correctness; quality and token
 savings remain unproven.

@@ -3,16 +3,22 @@
 This records the user-agreed purpose and initial scope. The package is scaffolded at
 `packages/judgments` as `@araketski/pi-judgments`. The initial tools and skill are
 implemented and checked below; no quality/token-saving benefit is established.
+The [approved declarative-scenario design](declarative-scenarios.mara.md) extends
+this contract but is not implemented yet. Approval and the initial checks below
+do not establish delivery or verification of that next increment.
 
 ## Initial scope and boundaries
 
-Implement three on-demand namespaced Pi tools: scenario listing, predefined
-scenario evaluation and generic question evaluation. Bundle one generic judgment
-skill and start with one Mara representation/flavour scenario;
-user-defined scenario files, clarification and proportionality scenarios, Work
-integration, automatic supervision, persistent decision state and review gates are
-deferred. Do not build a scenario marketplace, separate process, tool broker,
-provider client or shared framework before a concrete need exists.
+The implemented first increment provides three on-demand namespaced Pi tools:
+scenario listing, predefined scenario evaluation and generic question evaluation.
+It bundles one generic judgment skill and one Mara representation/flavour scenario.
+User-defined scenario files, clarification and proportionality scenarios, Work
+integration, automatic supervision, persistent decision state and review gates
+were deferred in that first increment. JSON definitions and read-only validation
+are now approved in [the next-increment contract](declarative-scenarios.mara.md);
+the other exclusions remain. Do not build a scenario marketplace, separate
+process, tool broker, provider client or shared framework before a concrete need
+exists.
 
 A judgment scenario is a saved classifier question set and its usage guidance,
 not a Mara `scenario` item or an executable action. The initial public interface
@@ -31,7 +37,7 @@ The goal extension's [classifier policy](../../../docs/planned/goal/classifiers.
 contract. Its per-active-goal cadence, pause behavior, cutoffs and reference model
 are not inherited by this on-demand assistant.
 
-## Implemented interface
+## Implemented first-increment interface
 
 - `judgments_list_scenarios({})` returns `scenarios` with ID, purpose,
   `use_when`, `avoid_when`, input descriptions and JSON `input_schema`,
@@ -79,7 +85,8 @@ evidence rather than interpreting `assessed` as truth.
 
 ## Observed initial verification
 
-On Node 26.7.0, pnpm 12.8.1, Nx 23.2.1 and Pi SDK 0.99.1:
+The original implementation checkpoint was commit `ab6fb31`. On Node 26.7.0,
+pnpm 12.8.1, Nx 23.2.1 and Pi SDK 0.99.1:
 
 - 19 automated tests passed: controlled native responses/failures/cancellation,
   local discovery, all representation outcomes, custom vocabulary and guidance
@@ -122,7 +129,7 @@ Reduce repeated question-design work for agents through reusable, narrow classif
 :kind: functional
 :contributes_to: GOAL-JUDGMENTS-ASSISTANCE
 
-Expose three separate, single-purpose namespaced tools: list bundled scenarios, evaluate a named scenario with its required inputs, and evaluate generic state with typed questions. Preserve globally unique registration names as well as native namespace metadata. Retain generic evaluation for judgments outside bundled scenarios.
+Expose three separate, single-purpose namespaced tools: list available scenarios, evaluate a named scenario with its required inputs, and evaluate generic state with typed questions. Preserve globally unique registration names as well as native namespace metadata. Retain generic evaluation for judgments outside bundled scenarios.
 
 Scenario listing returns selection metadata: ID, purpose, use-when and avoid-when guidance, required inputs, expected outcomes and interpretation guidance. Fixed classifier questions remain internal to scenario execution so the agent need not reconstruct the rubric. Listing does not call a classifier. Known suitable scenarios may be evaluated directly; unfamiliar judgments warrant catalog inspection; when none fits, use generic evaluation. Do not require a listing call on every turn or repeated listing of already-known scenarios.
 
@@ -168,7 +175,7 @@ Use a small Pi extension to register three atomic namespaced tools for scenario 
 
 Keep one bundled Mara question set alongside its selection/input/result metadata. A generic skill teaches discovery, selecting a suitable scenario, preparing context, using the generic escape hatch and interpreting results. It contains no Mara-specific authoring guidance. Short tool descriptions expose essential usage guidance; catalog metadata supplies scenario-specific checkpoints and exclusions. Do not depend on guaranteed automatic skill loading or require repeated catalog inspection for known scenarios.
 
-The agent follows the portable Mara skill to gather selected-project guidance and relevant knowledge, supplies that context to predefined evaluation, interprets the recommendation and authors/validates through Mara. Fixed questions reduce repeated rubric construction; project vocabulary remains input data. Missing context and classifier failures remain explicit rather than becoming positive judgments. Exact API names, serialization and classifier question wording are not frozen by conversational examples. No user-defined declarative file loader, separate classifier runtime, periodic hook, persistence subsystem or action dispatcher is part of the first increment.
+The agent follows the portable Mara skill to gather selected-project guidance and relevant knowledge, supplies that context to predefined evaluation, interprets the recommendation and authors/validates through Mara. Fixed questions reduce repeated rubric construction; project vocabulary remains input data. Missing context and classifier failures remain explicit rather than becoming positive judgments. Exact API names, serialization and classifier question wording are not frozen by conversational examples. The first increment deliberately excluded a user-defined file loader. The subsequently approved [[DES-JUDGMENTS-DECLARATIVE]] adds JSON definitions and a separate read-only validation tool while preserving this lightweight runtime and authority boundary. Its raw-answer/interpretation contract replaces the first increment's domain-specific result mapper. A separate classifier runtime, periodic hook, persisted judgments or action dispatcher remain excluded.
 :::
 
 :::mara verification VER-JUDGMENTS-CONTRACT
