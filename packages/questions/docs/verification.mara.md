@@ -120,6 +120,30 @@ mechanical originality proof, legal determination or publication approval.
   the deterministic fixture. Pi AI 0.99.1 is an additional catalog-backed
   **test-only** dependency for the public Faux provider, not a Questions runtime
   peer/dependency. Frozen installation succeeds without changing existing pins.
+- The user-requested visual restyle passed **86 tests** (65 tool/UI-fixture,
+  five flow, one source load, one fresh packed consumer and 14 actual Pi 0.99.1
+  PTY tests). Five red visual/style assertions demonstrated the old presentation
+  before implementation. A separate red test showed blank-answer guidance was
+  scrolled out of a short/narrow viewport; shorter owned feedback now keeps the
+  required nonblank instruction and cursor visible. Normal-size panels match the
+  observed thin-rule/bold-heading/indented-row/compact-footer hierarchy, while
+  recommendations use success-colored labels with dim `(recommended)` text, not
+  bracketed badges. Confirmed options are bold, never labelled Chosen. Native
+  regular/fullscreen checks exercise the framed presentation, independent label/
+  suffix/pointer colors, inline editor/cursor, confirmed-option revisit bolding
+  and continued explicit review submission. Hanging wrapping, retained local
+  draft previews and overlapping colors have deterministic checks. The native
+  helper now waits for a frame following the new invocation's execute event,
+  avoiding an old inline-editor recommendation being mistaken for fresh UI. Its
+  isolated environment omits CI entirely rather than setting an empty CI key,
+  which the host's Chalk capability detector treated as disabling bold.
+  Original flow/result/lifecycle/attention tests remain green, as do the Nx
+  typecheck/lint/source checks and new archive check within the packed test.
+  Frozen install succeeds; there are no dependency changes or copied reference
+  assets/code. Source and test Mara associations remain in place. This is
+  observed selected-host behavior, not proof of pixel identity on every theme or
+  the user's approval of the final appearance. External-host limitations below
+  are unchanged.
 - **Remaining limitations:** actual selected Herdr hook/socket/server receipt and
   reload bus/hook composition, actual Goal (not implemented), desktop IME and
   exhaustive terminal/theme coverage, RPC/JSON/print child-process mode checks,
@@ -183,13 +207,24 @@ the registered tool in controlled scenarios. Test regular/fullscreen, narrow
 and short terminals, resize, Unicode/wide/combining characters, long wrapped
 content, theme invalidation, overlapping theme colors, scrolling, custom-editor
 focus/IME cursor placement and main-editor restoration. Verify the recommendation
-label/color remains separate from the focus pointer and chosen marker, including
-when the recommendation is focused. Sanitize hostile terminal controls only for
+label/color remains separate from the focus pointer and confirmed-answer bolding,
+including when the recommendation is focused. Sanitize hostile terminal controls only for
 rendering without losing logical answer text.
 
 Observe red failures for the intended missing behavior before each implementation
 slice, then green results and refactoring. Record host version, mode and actual
 tested scope. These are repeatable verification definitions. Observed subsets and remaining real-host checks are recorded in the progress observations below.
+
+For the accepted reference-style restyle, check normal-size thin accent rules,
+bold tool identity/muted progress, hanging-indent option text and descriptions,
+contextual dim footer, and an inline indented host editor beneath the custom row.
+Assert dim parenthetical recommendation text and no generated bracketed
+Chosen/Recommended badges. Recommendations retain their label color after focus
+moves; confirmed labels remain independently bold. Test a local draft preview
+without confirming it, short/narrow nonblank feedback with cursor visibility,
+responsive decorative-frame removal, and ordinary review/lifecycle/attention
+contracts. Synchronize native observations to the current invocation rather than
+matching a previous inline editor's recommendation text.
 :::
 
 :::mara verification VER-QUESTIONS-LIFETIME

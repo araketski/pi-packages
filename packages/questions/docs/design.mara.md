@@ -238,25 +238,53 @@ controls. Recommendations do not add/remove rows or change shortcut numbers.
 
 Use three independent cues:
 
-- Focus: a pointer and accent styling on its prefix/number.
-- Recommendation: an explicit Recommended suffix/badge and semantic `success`
-  color on the recommended label/badge, even when focused or previously chosen.
-- Confirmed answer on a revisit: a separate checkmark/Chosen marker, not a
-  recommendation marker. Non-recommended chosen rows can use `muted` marker
-  styling rather than the recommendation color.
+- Focus: the reference-style pointer, accent prefix/number and accent label for
+  a nonrecommended row.
+- Recommendation: semantic `success` color on the supplied-option label, even
+  when focused or previously confirmed, followed by a dim `(recommended)` suffix.
+  Do not emit mechanical bracketed Recommended badges.
+- Confirmed answer on a revisit: subtly bold the confirmed option label. Do not
+  emit a bracketed Chosen label. Bolding remains independent of the focus pointer,
+  recommendation color and parenthetical recommendation suffix.
 
-For a focused recommendation, keep the accent pointer and success label/badge
+For a focused recommendation, keep the accent pointer and success label
 rather than letting focus coloring override recommendation coloring. Nonfocused,
 nonrecommended labels use normal text. Color differences depend on the active
-theme, so the text marker remains authoritative when theme tokens have similar
-colors or the terminal is monochrome. Use no hardcoded ANSI palette or additional
-theme schema. Recompute styled output on theme invalidation.
+theme, so the parenthetical recommendation text remains authoritative when
+semantic tokens have similar colors or the terminal is monochrome. Use no
+hardcoded ANSI palette or additional theme schema. Recompute styled output on theme invalidation.
 
-If a long label leaves no space for the badge, wrap it onto a continuation line
-belonging to that option rather than hiding it by truncation. Focus scrolling
-keeps the selected row and its recommendation marker visible when feasible;
+If a long label leaves no space for the parenthetical suffix, wrap it onto a
+continuation line belonging to that option rather than hiding it by truncation.
+Focus scrolling keeps the selected row and its recommendation marker visible when feasible;
 offscreen recommendations remain marked when scrolled into view. Do not claim
 that every option can stay visible at once in a tiny viewport.
+
+## Reference-style presentation
+
+The user requested the visual presentation of the behavioral reference with our
+optional recommendation adjustment, then explicitly rejected bracketed Chosen
+and Recommended markers. Independently implement the observed visual hierarchy:
+thin full-width accent rules above/below the panel, bold text-colored
+ask_questions identity with muted progress/header, a lightly indented full
+question, breathing space before numbered options, hanging-indented label
+continuations and muted three-column-indented descriptions, then a compact dim
+contextual footer. The reference inspected is drsh4dow/pi-questions at
+53ef061c14d1e1eb44a7f94cee4fe46b88c0449b, including its demo image; do not copy its
+implementation, assets or authored documentation into this package.
+
+Keep the option list visible while editing. Nest the host editor beneath the
+custom row with the same description indentation, preserving host cursor markers.
+After editor-back, show a muted local draft preview beneath that row; it is not a
+confirmed answer. The editor still owns editing keys. Review uses the same framed
+visual hierarchy, with muted numbered headers and complete questions/answers,
+not just the abbreviated headers visible in the reference review.
+
+Normal-size panels have blank separation before the dim footer. In short terminals
+remove decorative rules/blank space before reducing the accessible scrolling
+content area. Narrow footers use compact contextual hints; no stored values are
+truncated. Preserve existing keyboard/flow/results/lifecycle contracts and
+owned paging/attention rather than importing the reference's behavior.
 
 ## Controls outside the editor
 

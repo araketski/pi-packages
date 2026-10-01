@@ -113,7 +113,6 @@ async function native(
         XDG_DATA_HOME: dir,
         LANG: 'C.UTF-8',
         TERM: 'xterm-256color',
-        CI: '',
         PI_OFFLINE: '1',
         PI_SKIP_VERSION_CHECK: '1',
         PI_TELEMETRY: '0',
@@ -164,7 +163,16 @@ async function native(
       'model-issued registered tool',
     );
     if (!config.setupAbort)
-      await wait(() => text().includes('Recommended'), 'initial recommendation frame');
+      await wait((records) => {
+        const latest = records.filter((record) => record.type === 'execute').at(-1)!;
+        return records
+          .slice(records.indexOf(latest) + 1)
+          .some(
+            (record) =>
+              record.type === 'frame' &&
+              record.lines?.some((line) => line.includes('(recommended)')),
+          );
+      }, 'fresh invocation recommendation frame');
   };
   const close = async () => {
     if (child.exitCode === null) {
@@ -229,17 +237,25 @@ describe('actual Pi 0.99.1 TUI, controlled Faux provider and no live Herdr backe
         ).toBe(true);
         expect(h.records().filter((record) => record.type === 'returned')).toHaveLength(0);
         expect(h.text()).toContain('> 2. SQLite');
-        const recommended = h.frame()!.lines!.find((line) => line.includes('Recommended'))!;
+        const panel = h.frame()!.lines!.map(stripTerminalSequences);
+        expect(panel[0]).toBe('─'.repeat(80));
+        expect(panel[1]).toBe('ask_questions 1/2 • Storage');
+        expect(h.frame()!.lines![1]).toContain('\x1b[1mask_questions\x1b[22m');
+        expect(panel.at(-1)).toBe('─'.repeat(80));
+        const recommended = h.frame()!.lines!.find((line) => line.includes('(recommended)'))!;
         const styleBefore = (line: string, label: string) =>
           line.slice(0, line.indexOf(label)).split('\x1b[').at(-1)?.split('m')[0];
         expect(styleBefore(recommended, '>')).not.toBe(styleBefore(recommended, 'SQLite'));
-        expect(styleBefore(recommended, 'SQLite')).toBe(styleBefore(recommended, 'Recommended'));
+        expect(styleBefore(recommended, 'SQLite')).not.toBe(
+          styleBefore(recommended, '(recommended)'),
+        );
+        expect(h.text()).not.toMatch(/\[Chosen\]|\[Recommended\]/);
         h.key('\x1b[A');
         await h.wait(() => h.text().includes('> 1. Files'), 'focus moves independently');
-        expect(h.frame()!.lines!.find((line) => line.includes('Recommended'))).not.toBe(
+        expect(h.frame()!.lines!.find((line) => line.includes('(recommended)'))).not.toBe(
           recommended,
         );
-        expect(h.text()).toContain('Recommended');
+        expect(h.text()).toContain('(recommended)');
         h.key('\x1bOQ'); // F2 changes the actual host theme.
         await h.wait(
           (records) => records.some((record) => record.type === 'theme'),
@@ -249,6 +265,8 @@ describe('actual Pi 0.99.1 TUI, controlled Faux provider and no live Herdr backe
         await h.wait(() => h.text().includes('Enter save'), 'custom editor');
         expect(h.frame()!.focused).toBe(true);
         expect(h.frame()!.lines!.join('\n')).toContain(CURSOR_MARKER);
+        expect(h.frame()!.lines!.find((line) => line.includes(CURSOR_MARKER))).toMatch(/^   /);
+        expect(h.text()).toContain('SQLite (recommended)');
         expect(h.output).not.toContain(CURSOR_MARKER); // Consumed by the host cursor/IME renderer.
         h.key('\x1b[200~custom 界e\u0301  answer\x1b[201~');
         await h.wait(() => h.text().includes('custom 界e\u0301'), 'custom text');
@@ -269,6 +287,14 @@ describe('actual Pi 0.99.1 TUI, controlled Faux provider and no live Herdr backe
         );
         h.key('2');
         await h.wait(() => h.text().includes('Review'), 'final review');
+        h.key('\x1b[D');
+        await h.wait(() => h.text().includes('> 2. Web'), 'revisit confirmed option');
+        expect(h.frame()!.lines!.find((line) => line.includes('Web'))).toContain(
+          '\x1b[1mWeb\x1b[22m',
+        );
+        expect(h.text()).not.toContain('[Chosen]');
+        h.key('\r');
+        await h.wait(() => h.text().includes('Review'), 'return to explicit final review');
         expect(h.records().filter((record) => record.type === 'returned')).toHaveLength(0);
         expect(
           h

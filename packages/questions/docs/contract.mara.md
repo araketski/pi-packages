@@ -8,12 +8,15 @@ plus an explicit optional recommended option. The agreed destination after
 scaffolding is `packages/questions`, with expected generator-derived identity
 `@araketski/pi-questions` and model-facing tool name `ask_questions`.
 
-The user approved independent implementation, not upstream source reuse.
+The original implementation was approved as independently authored. During the
+visual restyle the user also offered permission to reuse reference code if
+needed; this increment did not need it and remains independently authored,
+including its tests, with the existing Mara code associations retained.
 The reference was inspected at revision
 `53ef061c14d1e1eb44a7f94cee4fe46b88c0449b`; no license file or package license
-declaration was found in that checkout. This is provenance for the discussion,
-not a legal determination, dependency, compatibility promise, or authority to
-copy code. Do not copy upstream source, tests, assets, or authored documentation.
+declaration was found in that checkout. These are provenance observations, not a
+legal determination, dependency or compatibility promise. No upstream source,
+tests, assets or authored documentation are copied into this package.
 
 The user authorized implementation after accepting the design. The package and
 extension entrypoint are scaffolded, and the independently authored tool, flow,

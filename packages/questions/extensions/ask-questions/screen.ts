@@ -6,6 +6,7 @@ import {
   matchesKey,
   stripTerminalSequences,
   truncateToWidth,
+  visibleWidth,
   wrapTextWithAnsi,
   type Component,
   type Focusable,
@@ -230,76 +231,138 @@ export class QuestionScreen implements Component, Focusable {
   }
   private content(width: number): string[] {
     const lines: string[] = [];
-    const append = (text: string) => lines.push(...wrapTextWithAnsi(text, width));
+    const append = (text: string, prefix = '') => {
+      const indent = visibleWidth(prefix);
+      if (indent >= width) {
+        lines.push(...wrapTextWithAnsi(prefix + text, width));
+        return;
+      }
+      wrapTextWithAnsi(text, width - indent).forEach((line, index) =>
+        lines.push((index === 0 ? prefix : ' '.repeat(indent)) + line),
+      );
+    };
     this.focusStart = 0;
     this.focusEnd = 0;
     if (this.flow.stage === 'review') {
+      append(this.theme.fg('text', 'Confirm these answers before sending.'), ' ');
+      lines.push('');
       this.flow.questions.forEach((question, index) => {
-        append(this.theme.fg('accent', `${index + 1}. ${displayText(question.header)}`));
-        append(displayText(question.question));
+        append(this.theme.fg('muted', `${index + 1}. ${displayText(question.header)}`), ' ');
+        append(this.theme.fg('text', displayText(question.question)), ' ');
         const answer = this.flow.choices[index].answer;
         append(
           answer
-            ? `Answer (${answer.kind === 'custom' ? 'custom' : `option ${answer.optionNumber}`}): ${displayText(answer.answer)}`
-            : 'No confirmed answer',
+            ? `${this.theme.fg('muted', answer.kind === 'custom' ? 'Custom: ' : 'Answer: ')}${this.theme.fg('text', displayText(answer.answer))}`
+            : this.theme.fg('error', 'No confirmed answer'),
+          ' ',
         );
         lines.push('');
       });
-    } else {
-      append(displayText(this.flow.question.question));
-      lines.push('');
-      if (this.flow.stage === 'editor') {
-        if (this.flow.feedback) append(this.theme.fg('error', this.flow.feedback));
-        const editorLines = this.editor!.render(width).map((line, index, all) => {
-          // Preserve only the trusted child cursor marker; sanitize stored text
-          // and reapply semantic styling rather than passing untrusted escapes.
+      return lines;
+    }
+
+    append(this.theme.fg('text', displayText(this.flow.question.question)), ' ');
+    lines.push('');
+    [
+      ...this.flow.question.options,
+      { label: 'Write your own answer', description: 'Type a custom answer.' },
+    ].forEach((option, index) => {
+      const start = lines.length;
+      const focused = this.flow.choice.focus === index;
+      const recommended = this.flow.question.recommendedOption === index + 1;
+      const custom = index === this.flow.question.options.length;
+      const answer = this.flow.choice.answer;
+      const confirmed =
+        answer?.kind === 'option'
+          ? answer.optionNumber === index + 1
+          : answer?.kind === 'custom' && custom;
+      const text = displayText(option.label);
+      const label = this.theme.fg(
+        recommended ? 'success' : focused ? 'accent' : 'text',
+        confirmed ? this.theme.bold(text) : text,
+      );
+      append(
+        label + (recommended ? ` ${this.theme.fg('dim', '(recommended)')}` : ''),
+        this.theme.fg(focused ? 'accent' : 'text', `${focused ? '>' : ' '} ${index + 1}. `),
+      );
+      const markerEnd = lines.length;
+      if (option.description)
+        append(this.theme.fg('muted', displayText(option.description)), '   ');
+      if (custom && this.flow.stage === 'editor') {
+        if (this.flow.feedback) append(this.theme.fg('error', this.flow.feedback), '   ');
+        const indent = ' '.repeat(Math.min(3, Math.max(0, width - 1)));
+        const editorLines = this.editor!.render(width - indent.length).map((line, row, all) => {
+          // Sanitize editor text, retaining only the trusted child's cursor marker.
           const safe = line.split(CURSOR_MARKER).map(displayText).join(CURSOR_MARKER);
-          return this.theme.fg(index === 0 || index === all.length - 1 ? 'accent' : 'text', safe);
+          return (
+            indent + this.theme.fg(row === 0 || row === all.length - 1 ? 'accent' : 'text', safe)
+          );
         });
         const cursor = editorLines.findIndex((line) => line.includes(CURSOR_MARKER));
         this.focusStart = lines.length + Math.max(0, cursor);
         this.focusEnd = this.focusStart + 1;
         lines.push(...editorLines);
       } else {
-        [...this.flow.question.options, { label: 'Write your own answer' }].forEach(
-          (option, index) => {
-            const start = lines.length;
-            const focused = this.flow.choice.focus === index;
-            const recommended = this.flow.question.recommendedOption === index + 1;
-            const answer = this.flow.choice.answer;
-            const chosen =
-              answer?.kind === 'option'
-                ? answer.optionNumber === index + 1
-                : answer?.kind === 'custom' && index === this.flow.question.options.length;
-            const prefix = `${focused ? '>' : ' '} ${index + 1}. `;
-            const label = this.theme.fg(
-              recommended ? 'success' : 'text',
-              displayText(option.label),
-            );
-            append(
-              `${this.theme.fg(focused ? 'accent' : 'muted', prefix)}${label}${recommended ? ` [${this.theme.fg('success', 'Recommended')}]` : ''}${chosen ? ` [${this.theme.fg('muted', 'Chosen')}]` : ''}`,
-            );
-            const markerEnd = lines.length;
-            if ('description' in option && option.description)
-              append(this.theme.fg('muted', `   ${displayText(option.description)}`));
-            if (focused) {
-              this.focusStart = start;
-              this.focusEnd = markerEnd;
-            }
-          },
-        );
-        if (this.flow.feedback) append(this.theme.fg('error', this.flow.feedback));
+        if (custom && this.flow.editorText)
+          append(this.theme.fg('muted', `Draft: ${displayText(this.flow.editorText)}`), '   ');
+        if (focused) {
+          this.focusStart = start;
+          this.focusEnd = markerEnd;
+        }
       }
-    }
+    });
+    if (this.flow.feedback && this.flow.stage !== 'editor')
+      append(this.theme.fg('error', this.flow.feedback));
     return lines;
+  }
+  private help(width: number, scrollable: boolean): string {
+    const choices = this.flow.question.options.length + 1;
+    const back = this.flow.index > 0;
+    const hints =
+      this.flow.stage === 'editor'
+        ? ['Enter save', 'Shift+Enter newline', 'Esc back', 'Ctrl+C abort']
+        : this.flow.stage === 'review'
+          ? ['Enter submit', '←/h back', '↑↓/PgUp/PgDn scroll', 'Esc cancel']
+          : [
+              '↑↓/j/k move',
+              `1–${choices} pick`,
+              'Enter/l choose',
+              ...(back ? ['←/h back'] : []),
+              ...(scrollable ? ['PgUp/PgDn scroll'] : []),
+              'Esc cancel',
+            ];
+    const compact =
+      this.flow.stage === 'editor'
+        ? 'Enter save • Esc back'
+        : this.flow.stage === 'review'
+          ? 'Enter submit • ←/h • PgUp/Dn • Esc'
+          : [
+              `↑↓/jk 1–${choices}`,
+              'Enter/l',
+              ...(back ? ['←/h'] : []),
+              ...(scrollable ? ['PgUp/Dn'] : []),
+              'Esc',
+            ].join(' • ');
+    const minimal =
+      this.flow.stage === 'editor'
+        ? 'Enter save · Esc'
+        : this.flow.stage === 'review'
+          ? 'Enter submit · Esc'
+          : `↑↓ 1–${choices} Enter Esc`;
+    return (
+      [` ${hints.join(' • ')}`, compact, minimal].find((text) => visibleWidth(text) <= width) ??
+      'Enter · Esc'
+    );
   }
   render(width: number): string[] {
     if (!this.live) return [];
     try {
       width = Math.max(1, Math.floor(width));
       const budget = Math.max(1, this.tui.terminal.rows - 6);
-      const framed = budget >= 3;
-      const height = framed ? budget - 2 : budget;
+      // Decorative framing yields first: keep usable content in tiny viewports.
+      const decorated = budget >= 10;
+      const hints = budget >= 3;
+      const height = budget - (decorated ? 5 : hints ? 2 : 0);
       const size = `${width}:${height}`;
       if (size !== this.previousSize) {
         this.previousSize = size;
@@ -314,20 +377,21 @@ export class QuestionScreen implements Component, Focusable {
       }
       this.focusVisible = false;
       const visible = content.slice(this.viewport.scrollTop, this.viewport.scrollTop + height);
-      const title =
+      const heading =
         this.flow.stage === 'review'
-          ? 'Ask Questions · Review'
-          : `Ask Questions · ${this.flow.index + 1}/${this.flow.questions.length} · ${displayText(this.flow.question.header).replace(/\n/g, ' ')}`;
-      const help =
-        this.flow.stage === 'editor'
-          ? 'Enter save · Shift+Enter newline · Esc back · Ctrl+C abort'
-          : this.flow.stage === 'review'
-            ? 'Enter submit · Left/h back · ↑↓/PgUp/PgDn scroll · Esc cancel'
-            : '↑↓/j/k focus · 1–9/Enter/l choose · Left/h back · PgUp/PgDn scroll · Esc cancel';
+          ? 'Review answers'
+          : `${this.flow.index + 1}/${this.flow.questions.length} • ${displayText(this.flow.question.header).replace(/\n/g, ' ')}`;
+      const title =
+        this.theme.fg('text', this.theme.bold('ask_questions')) +
+        this.theme.fg('muted', ` ${heading}`);
+      const help = this.theme.fg('dim', this.help(width, content.length > height));
+      const rule = this.theme.fg('accent', '─'.repeat(width));
       return (
-        framed
-          ? [this.theme.fg('accent', title), ...visible, this.theme.fg('muted', help)]
-          : visible
+        decorated
+          ? [rule, title, ...visible, '', help, rule]
+          : hints
+            ? [title, ...visible, help]
+            : visible
       ).map((line) => truncateToWidth(line, width, ''));
     } catch (error) {
       this.actions?.fail(error);

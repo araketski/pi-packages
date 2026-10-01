@@ -62,7 +62,7 @@ export class QuestionFlow {
   submitCustom(text: string): Result | undefined {
     const answer = text.trim();
     if (!answer) {
-      this.feedback = 'Enter a nonblank answer, or Escape to return to options.';
+      this.feedback = 'Enter a nonblank answer.';
       return;
     }
     this.choice.draft = answer;

@@ -85,11 +85,12 @@ function harness(
     success: '\x1b[32m',
     accent: '\x1b[36m',
     muted: '\x1b[90m',
+    dim: '\x1b[2m',
     error: '\x1b[31m',
   };
   const theme = {
     fg: (color: string, text: string) => `${colors[color] ?? '\x1b[39m'}${text}\x1b[39m`,
-    bold: (text: string) => text,
+    bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   } as Theme;
   const kb = new KeybindingsManager(
     { ...TUI_KEYBINDINGS, 'app.interrupt': { defaultKeys: 'escape' } },
@@ -266,11 +267,94 @@ describe('Questions tool contract', () => {
     expect(h.kb.getKeys('tui.altScreen.pageUp')).toEqual(['pageUp', 'ctrl+p']);
   });
 
+  it('matches the reference-style panel without bracketed badges', async () => {
+    const h = harness();
+    const result = h.start(two);
+    const raw = h.screen().render(80);
+    const lines = raw.map(stripAnsi);
+    expect(lines).toEqual([
+      '─'.repeat(80),
+      'ask_questions 1/2 • Storage',
+      ' Which storage?',
+      '',
+      '  1. Files',
+      '   Simple',
+      '> 2. SQLite (recommended)',
+      '  3. Write your own answer',
+      '   Type a custom answer.',
+      '',
+      ' ↑↓/j/k move • 1–3 pick • Enter/l choose • Esc cancel',
+      '─'.repeat(80),
+    ]);
+    expect(raw[0]).toBe(h.theme.fg('accent', '─'.repeat(80)));
+    expect(raw[1]).toContain(h.theme.bold('ask_questions'));
+    expect(h.completions).toBe(0);
+    h.key(up);
+    expect(h.screen().render(80).join('\n')).toContain(h.theme.fg('accent', 'Files'));
+    h.key(escape);
+    await result;
+  });
+
+  it('keeps the option context and an indented host editor, then previews an unsubmitted draft', async () => {
+    const h = harness();
+    const result = h.start();
+    h.key('3');
+    const lines = h.screen().render(80);
+    expect(lines.map(stripAnsi).join('\n')).toContain('2. SQLite (recommended)');
+    expect(lines.find((line) => line.includes(CURSOR_MARKER))).toMatch(/^   /);
+    h.key('local draft');
+    h.key(escape);
+    expect(h.text()).toContain('   Draft: local draft');
+    expect(h.completions).toBe(0);
+    h.key(escape);
+    expect(expectPayload(await result, h)).toMatchObject({ status: 'cancelled', answers: [] });
+  });
+
+  it('hangs wrapped descriptions under the reference indentation and keeps a dim recommendation suffix', async () => {
+    const h = harness();
+    const result = h.start({
+      questions: [
+        {
+          question: 'Pick?',
+          options: [
+            { label: 'First', description: 'word '.repeat(9) },
+            { label: 'Recommended long label '.repeat(2) },
+          ],
+          recommendedOption: 2,
+        },
+      ],
+    });
+    const lines = h.screen().render(24).map(stripAnsi);
+    const first = lines.indexOf('  1. First');
+    expect(lines[first + 1]).toBe('   word word word word');
+    expect(lines[first + 2].startsWith('   ')).toBe(true);
+    expect(lines.some((line) => line.startsWith('     ') && line.includes('(recommended)'))).toBe(
+      true,
+    );
+    h.key(escape);
+    await result;
+  });
+
+  it('keeps blank-answer feedback and the inline cursor visible in a short narrow viewport', async () => {
+    const h = harness();
+    h.terminal.rows = 12;
+    const result = h.start();
+    h.key('3');
+    h.key(enter);
+    const lines = h.screen().render(18);
+    expect(lines.map(stripAnsi).join('\n')).toMatch(/nonblank/i);
+    expect(lines.join('\n')).toContain(CURSOR_MARKER);
+    expect(lines.length).toBeLessThanOrEqual(6);
+    h.key(escape);
+    h.key(escape);
+    await result;
+  });
+
   it('does not submit initial focus; Enter submits the recommended original option', async () => {
     const h = harness();
     const result = h.start();
     expect(h.completions).toBe(0);
-    expect(h.text()).toMatch(/> 2\. SQLite.*Recommended/);
+    expect(h.text()).toMatch(/> 2\. SQLite.*\(recommended\)/);
     h.key(enter);
     expect(expectPayload(await result, h)).toEqual({
       status: 'answered',
@@ -287,7 +371,7 @@ describe('Questions tool contract', () => {
     };
     const result = h.start(args);
     expect(h.text()).toContain('> 1. same');
-    expect(h.text()).not.toContain('Recommended');
+    expect(h.text()).not.toContain('(recommended)');
     h.key('2');
     expect(expectPayload(await result, h)).toMatchObject({
       questions: [{ header: 'Q1' }],
@@ -324,8 +408,8 @@ describe('Questions tool contract', () => {
     h.key(left);
     h.key('h');
     expect(h.text()).toContain('> 1. Files');
-    expect(h.text()).toMatch(/1\. Files.*Chosen/);
-    expect(h.text()).toMatch(/2\. SQLite.*Recommended/);
+    expect(h.screen().render(80).join('\n')).toContain(h.theme.bold('Files'));
+    expect(h.text()).toMatch(/2\. SQLite.*\(recommended\)/);
     h.key('2');
     expect(h.text()).toContain('> 2. Web');
     h.key(enter);
@@ -363,30 +447,32 @@ describe('Questions tool contract', () => {
     expect(JSON.stringify((await result).content)).toContain('second  line');
   });
 
-  it('keeps textual focus, recommendation and Chosen cues when semantic colors overlap', async () => {
+  it('keeps focus, recommendation text and confirmed bolding when semantic colors overlap', async () => {
     const h = harness();
     h.theme.fg = (_color, text) => `\x1b[32m${text}\x1b[39m`;
     const result = h.start(two);
     h.key(up);
     h.key(enter);
     h.key(left);
-    expect(h.text()).toContain('> 1. Files [Chosen]');
-    expect(h.text()).toContain('2. SQLite [Recommended]');
+    expect(h.screen().render(80).join('\n')).toContain('\x1b[1mFiles\x1b[22m');
+    expect(h.text()).toContain('> 1. Files');
+    expect(h.text()).toContain('2. SQLite (recommended)');
+    expect(h.text()).not.toMatch(/\[Chosen\]|\[Recommended\]/);
     h.key(escape);
     await result;
   });
 
-  it('keeps recommendation semantic styling independent of focus and Chosen', async () => {
+  it('keeps recommendation semantic styling independent of focus and confirmed bolding', async () => {
     const h = harness();
     const result = h.start(two);
-    const recommended = '\x1b[32mRecommended\x1b[39m';
+    const recommended = '\x1b[2m(recommended)\x1b[39m';
     expect(h.screen().render(80).join('\n')).toContain(recommended);
     h.key(up);
     expect(h.screen().render(80).join('\n')).toContain(recommended);
     expect(h.text()).toContain('> 1. Files');
     h.key(enter);
     h.key(left);
-    expect(h.text()).toMatch(/Files.*Chosen/);
+    expect(h.screen().render(80).join('\n')).toContain('\x1b[1mFiles\x1b[22m');
     expect(h.screen().render(80).join('\n')).toContain(recommended);
     h.key(escape);
     await result;
@@ -418,7 +504,7 @@ describe('Questions tool contract', () => {
     h.key(pageUp);
     h.terminal.rows = 50;
     h.screen().invalidate();
-    expect(h.text(40)).toContain('Recommended');
+    expect(h.text(40)).toContain('(recommended)');
     h.key('1');
     expect(expectPayload(await result, h)).toMatchObject({ answers: [{ answer: label }] });
   });
