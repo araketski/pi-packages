@@ -3,9 +3,11 @@
   "mode": "dynamic",
   "purpose": "Choose structured item/flavour, supporting narrative, or separation of mixed Mara knowledge.",
   "useWhen": [
-    "Before creating a Mara item or changing its flavour, when representation is a meaningful decision."
+    "Before creating a Mara item or changing its flavour, delegate an unresolved representation or flavour decision rather than first classifying it yourself and requesting confirmation.",
+    "In a batch containing both classified and unclassified content, judge only unresolved candidates; proceed with the already-classified remainder under normal Mara authoring and validation."
   ],
   "avoidWhen": [
+    "Already-established representation and flavour, including an explicitly classified batch of requirements: do not make confirmation calls for each item.",
     "Ordinary wording edits.",
     "Unchanged content and schema already assessed.",
     "Establishing user acceptance, verification or authority to write."

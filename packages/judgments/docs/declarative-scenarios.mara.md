@@ -46,6 +46,15 @@ actual flavour guidance, plus dynamic criteria. Source typecheck, lint and
 instructions distinguish genuine ambiguity from an absent optional field;
 these tests do not prove live classifier adherence or savings.
 
+The subsequent invocation-guidance refinement explicitly excludes confirmation
+of already-established classifications, including a batch explicitly designated
+as requirements. Mixed batches delegate only unresolved candidates. The discovery
+regression failed before the guidance change, then all 67 tests and source checks
+passed, including fresh npm/pnpm consumers and their explicit archive checks.
+Read-only `judgments_validate_scenario` also returned valid for the bundled
+scenario. These checks establish exposed guidance, not enforced agent behavior;
+no automatic gate or batch evaluator was added.
+
 These folders are extension-owned data locations following Pi's agent-directory
 and working-directory conventions, not a resource kind Pi already discovers.
 A custom scenario directory alone is not one of Pi's documented native

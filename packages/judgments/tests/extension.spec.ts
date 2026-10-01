@@ -376,6 +376,10 @@ describe('on-demand judgment tools', () => {
     expect(tools.get('judgments_evaluate')?.description).toContain('Supplied context is sent');
     const catalog = JSON.stringify((await call('judgments_list_scenarios', {})).structuredContent);
     expect(catalog).toContain('Before creating a Mara item or changing its flavour');
+    expect(catalog).toContain('delegate an unresolved representation or flavour decision');
+    expect(catalog).toContain('only unresolved candidates');
+    expect(catalog).toContain('Already-established representation and flavour');
+    expect(catalog).toContain('explicitly classified batch of requirements');
     expect(catalog).toContain('Ordinary wording edits');
   });
 
