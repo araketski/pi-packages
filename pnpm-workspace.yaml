@@ -34,6 +34,9 @@ catalog:
   validate-npm-package-name: 8.0.0
   vite: 8.3.1
   vitest: 4.1.11
+catalogs:
+  pi-host:
+    '@earendil-works/pi-coding-agent': '*'
 minimumReleaseAgeExclude:
   - '@earendil-works/chord@0.99.1'
   - '@earendil-works/pi-agent-core@0.99.1'

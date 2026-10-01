@@ -21,7 +21,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Planned goal contract](docs/planned/goal/contract.mara.md) and [jobs integration](docs/planned/goal/jobs-integration.mara.md)
 - [Planned caffeinate contract](docs/planned/caffeinate/contract.mara.md) and [jobs integration](docs/planned/caffeinate/jobs-integration.mara.md)
 - [Planned gates inspection and visibility](docs/planned/gates/contract.mara.md)
-- [Session auto-naming and terminal-title contract](docs/planned/session-name/contract.mara.md)
+- [Session auto-naming](packages/session-name/README.md) and [terminal-title contract](packages/session-name/docs/contract.mara.md)
 
 ## Development
 

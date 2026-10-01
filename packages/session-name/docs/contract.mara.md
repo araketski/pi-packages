@@ -2,8 +2,8 @@
 
 A deliberately small extension to distinguish open Pi windows. The accepted
 contract below describes intended behavior, not implementation or passing tests.
-Scaffolding will relocate this document to `packages/session-name/docs/` while
-preserving Mara identities. Implementation is tracked in Work item
+The package was scaffolded with `nx-pi`, and this document was relocated from
+`docs/planned/session-name/` with its identities preserved. Implementation is tracked in Work item
 `9b32818a224b4d359fef734b7161f0e5`.
 
 ## Scope and reference
@@ -55,8 +55,9 @@ with one warning and use defaults. A valid but unresolved model override falls
 back to the heuristic rather than silently using another model.
 
 Title generation is an extra, potentially billable model request (at most two
-extension-level attempts). It sends only a bounded opening prompt, no files,
-tool output, system instructions or assistant history. Pi's provider implementation
+extension-level attempts). It sends only a bounded opening user message, not additional file reads,
+tool output, chat system instructions or assistant history. That message can
+contain text Pi expanded or attached on the user's behalf. Pi's provider implementation
 may have transport behavior of its own. Pi 0.99.1 does not automatically include
 lifecycle-handler nested-call usage in session totals; this extension does not
 invent another cost ledger or synthetic conversation messages. The accounting
@@ -84,7 +85,40 @@ pinned Pi 0.99.1; it is not a release or a claim of support for other versions.
 
 ## Implementation and verification state
 
-Not yet implemented or verified. Accepted knowledge establishes the contract only.
+Implemented as three local source modules under `extensions/session-name/`, with
+no external runtime helper dependency. The package and extension scaffolds were
+created by `nx-pi`; the staged contract was moved through Mara item operations,
+preserving every ID, MID and relationship. An explicit publication allowlist keeps
+helpers and the MIT license while excluding repository-only tests/specifications.
+The catalog pins development to Pi 0.99.1; the named `pi-host` catalog preserves
+Pi's wildcard host-peer convention without duplicating a version range here.
+
+Observed verification on 2026-10-01: the package's uncached Nx `test` target passed
+68 tests. The red phase first demonstrated missing extension behavior; a separate
+invalid-key regression failed before its fix. Source and independently installed
+packed artifacts passed native Pi 0.99.1 HTTP-provider fixtures for model/auth/
+thinking selection, transient retry, permanent-error recovery, persistence and
+conversation isolation. Real Pi processes in Linux pseudo-terminals passed
+startup, saved-session resume and native rename checks with title mirroring both
+enabled and disabled; assertions inspected actual emitted OSC titles, not mocked
+UI calls. Lifecycle/cancellation/deadline cases use deterministic unit fixtures.
+No live LLM credentials or paid provider calls were used, and terminal escape
+emission is not a guarantee about every terminal emulator's display behavior.
+
+Workspace Nx lint/typecheck/source pi-check targets passed (some unaffected tasks
+used Nx cache); the new package's tests, typecheck/lint and source/static archive
+checks ran. The packed checker received an explicitly created archive inside the
+distribution test. Nx sync and frozen-lockfile installation passed. No dependency
+versions changed. Complete Mara project validation passed with no diagnostics,
+and code-backlink inspection confirmed implementation/check endpoints.
+
+Changed-package/root-file formatting passes. The whole-workspace
+`pnpm nx format:check --all` remains failing on untouched baseline files, including
+`.pi/mcp.json`, existing Work records, workflow documentation, gates-protocol files
+and `tools/fast-mode-wire-check/compare.mjs`; those unrelated files were not
+rewritten. Other packages' behavioral test suites were not rerun for this change.
+This is development verification, not npm publication or support for untested Pi
+versions; a release must still follow the workspace release/compatibility policy.
 
 :::mara goal GOAL-SESSION-NAME-WINDOWS
 :mid: 01M3VATF1E5EZBEYVPY886GFTF

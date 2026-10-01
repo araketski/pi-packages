@@ -1,0 +1,21 @@
+{
+  "name": "@araketski/pi-session-name",
+  "version": "0.1.0",
+  "description": "Automatically name Pi sessions and optionally use name-only terminal titles",
+  "license": "MIT",
+  "files": [
+    "extensions"
+  ],
+  "type": "module",
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:pi-host"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/session-name/index.ts"
+    ]
+  }
+}
