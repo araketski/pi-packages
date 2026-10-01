@@ -5,13 +5,13 @@ questions package or executable tests exists in this increment. Documentation
 validation checks corpus integrity only.
 
 Derive implementation tests from [the agreed contract](./contract.mara.md) and
-the [design](./design.mara.md) after its draft items are accepted. Use
+the accepted [design](./design.mara.md). Use
 red–green–refactor for each behavioral increment, with repository Vitest tests
 reachable through resolved Nx targets. Do not copy upstream tests.
 
-The [optional Herdr attention proposal](./herdr-integration.mara.md) has its own
-future verification for balanced events and independent Goal blockers. That
-proposal is draft; no Herdr integration or runtime result is implied by this plan.
+The accepted [optional Herdr attention integration](./herdr-integration.mara.md)
+has its own future verification for balanced events and independent Goal blockers.
+Acceptance does not imply implemented integration or an observed runtime result.
 
 ## Observable acceptance examples
 
@@ -27,15 +27,15 @@ proposal is draft; no Herdr integration or runtime result is implied by this pla
 | Custom answer | Select Write your own answer, type and confirm | Trim boundary whitespace only; preserve internal text and line breaks |
 | Blank custom answer | Submit empty or whitespace-only text | Stay in the editor with actionable feedback; no answer is recorded |
 | Escape in editor | Type a draft, then Escape | Return to that question's options; do not cancel the whole questionnaire |
-| Escape outside editor | Dismiss question or review | Cancelled outcome, never answered; proposed result has no partial answers |
+| Escape outside editor | Dismiss question or review | Cancelled outcome, never answered; result has no partial answers |
 | Non-TUI | Run in RPC (including `hasUI: true`), JSON or print | Unavailable result, no custom component call, no dialog wait or automatic default answer |
 | Invalid recommendation | Supply 0, a fraction, or a value beyond available options | Input error before UI; no coercion, fallback answer or recommendation reassignment |
 | Abort or invalidation | Abort while choosing, editing or reviewing | Prompt closes, no submitted answers, owned listeners are released, next prompt still works |
 
 Serialization, editor-draft retention and lifecycle mechanics in this table
-follow the draft design and become implementation acceptance only after its
-approval. Product assertions such as persistent recommendation marking,
-optional guidance and explicit confirmation are already agreed.
+follow the accepted design, alongside persistent recommendation marking,
+optional guidance and explicit confirmation. These are acceptance expectations,
+not observed results.
 
 ## Structured verification definitions
 
@@ -52,8 +52,8 @@ optional guidance and explicit confirmation are already agreed.
 :verifies: DES-QUESTIONS-TUI
 
 Use an independently authored deterministic tool/UI harness for the accepted
-product requirements. Exercise the acceptance table, then test the detailed
-draft input/result/flow contract once accepted. Confirm fresh-state defaults,
+product requirements. Exercise the acceptance table and the accepted detailed
+input/result/flow contract. Confirm fresh-state defaults,
 recommendation on a nonfirst option, independent per-question recommendations,
 persistent marking after focus changes, explicit confirmation, alternative and
 custom answers, backtracking and final-review behavior. Include all eight supplied

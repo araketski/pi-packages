@@ -18,8 +18,8 @@ copy code. Do not copy upstream source, tests, assets, or authored documentation
 **This increment is documentation only.** No package, extension, executable
 tests, dependency changes, or implementation campaign are authorized here.
 Accepted items below record agreed intent, not completed behavior. The
-[design](./design.mara.md) records proposed implementation-level contracts;
-its draft items need review/acceptance before behavior is implemented from them.
+[design](./design.mara.md) records accepted implementation-level contracts.
+Acceptance does not authorize implementation in this documentation increment.
 The [verification plan](./verification.mara.md) defines future checks; none
 has run. Mara document validation is not extension verification.
 
@@ -41,15 +41,15 @@ has run. Mara document validation is not extension verification.
   ordinary outcomes, not successful answers. No child agents or extra model
   calls are involved.
 
-The details that need design approval include result serialization, invalid-input
-policy, disposal/abort handling, exact theme-token choice, custom-editor draft
-retention, bounded viewport behavior, and model-only versus nested-tool exposure.
-The complete proposals are in the design rather than inferred from the reference.
+The user confirmed model-only exposure, rejection of invalid recommendations,
+and no returned answers on cancellation, including cancellation after intermediate
+answers. The documented interface, UI and invocation-lifecycle design is accepted;
+implement from that contract rather than infer policy from the reference.
 
-An additional [draft Herdr attention integration](./herdr-integration.mara.md)
-proposes a balanced, boolean-only herdr:blocked activation while the questionnaire
-awaits human input, following the existing Goal convention. It is optional
-presentation, not a new gate/job dependency or accepted runtime behavior.
+The accepted [optional Herdr attention integration](./herdr-integration.mara.md)
+holds a balanced, boolean-only herdr:blocked activation while the questionnaire
+awaits human input, following the existing Goal convention. It is presentation
+only, not a new gate/job dependency or a claim of implemented runtime behavior.
 
 ## Package and documentation lifecycle
 

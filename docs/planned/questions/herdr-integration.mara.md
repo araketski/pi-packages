@@ -1,18 +1,19 @@
-# Proposed questions attention reporting through Herdr
+# Questions attention reporting through Herdr
 
 ## Finding and authority
 
-A questionnaire waiting for a person is an appropriate candidate for the same
+A questionnaire waiting for a person uses the same
 status-only Herdr Pi event used by [[REQ-GOAL-PRESENTATION]]. Questions owns a
 short invocation-scoped wait, whereas Goal can own a longer needs-input state.
 They must remain independent producers, not clear each other's state or require
 one another to be installed.
 
-The user requested investigation of this candidate. The requirement, design and
-verification below are **draft proposals**, not a newly accepted implementation
-contract. This follow-up changes documentation only. No questions code, hook
-changes, live event emission, Herdr session manipulation or runtime verification
-was performed.
+The user requested investigation of this integration and accepted the documented
+design after confirming the remaining Questions choices. The requirement, design
+and verification below are **accepted intended behavior**, not implementation or
+passing evidence. This increment changes documentation only. No questions code,
+hook changes, live event emission, Herdr session manipulation or runtime
+verification was performed.
 
 ## Inspected integration
 
@@ -56,12 +57,12 @@ Herdr receives only aggregate needs-attention state through its existing hook.
 Absent hooks and non-Herdr use retain normal questionnaire behavior; all
 non-TUI calls retain the existing unavailable behavior.
 
-## Proposed structured integration
+## Structured integration
 
 :::mara requirement REQ-QUESTIONS-HERDR-ATTENTION
 :mid: 01M3VE7RXEE7255GGXR3WFZ4ZY
 :title: Optionally report a live questionnaire as awaiting human input in Herdr
-:status: draft
+:status: accepted
 :kind: functional
 :contributes_to: GOAL-QUESTIONS-USER-INPUT
 
@@ -86,14 +87,14 @@ already-aborted call must not require backend operations or change the core
 questionnaire outcome. No label/message/reason, question text, answer content,
 extra notification integration, direct socket reporter or persistent attention
 state is added. The signal reports waiting for input, not task failure or a
-verified server-delivery result. This is a proposed extension of the Questions
-contract, not an implemented feature.
+verified server-delivery result. This is accepted intended behavior, not an
+implemented feature.
 :::
 
 :::mara design DES-QUESTIONS-HERDR-ATTENTION
 :mid: 01M3VE7W9N88XKHXME85YRXR2E
 :title: Balance a single event activation through invocation-owned completion
-:status: draft
+:status: accepted
 :kind: behavior
 :satisfies: REQ-QUESTIONS-HERDR-ATTENTION
 
@@ -106,7 +107,7 @@ renderers, restored history or draft reconstruction.
 
 After full input validation, mode/abort checks and successful ownership of the
 invocation, enter the needs-input interval as the custom UI is opened and awaited.
-Propose emitting only for ctx.mode=tui with usable UI and HERDR_ENV=1. Use the
+Emit only for ctx.mode=tui with usable UI and HERDR_ENV=1. Use the
 public Pi event bus, not listener discovery, a pi-herdr tool or environment-based
 socket probing. Tool execution must occur after root session_start; verify hook
 startup ordering so an acquire ignored before root initialization cannot be
@@ -189,14 +190,14 @@ questionnaire is not proof that the task or current Goal is complete.
 :::mara verification VER-QUESTIONS-HERDR-ATTENTION
 :mid: 01M3VE7ZR5DPKJCRP4KX7E19F5
 :title: Verify balanced questionnaire attention and independent Goal blockers
-:status: draft
+:status: accepted
 :method: test
 :level: integration
 :verifies: REQ-QUESTIONS-HERDR-ATTENTION
 :verifies: DES-QUESTIONS-HERDR-ATTENTION
 
-After this proposal is accepted, derive fresh red–green tests from the event
-contract and controller lifecycle. Record exact boolean-only payloads through a
+Derive fresh red–green tests from the accepted event contract and controller
+lifecycle. Record exact boolean-only payloads through a
 controlled public event-bus fixture. One valid Herdr/TUI questionnaire emits true
 once and false once. Multiple questions, arrows, number shortcuts, backtracking,
 custom editing, blank editor retry and review must not reacquire/release until a

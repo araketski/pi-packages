@@ -1,14 +1,13 @@
 # Questions tool and interaction design
 
-This is a complete **proposed design**, not accepted implementation behavior.
+This is the **accepted design**, not implemented or verified behavior.
 The user-approved product obligations are in [the contract](./contract.mara.md).
-Use this document, not upstream code, as the implementation blueprint once its
-draft contracts have been reviewed and accepted. Keep reusable checks in
-[the verification plan](./verification.mara.md).
+Use this document, not upstream code, as the implementation blueprint. Keep
+reusable checks in [the verification plan](./verification.mara.md).
 
-## Review before implementation
+## Accepted design choices
 
-The proposed choices are explicit so an implementer need not invent policy:
+The choices are explicit so an implementer need not invent policy:
 
 1. Recommendations reference supplied options only; a proposed free-text answer
    can be supplied as an ordinary option. The built-in custom-answer row is not
@@ -27,20 +26,21 @@ The proposed choices are explicit so an implementer need not invent policy:
 7. Treat signal abort/session invalidation as cancellation, close through Pi's
    completion callback and release owned listeners exactly once. Actual host
    lifecycle integration must be verified, not assumed.
-8. The [optional Herdr attention proposal](./herdr-integration.mara.md) holds one
+8. The [optional Herdr attention integration](./herdr-integration.mara.md) holds one
    boolean-only blocked activation across the complete user-input flow and
    balances it on every terminal path without releasing other producers.
 
-These are reviewable design decisions, not additional user approvals. Updating
-an item's status to accepted must reflect review; its presence in this file does
-not authorize implementation.
+The user confirmed model-only exposure, invalid-recommendation rejection and
+empty answers on cancellation. The documented design and optional attention
+integration are accepted; implementation remains a separate authorized increment.
+Accepted items and verification definitions are not evidence of working code.
 
-## Proposed structured design
+## Structured design
 
 :::mara design DES-QUESTIONS-TOOL
 :mid: 01M3VDN8W8F1K91XP95JMDCQVM
 :title: Define validated questions and schema-backed answer outcomes
-:status: draft
+:status: accepted
 :kind: interface
 :satisfies: REQ-QUESTIONS-INTERACTION
 :satisfies: REQ-QUESTIONS-RECOMMENDATION
@@ -48,7 +48,7 @@ not authorize implementation.
 
 ## Registration and exposure
 
-Register one tool named `ask_questions`, labelled Ask Questions. Propose
+Register one tool named `ask_questions`, labelled Ask Questions. Use
 `exposure: "model-only"` because the operation asks a person rather than
 orchestrating programmatic work, and `executionMode: "sequential"` so sibling
 calls cannot simultaneously compete for the terminal. Keep it normally active
@@ -57,7 +57,7 @@ prompt. No slash command, shortcut, CLI flag, provider registration or persisten
 status widget is required.
 
 Use a short description, a prompt snippet and guidelines through the tool's
-ordinary registration fields. Proposed guideline content:
+ordinary registration fields. Guideline content:
 
 - Use ask_questions for direct questions when structured input helps; ordinary
   chat is appropriate for trivial, rhetorical or lightweight next-step questions.
@@ -107,7 +107,7 @@ Example input:
 
 Use JSON-schema/TypeBox validation for types, cardinalities and the integer
 1–8 range; perform semantic validation of `recommendedOption <= options.length`
-and nonblank textual fields before opening UI. The proposal rejects unknown
+and nonblank textual fields before opening UI. The contract rejects unknown
 input properties, wrong types, null optional fields, whitespace-only strings,
 empty/out-of-bounds arrays and fractional/out-of-bounds recommendations. Do not
 coerce numbers/strings, clamp recommendations, silently remove malformed
@@ -127,7 +127,7 @@ recommendation; default focus on option 1 must not invent one.
 
 Declare an output schema and return the matching payload as `structuredContent`.
 Use the same payload in `details` for historical rendering, with human-readable
-`content` for the model. This is proposed serialization, not copied from the
+`content` for the model. This is the accepted serialization, not copied from the
 reference or a compatibility obligation to it.
 
 The payload contains:
@@ -204,7 +204,7 @@ rendering old results, navigating history, exporting or resuming a session.
 :::mara design DES-QUESTIONS-TUI
 :mid: 01M3VDNCD66KGHZHSFSWZ0G6P1
 :title: Separate recommendation focus and confirmed answers in a bounded TUI flow
-:status: draft
+:status: accepted
 :kind: behavior
 :satisfies: REQ-QUESTIONS-INTERACTION
 :satisfies: REQ-QUESTIONS-RECOMMENDATION
@@ -213,7 +213,7 @@ rendering old results, navigating history, exporting or resuming a session.
 
 Create a fresh custom component through `ctx.ui.custom()` for each invocation,
 using Pi's renderer, theme, keybindings and built-in editor/scrolling primitives.
-Propose an inline custom screen in the interactive input area rather than a
+Use an inline custom screen in the interactive input area rather than a
 second terminal renderer or permanent main-editor replacement. Keep source
 separation small: tool/schema adapter, invocation-local flow state and themed
 component. Pure transitions and validation should be testable independently of
@@ -336,7 +336,7 @@ fullscreen TUI.
 :::mara design DES-QUESTIONS-LIFECYCLE
 :mid: 01M3VDNG1XZQT6ZVB0CS99XE8C
 :title: Own invocation completion cancellation and cleanup without background work
-:status: draft
+:status: accepted
 :kind: behavior
 :satisfies: REQ-QUESTIONS-LIFETIME
 :satisfies: REQ-QUESTIONS-INDEPENDENT
@@ -435,9 +435,9 @@ promised.
 
 No model/provider calls, analytics telemetry, direct network access, filesystem
 writes, subagents, jobs-core, gates-protocol or statusline integration are required.
-The optional presentation-only proposal in [[DES-QUESTIONS-HERDR-ATTENTION]]
+The optional presentation-only integration in [[DES-QUESTIONS-HERDR-ATTENTION]]
 uses Pi's existing event bus to signal a live questionnaire's human-input wait;
-it introduces no Herdr backend client or package dependency. If adopted, release
+it introduces no Herdr backend client or package dependency. Release
 its invocation-owned activation through this same terminal cleanup path, not
 from a renderer or a separate global shutdown reset. The installed hook alone
 owns any resulting Herdr transport/reporting.
