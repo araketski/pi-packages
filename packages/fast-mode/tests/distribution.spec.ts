@@ -114,7 +114,22 @@ it('passes the packed extension source checker from the local nx-pi executor', (
       },
     );
     expect(smoke.status, smoke.stdout + smoke.stderr || String(smoke.error)).toBe(0);
+    const wire = spawnSync(
+      process.execPath,
+      [
+        join(import.meta.dirname, 'runtime-smoke.mjs'),
+        join(consumer, 'node_modules/@earendil-works/pi-coding-agent/dist/index.js'),
+        join(consumer, 'node_modules/@araketski/pi-fast-mode'),
+      ],
+      {
+        cwd: consumer,
+        env: { ...process.env, PI_OFFLINE: '1' },
+        encoding: 'utf8',
+        timeout: 60_000,
+      },
+    );
+    expect(wire.status, wire.stdout + wire.stderr || String(wire.error)).toBe(0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-});
+}, 180_000);

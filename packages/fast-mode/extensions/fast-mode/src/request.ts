@@ -5,9 +5,12 @@ export type FastModel = {
   headers?: Record<string, string>;
 };
 
-export type FastContext = {
-  model?: FastModel;
-  modelRegistry: { isUsingOAuth(model: FastModel): boolean };
+/** Verified facts about this actual request, never the live chat selection.
+ * Pi 0.99.1's extension hooks cannot supply these facts; isolated helper tests can.
+ */
+export type FastRequestFacts = {
+  model: FastModel;
+  oauth: boolean;
 };
 
 type Eligibility = { supported: boolean; reason?: string; option?: 'speed' | 'service_tier' };
@@ -31,9 +34,16 @@ const OPENAI_MODELS = new Set([
 const FAST_BETA = 'fast-mode-2026-02-01';
 const OAUTH_BETAS = ['claude-code-20250219', 'oauth-2025-04-20'];
 
-export function getModelEligibility(ctx: FastContext): Eligibility {
-  const model = ctx.model;
-  if (!model) return { supported: false, reason: 'No model is selected' };
+export function getModelEligibility(ctx: FastRequestFacts | undefined): Eligibility {
+  const model = ctx?.model;
+  if (!model)
+    return {
+      supported: false,
+      reason: 'Request identity/API/authentication unavailable from public Pi hooks',
+    };
+  if (typeof ctx?.oauth !== 'boolean') {
+    return { supported: false, reason: 'Request authentication is unavailable' };
+  }
   const id = model.id.replace(/^(?:anthropic|openai)\//u, '');
   if (model.api === 'anthropic-messages' && CLAUDE_MODELS.has(id)) {
     return { supported: true, option: 'speed' };
@@ -42,7 +52,7 @@ export function getModelEligibility(ctx: FastContext): Eligibility {
     (model.api === 'openai-responses' || model.api === 'openai-codex-responses') &&
     OPENAI_MODELS.has(id)
   ) {
-    if (model.api === 'openai-codex-responses' && !ctx.modelRegistry.isUsingOAuth(model)) {
+    if (model.api === 'openai-codex-responses' && ctx?.oauth !== true) {
       return { supported: false, reason: 'ChatGPT OAuth auth is required' };
     }
     return { supported: true, option: 'service_tier' };
@@ -59,12 +69,12 @@ function isRecord(payload: unknown): payload is Record<string, unknown> {
 
 export function getFastPayload(
   payload: unknown,
-  ctx: FastContext,
+  ctx: FastRequestFacts | undefined,
   enabled: boolean,
 ): Record<string, unknown> | undefined {
   if (!enabled || !isRecord(payload)) return undefined;
   const eligibility = getModelEligibility(ctx);
-  if (!eligibility.supported || !eligibility.option || payload.model !== ctx.model?.id)
+  if (!eligibility.supported || !eligibility.option || payload.model !== ctx?.model.id)
     return undefined;
   if (eligibility.option in payload) return undefined;
   return { ...payload, [eligibility.option]: eligibility.option === 'speed' ? 'fast' : 'priority' };
@@ -72,10 +82,10 @@ export function getFastPayload(
 
 export function applyFastHeaders(
   headers: Record<string, string | null>,
-  ctx: FastContext,
+  ctx: FastRequestFacts | undefined,
   enabled: boolean,
 ): void {
-  if (!enabled || ctx.model?.api !== 'anthropic-messages' || !getModelEligibility(ctx).supported)
+  if (!enabled || ctx?.model.api !== 'anthropic-messages' || !getModelEligibility(ctx).supported)
     return;
   const key =
     Object.keys(headers).find((name) => name.toLowerCase() === 'anthropic-beta') ??
@@ -88,8 +98,6 @@ export function applyFastHeaders(
           .map((token) => token.trim())
           .filter(Boolean)
       : [];
-  const required = ctx.modelRegistry.isUsingOAuth(ctx.model)
-    ? [...OAUTH_BETAS, FAST_BETA]
-    : [FAST_BETA];
+  const required = ctx.oauth ? [...OAUTH_BETAS, FAST_BETA] : [FAST_BETA];
   headers[key] = [...new Set([...tokens, ...required])].join(',');
 }

@@ -3,12 +3,13 @@ import {
   applyFastHeaders,
   getModelEligibility,
   getFastPayload,
-  type FastContext,
+  type FastRequestFacts,
   type FastModel,
 } from '../extensions/fast-mode/src/request.ts';
 
-function context(model?: FastModel, oauth = false): FastContext {
-  return { model, modelRegistry: { isUsingOAuth: () => oauth } };
+// These are explicitly verified request facts, not ExtensionContext.model.
+function context(model?: FastModel, oauth = false): FastRequestFacts | undefined {
+  return model ? { model, oauth } : undefined;
 }
 
 const claude = ['claude-opus-4-6', 'claude-opus-4-8', 'claude-opus-5', 'claude-opus-5-5'];
@@ -23,7 +24,17 @@ const openai = [
   'gpt-6-luna',
 ];
 
-describe('request eligibility and injection', () => {
+describe('isolated transformations with verified request facts (not native hook support)', () => {
+  it('rejects unavailable request authentication even with an allowlisted model', () => {
+    const ctx = {
+      model: { provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5' },
+    } as FastRequestFacts;
+    expect(getModelEligibility(ctx).supported).toBe(false);
+    const headers = { 'anthropic-beta': 'user' };
+    applyFastHeaders(headers, ctx, true);
+    expect(headers).toEqual({ 'anthropic-beta': 'user' });
+    expect(getFastPayload({ model: 'claude-opus-5' }, ctx, true)).toBeUndefined();
+  });
   it.each(claude)('adds Claude fast speed and beta for %s', (id) => {
     const model = { provider: 'anthropic', api: 'anthropic-messages', id };
     const ctx = context(model);
