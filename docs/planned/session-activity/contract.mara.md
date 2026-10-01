@@ -67,6 +67,10 @@ Refactoring request handling
 - Outside Herdr, do nothing, including making no reporter model requests.
   Metadata-publication failures are silent, with later normal update opportunities
   rather than immediate retries. Cleanup is best-effort too.
+- Use direct Herdr socket RPC for the initial transport, not a CLI subprocess.
+  Keep it behind a replaceable activity publisher as defined by
+  [[DES-SESSION-ACTIVITY-PUBLISHER]]. Do not import or modify the managed Herdr
+  integration; it is a transport-pattern reference, not a runtime dependency.
 
 ## Implementation review still needed
 
@@ -88,10 +92,22 @@ These details are deliberately **not accepted requirements** yet:
 
 ## Integration facts to verify before implementation
 
-The installed Herdr CLI exposes `pane report-metadata` with `--token NAME=VALUE`
-and `--clear-token NAME`, separate from agent reporting and title fields. Its
-help was inspected; successful token publication and clearing were **not** tested.
-The exact source/caller ownership must be established before issuing mutations.
+The installed managed Pi integration at
+`~/.pi/agent/extensions/herdr-agent-state.ts` (integration version 8) uses Node's
+`net` API, `HERDR_SOCKET_PATH`, `HERDR_PANE_ID`, newline-delimited JSON requests,
+and bounded socket attempts. It sends lifecycle methods; this extension will
+use only the metadata method and a distinct source. Its retries, mode policy and
+any-data-as-success shortcut are not inherited requirements. The managed file
+was read, not changed.
+
+`herdr api schema --json` reports protocol 22 and exposes `pane.report_metadata`
+with `pane_id`, `source`, optional `agent`/`seq`, and `tokens` mapping names to
+strings or null. Success and error envelopes carry an `id` with `result` or
+`error` respectively. The CLI exposes the same capability as
+`pane report-metadata`. Direct RPC is the selected initial adapter; the CLI is
+not the runtime transport. Schema/example inspection does **not** verify live
+publication or null-token deletion semantics. The exact source/caller ownership
+must be established before issuing mutations.
 
 Installed Pi 0.99.2 extension documentation distinguishes actionable `turn_end`
 from notification-only `agent_settled`: `agent_end` can precede retries or other
@@ -103,9 +119,10 @@ and documented without adding synthetic conversation messages to hide limitation
 
 ## Planned acceptance checks
 
-The structured verification below defines observable checks for the accepted
-contract. It has not been executed. Behavioral implementation must proceed via
-red–green–refactor, followed by native Pi loading/lifecycle and independent Herdr
+The structured verifications below define observable checks for the accepted
+contract and replaceable RPC adapter. They have not been executed. Behavioral
+implementation must proceed via red–green–refactor, followed by native Pi
+loading/lifecycle and independent Herdr
 metadata verification. No specific consumer layout is part of this contract.
 
 :::mara goal GOAL-SESSION-ACTIVITY
@@ -123,7 +140,7 @@ Let Herdr consumers observe what the main Pi agent is doing now without conflati
 :kind: constraint
 :contributes_to: GOAL-SESSION-ACTIVITY
 
-Publish the custom activity token through Herdr pane.report-metadata for the calling Pi agent's pane. Require only Pi and standard Herdr metadata, not a particular renderer or a repository-specific Herdr extension. Do not change Pi session names, terminal titles, Herdr lifecycle status, unrelated metadata, or other agents. Do not send messages to other agents or add reporter content to the chat transcript. Outside Herdr, perform no reporter model requests or metadata operations.
+Publish the custom activity token through Herdr's standard pane.report_metadata RPC method for the calling Pi agent's pane (exposed by the CLI as pane report-metadata). Require only Pi and standard Herdr metadata, not a particular renderer or a repository-specific Herdr extension. Do not change Pi session names, terminal titles, Herdr lifecycle status, unrelated metadata, or other agents. Do not send messages to other agents or add reporter content to the chat transcript. Outside Herdr, perform no reporter model requests or metadata operations.
 :::
 
 :::mara requirement REQ-SESSION-ACTIVITY-CADENCE
@@ -226,4 +243,74 @@ Define deterministic behavioral fixtures and native Pi/Herdr integration checks 
 | Outside Herdr | Without Herdr caller context, neither model requests nor metadata operations occur. |
 
 Use offline gated providers and isolated Herdr fixtures where available; do not mutate another contributor's pane or contact a paid provider merely to run the suite. Native source/packed loading and lifecycle checks must use the selected repository Pi baseline. Record actual execution separately when implementation exists.
+:::
+
+:::mara requirement REQ-SESSION-ACTIVITY-TRANSPORT
+:mid: 01M3W0NS3QHGB5945Y5GYSVMES
+:title: Use direct Herdr RPC behind a replaceable activity publisher
+:status: accepted
+:kind: constraint
+:contributes_to: GOAL-SESSION-ACTIVITY
+
+Use direct Herdr socket RPC for the initial metadata transport, following the transport pattern inspected in the installed managed Pi integration. Isolate it behind a small replaceable activity-publisher interface so generation, cadence, semantic deduplication and Pi lifecycle handling do not depend on Herdr socket framing, request fields or endpoint discovery. A replacement adapter must support the same availability, publish, clear, cancellation and bounded best-effort completion contract without changing activity behavior. Do not import or modify Herdr's managed integration, reuse its lifecycle source, or introduce a transport plugin registry or user-facing transport selector merely to enable later replacement.
+:::
+
+:::mara design DES-SESSION-ACTIVITY-PUBLISHER
+:mid: 01M3W0PMQDT9NJQ27R2DT3B3YZ
+:title: Separate activity behavior from the initial Herdr socket RPC adapter
+:status: accepted
+:kind: interface
+:satisfies: REQ-SESSION-ACTIVITY-TRANSPORT
+:satisfies: REQ-SESSION-ACTIVITY-ISOLATION
+:satisfies: REQ-SESSION-ACTIVITY-ASYNC
+:satisfies: REQ-SESSION-ACTIVITY-FAILURE
+:satisfies: REQ-SESSION-ACTIVITY-CLEANUP
+
+Keep one local adapter boundary, not a generic RPC framework. The activity coordinator receives an activity publisher at construction; production wiring supplies the Herdr RPC adapter, and behavioral tests supply a fake. The coordinator owns cadence, summary generation, semantic deduplication and session/run invalidation. The adapter owns endpoint discovery, pane/source binding, request encoding, response validation, transport ordering and socket cleanup.
+
+The interface expresses availability; asynchronous publish(activity, signal) and clear(signal) operations with a success/failure result; and idempotent disposal. It exposes no Herdr request objects, source strings, pane IDs or sockets to summary logic. The adapter must not throw unhandled background errors, retain an unbounded queue, retry failed operations immediately, or block normal agent execution. Cancellation and ordered clear must prevent an older publish from winning after cleanup. Do not cache successful publication in the coordinator on a false result. The exact TypeScript names are implementation details.
+
+Initial transport: use Node's standard net API and inherited HERDR_ENV, HERDR_SOCKET_PATH and HERDR_PANE_ID. Without complete caller context, report unavailable and make no socket/model requests. Use the installed integration's Unix-domain socket / Windows named-pipe endpoint pattern, with one newline-delimited JSON request and bounded response processing. This is Herdr RPC, not Pi's RPC mode and not an assumed JSON-RPC 2.0 envelope. No subprocess or CLI fallback is needed.
+
+Use pane.report_metadata, an independent reporter-owned source distinct from herdr:pi, and a unique request ID. Publish only tokens.activity; clear only that token using the protocol's token deletion representation. Leave lifecycle/title/session-reference fields untouched. Sequence and ownership details must ensure publication/clear ordering and avoid replacing the managed lifecycle integration. Source spelling, timeout, TTL and restart sequencing remain implementation-review details, not fixed by the examples below.
+
+Schema-compatible illustrative publication envelope (identifiers and sequence are placeholders):
+
+```json
+{
+  "id": "session-activity:request-1",
+  "method": "pane.report_metadata",
+  "params": {
+    "pane_id": "w1:p1",
+    "source": "pi:session-activity",
+    "agent": "pi",
+    "seq": 1,
+    "tokens": { "activity": "Running parser tests" }
+  }
+}
+```
+
+The inspected schema allows null token values, so the corresponding clear envelope uses tokens: { activity: null } with a newer sequence. Actual deletion semantics still require isolated integration verification. Parse a complete bounded response, match its id and distinguish result from error; receiving arbitrary data alone is not success. Release sockets and timers on success, protocol error, EOF, timeout, cancellation and disposal.
+
+The reference was the installed managed herdr-agent-state.ts integration version 8, inspected for its enabled gate, net.createConnection endpoint, newline framing, request IDs and ordering pattern. Do not copy its agent-reporting calls, blocked-state handling, Pi mode policy, immediate two-attempt retry or any-data-as-success behavior. Its file remains untouched. Protocol 22 metadata request/response shapes were inspected through herdr api schema --json; inspection is not proof of successful publication or of compatibility with other Herdr versions.
+:::
+
+:::mara verification VER-SESSION-ACTIVITY-PUBLISHER
+:mid: 01M3W0QCEF0DZ34MGYPGSD8S8R
+:title: Verify replaceable activity publishing and direct RPC framing
+:status: accepted
+:method: test
+:level: integration
+:verifies: REQ-SESSION-ACTIVITY-TRANSPORT
+:verifies: DES-SESSION-ACTIVITY-PUBLISHER
+
+This is a planned verification method, not an executed test or passing result.
+
+Run coordinator behavior with an injected fake activity publisher and assert that cadence, generation, unchanged suppression and settlement cleanup depend only on availability/publish/clear/cancellation, not Herdr wire objects or endpoint environment. Swap publisher implementations without changing those assertions.
+
+Use a disposable local socket server for the initial adapter. Capture newline-framed requests and assert pane.report_metadata, caller pane binding, independent source ownership, unique request IDs and activity-only token updates. Exercise string publication and null-token clearing; assert no agent/lifecycle/title method or unrelated field is emitted. Test fragmented responses, matching success, explicit server error, malformed/oversized data, unrelated response IDs, EOF, missing caller context, timeout, cancellation and repeated disposal. Only a complete matching successful response reports success. Failures remain silent, bounded and without immediate retries. Verify timers and sockets are released.
+
+Gate a publication while a later clear/session invalidation occurs and prove older work cannot leave activity restored. Retained requests stay bounded; ordering and any chosen sequence scheme work across reload/session boundaries according to the final reviewed ownership contract.
+
+Finally, in an isolated Herdr pane/session, confirm publication and null-token deletion have the expected standard metadata semantics while the managed lifecycle source and unrelated metadata remain unchanged. Source code/schema inspection alone does not pass this check. Do not modify the installed managed integration or another agent's pane.
 :::
