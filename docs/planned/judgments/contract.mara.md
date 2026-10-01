@@ -6,8 +6,9 @@ scaffolded and no implementation or quality/token-saving benefit is established.
 
 ## Initial scope and boundaries
 
-Implement one on-demand Pi judgment operation with predefined scenario and generic
-question modes. Start with one bundled Mara representation/flavour scenario;
+Implement three on-demand namespaced Pi tools: scenario listing, predefined
+scenario evaluation and generic question evaluation. Bundle one generic judgment
+skill and start with one Mara representation/flavour scenario;
 user-defined scenario files, clarification and proportionality scenarios, Work
 integration, automatic supervision, persistent decision state and review gates are
 deferred. Do not build a scenario marketplace, separate process, tool broker,
@@ -16,12 +17,14 @@ provider client or shared framework before a concrete need exists.
 A judgment scenario is a saved classifier question set and its usage guidance,
 not a Mara `scenario` item or an executable action. Exact configuration syntax,
 public argument/result schemas and registration names remain implementation design
-work. Both modes perform the same coherent judgment operation and must preserve
+work. Each tool has one coherent responsibility and must preserve
 [native atomic tool conventions](../../workflow-contracts.mara.md).
 
 The portable Mara skill and Mara/Work operations remain agent-agnostic. Pi-specific
-judgment guidance belongs to the Pi package, not the portable skill. The agent
-still has to recognize a decision point and supply adequate evidence: usage
+judgment guidance belongs to the Pi package, not the portable skill. Its bundled
+judgment skill is generic: all Mara-specific guidance belongs to the bundled
+scenario metadata, not that skill. The agent still has to recognize a decision
+point and supply adequate evidence: usage
 guidance is assistance, not an enforcement guarantee. Confidence is not evidence,
 acceptance, authorization or proof of correctness.
 
@@ -46,9 +49,13 @@ Reduce repeated question-design work for agents through reusable, narrow classif
 :kind: functional
 :contributes_to: GOAL-JUDGMENTS-ASSISTANCE
 
-Expose one coherent judgment operation accepting either a named bundled scenario with its required input or generic state and typed questions. A predefined scenario supplies purpose, use-when and avoid-when guidance, required context, fixed classifier questions and result interpretation. Expose a concise scenario catalog to the agent and make detailed guidance available when needed, rather than requiring it to reconstruct the rubric on every call. Retain the generic mode for judgments outside bundled scenarios.
+Expose three separate, single-purpose namespaced tools: list bundled scenarios, evaluate a named scenario with its required inputs, and evaluate generic state with typed questions. Preserve globally unique registration names as well as native namespace metadata. Retain generic evaluation for judgments outside bundled scenarios.
 
-Judgments run only when requested at relevant decision points, not automatically on every turn or tool call. Guidance must discourage repeated assessment of unchanged relevant inputs; no background monitor or persisted judgment cache is required. The first bundled checkpoint is before creating a Mara item or changing its flavour, not ordinary wording edits. Return structured advisory results, not automatic mutations, model switches or execution approvals. Explicit user instructions, accepted requirements, mandatory clarification/approval rules and deterministic verification remain authoritative.
+Scenario listing returns selection metadata: ID, purpose, use-when and avoid-when guidance, required inputs, expected outcomes and interpretation guidance. Fixed classifier questions remain internal to scenario execution so the agent need not reconstruct the rubric. Listing does not call a classifier. Known suitable scenarios may be evaluated directly; unfamiliar judgments warrant catalog inspection; when none fits, use generic evaluation. Do not require a listing call on every turn or repeated listing of already-known scenarios.
+
+Bundle one generic judgment skill covering when to delegate, scenario selection, input preparation, probabilities, uncertainty and failure handling. It contains no Mara-specific instructions; those belong to the bundled scenario metadata. Keep essential invocation guidance in the tool descriptions rather than relying on automatic skill loading.
+
+Judgments run only when requested at relevant decision points, not automatically on every turn or tool call. Guidance must discourage repeated assessment of unchanged relevant inputs; no background monitor or persisted judgment cache is required. The initial Mara scenario's checkpoint is before creating an item or changing its flavour, not ordinary wording edits. Return structured advisory results, not automatic mutations, model switches or execution approvals. Explicit user instructions, accepted requirements, mandatory clarification/approval rules and deterministic verification remain authoritative.
 :::
 
 :::mara requirement REQ-JUDGMENTS-NATIVE-CLASSIFIER
@@ -84,9 +91,11 @@ Recommend structured-item representation and a schema-declared flavour, narrativ
 :satisfies: REQ-JUDGMENTS-NATIVE-CLASSIFIER
 :satisfies: REQ-JUDGMENTS-MARA-CONTEXT
 
-Use a small Pi extension to implement the single-purpose judgment operation, with one bundled Mara question set and an alternative generic state/questions path. Resolve the configured classifier through Pi's model runtime and execute typed classification with the runtime-resolved credentials. Keep scenario metadata and questions together with concise agent-visible invocation guidance; details may load on demand. No user-defined declarative file loader, separate classifier runtime, periodic hook, persistence subsystem or action dispatcher is part of the first increment.
+Use a small Pi extension to register three atomic namespaced tools for scenario metadata listing, predefined evaluation and generic evaluation. The two evaluation tools share native classifier execution without combining their public argument schemas into an action-dispatch tool. Resolve the configured classifier through Pi's model runtime and execute typed classification with runtime-resolved credentials. Scenario listing is local and makes no classifier request.
 
-The agent follows the portable Mara skill to gather selected-project guidance and relevant knowledge, supplies that context to the operation, interprets its recommendation and authors/validates through Mara. Fixed questions reduce repeated rubric construction; project vocabulary remains input data. Missing context and classifier failures remain explicit rather than becoming positive judgments. Exact API names, serialization and classifier question wording are not frozen by the conversational examples.
+Keep one bundled Mara question set alongside its selection/input/result metadata. A generic skill teaches discovery, selecting a suitable scenario, preparing context, using the generic escape hatch and interpreting results. It contains no Mara-specific authoring guidance. Short tool descriptions expose essential usage guidance; catalog metadata supplies scenario-specific checkpoints and exclusions. Do not depend on guaranteed automatic skill loading or require repeated catalog inspection for known scenarios.
+
+The agent follows the portable Mara skill to gather selected-project guidance and relevant knowledge, supplies that context to predefined evaluation, interprets the recommendation and authors/validates through Mara. Fixed questions reduce repeated rubric construction; project vocabulary remains input data. Missing context and classifier failures remain explicit rather than becoming positive judgments. Exact API names, serialization and classifier question wording are not frozen by conversational examples. No user-defined declarative file loader, separate classifier runtime, periodic hook, persistence subsystem or action dispatcher is part of the first increment.
 :::
 
 :::mara verification VER-JUDGMENTS-CONTRACT
@@ -100,9 +109,11 @@ The agent follows the portable Mara skill to gather selected-project guidance an
 :verifies: REQ-JUDGMENTS-MARA-CONTEXT
 :verifies: DES-JUDGMENTS-LIGHTWEIGHT
 
-Use controlled classifier responses and Pi integration fixtures to exercise both modes: bundled scenario construction uses its declared questions and required input, while generic questions reach the same native runtime without needing a scenario. Inspect catalog/detail guidance for purpose, invocation checkpoints, exclusions and result interpretation; idle turns and unrelated tool activity must make no classifier calls.
+Load the three tools together in Pi integration fixtures and inspect globally unique names, namespace metadata and distinct single-purpose argument contracts. List the bundled scenario and verify ID, purpose, invocation/exclusion guidance, required inputs, outcomes and interpretation metadata without a classifier request. Known scenarios must be directly callable without a preceding listing. Inspect the bundled skill for generic discovery/evaluation/uncertainty guidance and absence of Mara-specific instructions; keep scenario-specific instructions in metadata and essential usage guidance in tool descriptions.
 
-Supply a custom Mara vocabulary and check it is preserved in the classification input rather than replaced with built-in flavours. Exercise item/flavour, narrative, mixed-content and insufficient/no-fit responses with controlled answers. Verify that the tool does not retrieve Mara context, mutate knowledge, change the main model or alter permissions. Missing required input must not silently produce a successful assessment. Exercise configured classifier selection, unavailable credentials/model, provider failure and cancellation; require honest outcomes without provider fallback. Inspect usage handling through supported native tool results and preservation of explicit approval/clarification requirements in guidance.
+Use controlled classifier responses to exercise both evaluation tools: bundled scenario construction uses declared questions and required inputs, while generic questions reach the same native runtime without needing a scenario. Idle turns and unrelated tool activity must make no classifier calls. Inspect guidance against unnecessary repeated listing and unchanged-input assessment; do not claim these instructions guarantee agent invocation behavior.
 
-These checks establish the operation contract, not classifier accuracy, token savings, reliable invocation by every agent or real-world authoring quality. Tests can be automated without requiring the user to perform a manual evaluation campaign. No implementation checks have run for this planned assistant.
+Supply a custom Mara vocabulary and check it is preserved in classification input rather than replaced with built-in flavours. Exercise item/flavour, narrative, mixed-content and insufficient/no-fit responses with controlled answers. Verify that the tools do not retrieve Mara context, mutate knowledge, change the main model or alter permissions. Missing required input must not silently produce a successful assessment. Exercise configured classifier selection, unavailable credentials/model, provider failure and cancellation; require honest outcomes without provider fallback. Inspect usage handling through supported native tool results and preservation of explicit approval/clarification requirements in guidance.
+
+These checks establish the operation contracts, not classifier accuracy, token savings, reliable invocation by every agent or real-world authoring quality. Tests can be automated without requiring the user to perform a manual evaluation campaign. No implementation checks have run for this planned assistant.
 :::
