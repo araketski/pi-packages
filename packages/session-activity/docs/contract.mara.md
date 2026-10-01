@@ -1,154 +1,74 @@
-# Planned session activity reporter
+# Session activity reporter
 
-`session-activity` is a small standalone Pi extension that exposes what the
-main agent is doing now through Herdr's standard custom `$activity` metadata
-token. It is generally compatible with Herdr and imposes no renderer dependency.
-
-The user selected a **specification-only first increment**. Accepted items below
-record agreed intended behavior, not implementation or passing runtime tests.
-No package has been scaffolded, and no model requests or metadata mutations
-were made to validate this contract.
+`session-activity` exposes what the main Pi agent is doing now through Herdr's
+standard custom `$activity` metadata token. It requires no particular renderer.
+The structured contract below records accepted intended behavior; acceptance is
+not evidence of implementation or passing runtime tests.
 
 ## Responsibility boundaries
 
-| Surface | Meaning | Owner |
-| --- | --- | --- |
-| Pi session name | What the agent is responsible for | Existing naming behavior |
-| Herdr lifecycle status | Working / blocked / done / idle | Existing lifecycle integration |
-| Herdr `$activity` | What the agent is doing right now | `session-activity` |
+| Surface                | Meaning                           | Owner                          |
+| ---------------------- | --------------------------------- | ------------------------------ |
+| Pi session name        | What the agent is responsible for | Existing naming behavior       |
+| Herdr lifecycle status | Working / blocked / done / idle   | Existing lifecycle integration |
+| Herdr `$activity`      | What the agent is doing right now | `session-activity`             |
 
-The reporter neither renames sessions nor changes terminal titles, lifecycle
-status, other metadata fields, or another agent's state. It sends no messages to
-other agents. Its runtime integration requires only Pi and standard Herdr
-metadata, not a particular renderer or a repository-specific Herdr extension.
-Herdr consumers choose whether and how to display the token.
+Only the activity token is published/cleared. The extension does not change
+session names, titles, lifecycle status, unrelated metadata or other agents, and
+sends no inter-agent messages. Herdr consumers choose how to display the token.
+Example values: `Running parser tests`, `Investigating API schema`.
 
-Example `$activity` values:
+## Configuration and integration reference
 
-```text
-Running parser tests
-Investigating API schema
-Refactoring request handling
-```
+Model selection and configuration follow the
+[session-name pattern](../../session-name/docs/contract.mara.md), without its
+`setTitle` behavior or heuristic fallback. Only the configured agent-directory
+`session-activity.json` is read at start/reload. Defaults use the active model,
+reporter thinking `off`, and a five-turn subsequent interval. Invalid files warn
+once for that load and use defaults; reporting failures remain silent.
 
-## Agreed operating behavior
+The installed managed `~/.pi/agent/extensions/herdr-agent-state.ts` integration
+version 8 was inspected, not changed or imported. It uses Node `net`, inherited
+`HERDR_SOCKET_PATH`/`HERDR_PANE_ID`, newline-delimited JSON and bounded attempts.
+The initial adapter follows this transport pattern, not its lifecycle-reporting
+methods, retries or any-data-as-success shortcut. The user separately selected
+main/root interactive-TUI scope. Direct RPC is not Pi's headless RPC mode.
 
-- Count completed main-agent assistant turns, including tool-calling responses.
-  Do not count reporter generation, individual tool completions, nested work,
-  or subagent work as separate qualifying turns.
-- Reset the counter, digest and phrase-comparison state for each main-agent run.
-  Start the first summary after one qualifying turn; refresh after every five
-  subsequent qualifying turns by default, with a configurable subsequent interval.
-  Reload, session resume/replacement and tree navigation also start fresh: cancel
-  obsolete work and clear activity without reconstructing history. If work
-  continues, summarize after the next qualifying turn; otherwise wait for a run.
-- Follow the [session-name model-selection pattern](../../../packages/session-name/docs/contract.mara.md):
-  default to the active session model with reporter thinking `off`; permit a
-  complete provider/model override and a thinking override through Pi's model
-  registry and configured authentication. Do not inherit or mutate chat thinking
-  when the reporter's thinking setting is omitted. Do not share the naming
-  extension's configuration or include its `setTitle` behavior.
-  Read only `<agent-dir>/session-activity.json` at start/reload, respecting Pi's
-  configured agent directory. No project layer, watcher or automatic file creation
-  is included. Invalid JSON, root shape, unknown keys or invalid values produce
-  one nonblocking warning for that load and use defaults.
-- Summarize a rolling window of the latest five qualifying turns, independent of
-  cadence. Include tool names, curated paths/search queries/command text and
-  visible assistant text; omit file contents, edit replacement bodies and bulk
-  payloads, as well as thinking and tool-result bodies. Cap curated argument text
-  at 400 Unicode code points per entry, visible assistant text at 600 per entry,
-  and the serialized activity digest at 6,000 total, prioritizing newest activity.
-  Bound retained collection too. The previous phrase is separate comparison input.
-  Curated arguments can still contain sensitive text; this is not a secrecy guarantee.
-- Prefer three words, permit at most five words and 60 Unicode code points,
-  and publish only a safe single plain-text line without control characters.
-  Normalize harmless formatting/whitespace and remove controls; skip output that
-  remains overlong or unusable rather than truncating it.
-- Ask the summarizer to retain the previous phrase when the activity has not
-  meaningfully changed. Suppress normalized exact duplicates independently.
-- Generation and metadata publication are asynchronous and best-effort. Permit
-  at most one active summary request and coalesce overlapping due updates into
-  one pending refresh that uses the latest digest rather than old queued snapshots.
-  If its run/session is still valid, a completed request may publish before the
-  pending latest refresh starts. Ordinary turn progress does not invalidate it.
-- Apply a 10-second generation deadline. On timeout, unavailable model/auth,
-  provider failure, or unusable output, skip that update without an immediate
-  retry or heuristic replacement. Retain the existing phrase while working;
-  the next normally due refresh may try again. Coalescing a separately due
-  refresh is not a failure retry.
-- Clear the token at final settlement/abort, reload, session resume/replacement,
-  tree navigation and orderly shutdown. Invalidate obsolete asynchronous work so
-  late results cannot restore activity. A short run may publish no phrase.
-  Use orderly cleanup only: no reporter TTL, heartbeat or repeated identical
-  renewal writes. A hard kill or unavailable Herdr server can leave stale metadata,
-  subject to Herdr's own cleanup.
-- Report only the root/main interactive TUI with complete Herdr caller context.
-  Outside that scope, including inherited-context headless RPC/JSON/print or
-  nested/subagent sessions, make no reporter model requests or metadata operations.
-  Metadata failures remain silent, with later normal opportunities rather than
-  immediate retries. Invalid-configuration warnings are the separate exception.
-  Cleanup is best-effort too.
-- Use direct Herdr socket RPC for the initial transport, not a CLI subprocess.
-  Keep it behind a replaceable activity publisher as defined by
-  [[DES-SESSION-ACTIVITY-PUBLISHER]]. Do not import or modify the managed Herdr
-  integration; it is a transport-pattern reference, not a runtime dependency.
+The inspected `herdr api schema --json` reports protocol 22 with metadata method
+`pane.report_metadata`, string/null token values, and matching request-ID success
+or error envelopes. The CLI exposes the same capability as `pane report-metadata`,
+but is not the selected runtime transport. Schema inspection alone does not prove
+publication, ownership, ordering or null-token deletion semantics.
 
-## Engineering details and verification still needed
+## Engineering verification boundary
 
-The documentation review resolved the remaining user-facing choices. These
-technical details must be finalized, documented and tested before their behavior
-is implemented; they are not additional product-policy questions:
+User-facing policy questions were resolved before implementation. Finalize and
+test cadence-key/range validation, curated tool fields, bounded collection,
+output-token cap, unchanged-response encoding, safe normalization, RPC ownership,
+sequence initialization, timeout/response-size cap and caller-pane routing.
+Verify native main/root-session and final-settlement mapping against the chosen
+repository Pi baseline rather than treating installed Pi 0.99.2 docs as proof.
 
-- Configuration cadence-key spelling and valid numeric range; use the agreed
-  strict validation/default policy and Pi-supported thinking values matching
-  session-name, without `setTitle`.
-- Tool-specific curated-field selection/redaction, bounded collection strategy,
-  provider output-token cap, unchanged-response encoding, and exact safe
-  normalization/word counting. Preserve the accepted digest and phrase limits.
-- Herdr metadata source ownership, sequence initialization/order across reloads,
-  RPC timeout/response-size cap, inherited caller-pane routing and null-token
-  deletion semantics. Verify these in isolated fixtures; schema inspection alone
-  is not evidence of successful publication or cleanup.
-- Native main/root-session and final-settlement event mapping against the chosen
-  Pi baseline, plus model-call billing/accounting behavior.
+No TTL or heartbeat is planned. Orderly cleanup cannot guarantee removal after
+hard process kill or an unavailable server. Curated arguments can still contain
+sensitive text. Extra model requests may be billable; lifecycle nested usage
+accounting must be checked and documented, not hidden with synthetic chat entries.
 
-No reporter TTL or heartbeat is planned. Crash cleanup is explicitly outside the
-reporter's guarantee, rather than an unresolved expiry policy.
+## Implementation and verification state
 
-## Integration facts to verify before implementation
+The package/extension were scaffolded through local `nx-pi` generators and this
+contract relocated through Mara with stable identities. This checkpoint is only
+scaffolding: runtime behavior and acceptance tests remain to be implemented.
+Work item: `9cea6c681f44425ebb2f1818dfbcefc2`.
 
-The installed managed Pi integration at
-`~/.pi/agent/extensions/herdr-agent-state.ts` (integration version 8) uses Node's
-`net` API, `HERDR_SOCKET_PATH`, `HERDR_PANE_ID`, newline-delimited JSON requests,
-and bounded socket attempts. It sends lifecycle methods; this extension will
-use only the metadata method and a distinct source. Its main-interactive-TUI
-scope was separately selected by the user; its retries and any-data-as-success
-shortcut are not inherited requirements. The managed file was read, not changed.
+Scaffold checks: native Pi 0.99.1 resource discovery passed with no commands/tools;
+Nx test (one discovery test), lint, typecheck and inferred source `pi-check`
+passed uncached. A frozen pnpm install passed with the existing catalog versions.
+These checks do not verify activity generation, RPC publication or cleanup.
 
-`herdr api schema --json` reports protocol 22 and exposes `pane.report_metadata`
-with `pane_id`, `source`, optional `agent`/`seq`, and `tokens` mapping names to
-strings or null. Success and error envelopes carry an `id` with `result` or
-`error` respectively. The CLI exposes the same capability as
-`pane report-metadata`. Direct RPC is the selected initial adapter; the CLI is
-not the runtime transport. Schema/example inspection does **not** verify live
-publication or null-token deletion semantics. The exact source/caller ownership
-must be established before issuing mutations.
-
-Installed Pi 0.99.2 extension documentation distinguishes actionable `turn_end`
-from notification-only `agent_settled`: `agent_end` can precede retries or other
-automatic work and is not by itself proof of final settlement. The implementation
-must verify equivalent lifecycle boundaries against the repository's selected
-Pi baseline rather than assume installed documentation proves compatibility.
-Extra reporter requests may be billable; accounting integration must be checked
-and documented without adding synthetic conversation messages to hide limitations.
-
-## Planned acceptance checks
-
-The structured verifications below define observable checks for the accepted
-contract and replaceable RPC adapter. They have not been executed. Behavioral
-implementation must proceed via red–green–refactor, followed by native Pi
-loading/lifecycle and independent Herdr metadata verification. No specific
-consumer layout is part of this contract.
+Behavioral work must follow red–green–refactor, followed by native source/packed
+Pi loading and independent Herdr metadata checks. The structured verifications
+are repeatable definitions, not assertions that they have run or passed.
 
 :::mara goal GOAL-SESSION-ACTIVITY
 :mid: 01M3W093BNSK3RXJNTWKRFSV61
@@ -255,18 +175,18 @@ Clear the reporter's activity token when the main-agent run finally stops, by co
 
 Define deterministic behavioral fixtures and native Pi/Herdr integration checks before implementation. This is a planned repeatable verification method, not a passing result.
 
-| Case | Observable expectation |
-| --- | --- |
-| Run cadence | Each run starts fresh. With interval five, summaries become due at turns 1, 6 and 11; a configured interval changes subsequent spacing. Tool-calling assistant responses qualify; tool-result multiplicity, nested/subagent work and reporter calls do not. A second run starts at its own turn 1, with no old digest. |
-| Reset and navigation | Reload, resume/replacement and tree navigation cancel obsolete work, clear activity and reset digest/counter/comparison state without reconstructing history. If working continues, the next qualifying turn schedules the first summary; if idle, no generation occurs until a new run. |
-| Eligibility | Only the main/root interactive TUI reports with complete Herdr caller context. Headless RPC/JSON/print, nested/subagent sessions and missing context make no reporter model requests or metadata operations despite inherited pane variables. |
-| Configuration/model | Read only Pi's configured agent-directory session-activity.json at start/reload. Defaults select the active chat model, thinking off and interval five; supported overrides use Pi authentication without altering chat settings. Invalid JSON/root/keys/values cause one nonblocking warning and defaults. No project layer or watcher exists. Unavailable model/auth skips rather than switches or falls back heuristically. |
-| Digest bounds/privacy | A rolling latest-five-turn window is independent of cadence. Curated arguments are capped at 400 code points per entry, visible assistant text at 600, and serialized digest at 6,000, preferring newest activity. Bound retained collection too. Captured input excludes thinking, result bodies, file contents, edit replacement bodies, bulk payloads, full conversation history and additional file reads. The previous phrase is separate comparison input. |
-| Phrase safety/stability | Output targets three words and never exceeds five words/60 code points after safe normalization. Overlong/unusable normalized output is skipped, not truncated. Unchanged results and normalized exact duplicates cause no metadata write; changed useful activity does. Failed writes do not mark a phrase published. Semantic fixtures do not claim universal equivalence detection. |
-| Asynchrony/coalescing | Gated provider/transport does not delay main-agent work or settlement. One request runs and at most one latest refresh is pending. Ordinary turn progress allows the completed valid phrase to publish before the pending latest refresh; reset/settlement forbids it. Unhandled rejection monitoring stays clean. |
-| Failure/recovery | Ten-second generation timeout, provider failure, missing model/auth or unusable output preserves current activity while working with no immediate retry or heuristic. A later normal refresh can recover. Metadata failures are bounded and silent; configuration warnings are the explicitly allowed exception. |
-| Cleanup | Final settlement/abort, reset and orderly shutdown clear only activity, invalidate late results and release resources idempotently. Inner-turn/pre-settlement agent end alone does not clear. A short run may never publish. No TTL, heartbeat or periodic identical renewal writes exist; hard-kill/failed-clear removal is not guaranteed. |
-| Independent Herdr metadata | In an isolated test pane/session, publish and clear through standard metadata while stable name/title/lifecycle and unrelated fields stay unchanged. No inter-agent messages or particular renderer are required. |
+| Case                       | Observable expectation                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run cadence                | Each run starts fresh. With interval five, summaries become due at turns 1, 6 and 11; a configured interval changes subsequent spacing. Tool-calling assistant responses qualify; tool-result multiplicity, nested/subagent work and reporter calls do not. A second run starts at its own turn 1, with no old digest.                                                                                                                                           |
+| Reset and navigation       | Reload, resume/replacement and tree navigation cancel obsolete work, clear activity and reset digest/counter/comparison state without reconstructing history. If working continues, the next qualifying turn schedules the first summary; if idle, no generation occurs until a new run.                                                                                                                                                                         |
+| Eligibility                | Only the main/root interactive TUI reports with complete Herdr caller context. Headless RPC/JSON/print, nested/subagent sessions and missing context make no reporter model requests or metadata operations despite inherited pane variables.                                                                                                                                                                                                                    |
+| Configuration/model        | Read only Pi's configured agent-directory session-activity.json at start/reload. Defaults select the active chat model, thinking off and interval five; supported overrides use Pi authentication without altering chat settings. Invalid JSON/root/keys/values cause one nonblocking warning and defaults. No project layer or watcher exists. Unavailable model/auth skips rather than switches or falls back heuristically.                                   |
+| Digest bounds/privacy      | A rolling latest-five-turn window is independent of cadence. Curated arguments are capped at 400 code points per entry, visible assistant text at 600, and serialized digest at 6,000, preferring newest activity. Bound retained collection too. Captured input excludes thinking, result bodies, file contents, edit replacement bodies, bulk payloads, full conversation history and additional file reads. The previous phrase is separate comparison input. |
+| Phrase safety/stability    | Output targets three words and never exceeds five words/60 code points after safe normalization. Overlong/unusable normalized output is skipped, not truncated. Unchanged results and normalized exact duplicates cause no metadata write; changed useful activity does. Failed writes do not mark a phrase published. Semantic fixtures do not claim universal equivalence detection.                                                                           |
+| Asynchrony/coalescing      | Gated provider/transport does not delay main-agent work or settlement. One request runs and at most one latest refresh is pending. Ordinary turn progress allows the completed valid phrase to publish before the pending latest refresh; reset/settlement forbids it. Unhandled rejection monitoring stays clean.                                                                                                                                               |
+| Failure/recovery           | Ten-second generation timeout, provider failure, missing model/auth or unusable output preserves current activity while working with no immediate retry or heuristic. A later normal refresh can recover. Metadata failures are bounded and silent; configuration warnings are the explicitly allowed exception.                                                                                                                                                 |
+| Cleanup                    | Final settlement/abort, reset and orderly shutdown clear only activity, invalidate late results and release resources idempotently. Inner-turn/pre-settlement agent end alone does not clear. A short run may never publish. No TTL, heartbeat or periodic identical renewal writes exist; hard-kill/failed-clear removal is not guaranteed.                                                                                                                     |
+| Independent Herdr metadata | In an isolated test pane/session, publish and clear through standard metadata while stable name/title/lifecycle and unrelated fields stay unchanged. No inter-agent messages or particular renderer are required.                                                                                                                                                                                                                                                |
 
 Use offline gated providers and isolated Herdr fixtures where available; do not mutate another contributor's pane or contact a paid provider merely to run the suite. Native source/packed loading and lifecycle checks use the selected repository Pi baseline. Record actual execution separately when implementation exists.
 :::

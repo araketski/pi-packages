@@ -1,0 +1,13 @@
+{
+  "name": "@araketski/pi-session-activity",
+  "targets": {
+    "test": { "cache": false },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/session-activity",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    }
+  }
+}

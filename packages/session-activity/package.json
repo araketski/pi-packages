@@ -1,0 +1,21 @@
+{
+  "name": "@araketski/pi-session-activity",
+  "version": "0.1.0",
+  "description": "Expose current Pi agent activity through standard Herdr metadata",
+  "license": "MIT",
+  "files": [
+    "extensions"
+  ],
+  "type": "module",
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:pi-host"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/session-activity/index.ts"
+    ]
+  }
+}
