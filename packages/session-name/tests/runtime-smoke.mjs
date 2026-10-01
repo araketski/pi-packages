@@ -13,6 +13,17 @@ process.env.PI_CODING_AGENT_DIR = agentDir;
 const requests = [];
 let failure;
 let remainingFailures = 0;
+let chatGate;
+let titleGate;
+let releaseChat;
+let releaseTitle;
+async function waitFor(check) {
+  const deadline = Date.now() + 5000;
+  while (!check()) {
+    assert.ok(Date.now() < deadline, 'timed out waiting for background naming');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 const server = createServer(async (req, res) => {
   let raw = '';
   for await (const chunk of req) raw += chunk;
@@ -29,6 +40,7 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify({ error: { message: `HTTP ${failure}`, type: 'test_error' } }));
     return;
   }
+  await (title ? titleGate : chatGate);
   res.writeHead(200, { 'content-type': 'text/event-stream' });
   const chunk = (delta, finish_reason) => ({
     id: 'offline',
@@ -79,7 +91,15 @@ try {
   const model = runtime.getModel('naming-chat', 'chat-model');
   assert.ok(model);
 
-  async function run(config, status, count, expectedName, expectedTitleCalls, savedName) {
+  async function run(
+    config,
+    status,
+    count,
+    expectedName,
+    expectedTitleCalls,
+    savedName,
+    concurrent = false,
+  ) {
     await writeFile(join(agentDir, 'session-name.json'), JSON.stringify(config));
     failure = status;
     remainingFailures = count;
@@ -116,7 +136,40 @@ try {
       }),
     }));
     await session.bindExtensions({});
-    await session.prompt('Please investigate login loops\nMore private details');
+    if (concurrent) {
+      chatGate = new Promise((resolve) => {
+        releaseChat = resolve;
+      });
+      titleGate = new Promise((resolve) => {
+        releaseTitle = resolve;
+      });
+    }
+    let chatFinished = false;
+    const chat = session.prompt('Please investigate login loops\nMore private details').then(() => {
+      chatFinished = true;
+    });
+    if (concurrent) {
+      await waitFor(
+        () =>
+          requests.slice(start).some((r) => r.title) && requests.slice(start).some((r) => !r.title),
+      );
+      assert.equal(manager.getSessionName(), undefined);
+      if (concurrent === 'chat-first') {
+        releaseChat();
+        await chat;
+        assert.equal(manager.getSessionName(), undefined, 'chat must not wait for naming');
+        releaseTitle();
+      } else {
+        releaseTitle();
+        await waitFor(() => manager.getSessionName() === expectedName);
+        assert.equal(chatFinished, false, 'name must be persisted before the chat finishes');
+        releaseChat();
+      }
+    }
+    await chat;
+    // Chat completion no longer waits for the independent title request.
+    await waitFor(() => manager.getSessionName() === expectedName);
+    chatGate = titleGate = undefined;
     assert.equal(manager.getSessionName(), expectedName, JSON.stringify(requests.slice(start)));
     assert.equal(session.model.provider, 'naming-chat');
     assert.equal(session.getLastAssistantText(), 'Normal chat reply');
@@ -157,10 +210,14 @@ try {
   await run({ provider: 'missing', model: 'missing' }, 0, 0, 'Please investigate login loops', 0);
   await run({}, 0, 0, 'Saved task', 0, 'Saved task');
   await run({}, 0, 0, undefined, 0, '');
+  await run({}, 0, 0, 'Fix login redirect', 1, undefined, 'title-first');
+  await run({}, 0, 0, 'Fix login redirect', 1, undefined, 'chat-first');
   console.log(
-    'PASS: native naming, provider/auth/thinking overrides, retry/fallback, transcript isolation and saved metadata',
+    'PASS: concurrent native naming before chat completion, provider/auth/thinking overrides, retry/fallback, transcript isolation and saved metadata',
   );
 } finally {
+  releaseTitle?.();
+  releaseChat?.();
   session?.dispose();
   await new Promise((resolve) => server.close(resolve));
   await rm(agentDir, { recursive: true, force: true });

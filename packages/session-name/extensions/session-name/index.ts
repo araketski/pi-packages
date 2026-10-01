@@ -75,16 +75,16 @@ export default function sessionName(pi: ExtensionAPI): void {
     attempted = true;
   });
 
-  pi.on('agent_settled', async (_event, ctx) => {
+  const nameSession = async (ctx: ExtensionContext, incomingPrompt: string) => {
     if (attempted || sessionId !== ctx.sessionManager.getSessionId() || hasNameMetadata(ctx))
       return;
-    const prompt = firstUserText(ctx.sessionManager.getBranch());
-    if (!prompt) return;
+    // before_agent_start runs before Pi persists the incoming user message.
+    const prompt = firstUserText(ctx.sessionManager.getBranch()) ?? incomingPrompt;
+    if (!safeText(prompt)) return;
     attempted = true;
     const current = new AbortController();
     operation = current;
     const capturedId = sessionId;
-    const leaf = ctx.sessionManager.getLeafId();
     try {
       const name = await generateName(ctx, config, prompt, current.signal);
       if (
@@ -93,7 +93,6 @@ export default function sessionName(pi: ExtensionAPI): void {
         operation !== current ||
         sessionId !== capturedId ||
         ctx.sessionManager.getSessionId() !== capturedId ||
-        ctx.sessionManager.getLeafId() !== leaf ||
         hasNameMetadata(ctx)
       )
         return;
@@ -102,5 +101,12 @@ export default function sessionName(pi: ExtensionAPI): void {
     } finally {
       if (operation === current) operation = undefined;
     }
+  };
+
+  pi.on('before_agent_start', (event, ctx) => {
+    // Do not await: the main response and its transcript must be free to advance.
+    void nameSession(ctx, event.prompt).catch(() => {
+      // Background naming is best-effort and must not reject into the chat run.
+    });
   });
 }

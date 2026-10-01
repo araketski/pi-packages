@@ -116,7 +116,11 @@ function harness(config?: unknown, mode: ExtensionContext['mode'] = 'tui') {
     emit,
     addUser,
     start: () => emit('session_start', { reason: 'startup' }),
-    settle: () => emit('agent_settled'),
+    // Settle background naming microtasks, not the main agent exchange.
+    settle: async () => {
+      await emit('before_agent_start', { prompt: '' });
+      await new Promise<void>((done) => process.nextTick(done));
+    },
   };
   fixtures.push(h);
   return h;
@@ -141,6 +145,59 @@ afterEach(async () => {
 // @mara checks REQ-SESSION-NAME-TITLE
 // @mara implements VER-SESSION-NAME-CONFORMANCE
 describe('automatic naming', () => {
+  it('starts from the incoming prompt without blocking chat and tolerates transcript progress', async () => {
+    const h = harness();
+    const pending = deferred();
+    h.streamSimple.mockReturnValue({ result: () => pending.promise } as ReturnType<Stream>);
+    await h.start();
+    // Pi has not persisted the opening prompt when before_agent_start fires.
+    await h.emit('before_agent_start', { prompt: 'Investigate login loops' });
+    expect(h.streamSimple).toHaveBeenCalledTimes(1);
+    expect(h.streamSimple.mock.calls[0]?.[1].messages[0]).toMatchObject({
+      content: [{ type: 'text', text: 'Investigate login loops' }],
+    });
+    expect(h.pi.setSessionName).not.toHaveBeenCalled();
+    h.addUser('Investigate login loops');
+    (h.ctx.sessionManager as SessionManager).appendMessage(response('Chat is still working'));
+    await h.emit('before_agent_start', { prompt: 'Later prompt' });
+    expect(h.streamSimple).toHaveBeenCalledTimes(1);
+    pending.resolve(response());
+    await vi.waitFor(() => {
+      expect(h.pi.setSessionName).toHaveBeenCalledExactlyOnceWith('Fix login redirect');
+    });
+  });
+
+  it('does not name at startup or settlement without a usable opening prompt', async () => {
+    const h = harness();
+    await h.start();
+    await h.emit('agent_settled');
+    await h.emit('before_agent_start', { prompt: ' \n\t ' });
+    expect(h.streamSimple).not.toHaveBeenCalled();
+    await h.emit('before_agent_start', { prompt: 'First usable prompt' });
+    await vi.waitFor(() => expect(h.pi.setSessionName).toHaveBeenCalledTimes(1));
+  });
+
+  it('prefers the saved opening text to the incoming prompt in an unnamed resumed session', async () => {
+    const h = harness();
+    h.addUser('Saved opening prompt');
+    await h.start();
+    await h.emit('before_agent_start', { prompt: 'New follow-up prompt' });
+    expect(h.streamSimple.mock.calls[0]?.[1].messages[0]).toMatchObject({
+      content: [{ type: 'text', text: 'Saved opening prompt' }],
+    });
+    await vi.waitFor(() => expect(h.pi.setSessionName).toHaveBeenCalledTimes(1));
+  });
+
+  it('contains background persistence errors instead of rejecting into the chat', async () => {
+    const h = harness();
+    h.pi.setSessionName.mockImplementation(() => {
+      throw new Error('persistence failed');
+    });
+    await h.start();
+    await h.emit('before_agent_start', { prompt: 'Opening prompt' });
+    await vi.waitFor(() => expect(h.pi.setSessionName).toHaveBeenCalledTimes(1));
+  });
+
   it('uses the selected model and opening prompt once, without changing chat or registering UI', async () => {
     const h = harness();
     h.addUser();
@@ -464,14 +521,14 @@ describe('cancellation and user authority', () => {
     expect(h.pi.setSessionName).toHaveBeenCalledExactlyOnceWith('Fix login redirect');
   });
 
-  it('rejects a changed session/leaf even if no cancellation event was delivered', async () => {
+  it('rejects a changed session even if no cancellation event was delivered', async () => {
     const h = harness();
     h.addUser();
     const pending = deferred();
     h.streamSimple.mockReturnValue({ result: () => pending.promise } as ReturnType<Stream>);
     await h.start();
     const naming = h.settle();
-    h.addUser('Another turn');
+    h.ctx.sessionManager = SessionManager.inMemory(h.dir);
     pending.resolve(response('Stale title'));
     await naming;
     expect(h.pi.setSessionName).not.toHaveBeenCalled();

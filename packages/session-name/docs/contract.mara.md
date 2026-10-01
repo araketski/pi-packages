@@ -29,8 +29,12 @@ the source is loaded in place, not copied or installed globally. Project trust
 must be granted for the declaration to load. Use native `/reload` in an existing
 session, or start Pi again. Omitting `--local` installs into user-level settings
 instead. These are development workflows, not evidence of npm publication.
-Once an unnamed session's first exchange settles, its opening text supplies the title request. Saved names appear in native session
-selection. Resuming an already named session needs no new title-model request.
+When an unnamed session's first usable opening prompt reaches `before_agent_start`,
+its text supplies a background title request. The main response starts without
+waiting for that request; the name is saved as soon as it is ready, independently
+of chat completion. An empty session has no text to name at startup. Saved names
+appear in native session selection. Resuming an already named session needs no
+new title-model request.
 
 The only optional configuration file is `<agent-dir>/session-name.json`, normally
 `~/.pi/agent/session-name.json`. Use Pi's configured agent directory, not a
@@ -75,14 +79,18 @@ pinned Pi 0.99.1; it is not a release or a claim of support for other versions.
 
 ## Observable acceptance criteria
 
-- One usable opening prompt produces one persisted concise LLM title; an existing
-  name or name metadata (including a deliberate clear) prevents automatic naming.
+- One usable opening prompt starts background naming before the main response,
+  without delaying chat or waiting for completion, and produces one persisted
+  concise LLM title. An existing name or name metadata (including a deliberate
+  clear) prevents automatic naming.
 - Selected-model defaults and explicit provider/model/thinking overrides are
   honored without altering the chat model, thinking, prompt or transcript.
 - One retry recovers a transient failure; permanent failures, unusable responses,
   missing models/authentication or exhausted retries yield a safe heuristic name.
 - Manual changes, session shutdown/replacement, reload and tree navigation prevent
   late results and cancellation-triggered fallback from writing to another state.
+  Ordinary concurrent chat entries do not invalidate the name as the leaf advances,
+  and background errors do not reject into the chat run.
 - Enabled title handling finishes with the name alone at startup/resume and after
   renaming; disabled handling makes no extension title API calls in any mode.
 - Source and independently installed packed extensions load through Pi; published
@@ -125,6 +133,25 @@ rewritten. Other packages' behavioral test suites were not rerun for this change
 This is development verification, not npm publication or support for untested Pi
 versions; a release must still follow the workspace release/compatibility policy.
 
+Follow-up timing change on 2026-10-01 (Work item
+`9743501930784fa0b4829a77bf8abafb`): the user approved generating the name from
+`before_agent_start` in the background rather than waiting for `agent_settled`.
+The timing regression failed before implementation and passed afterward. The
+updated uncached Nx test target passed 72 tests, including source and independently
+installed packed Pi 0.99.1 fixtures that gate title/chat responses independently,
+prove both requests start concurrently, and cover both title-first and chat-first
+completion orders without making either wait for the other.
+Cancellation, manual naming, deadlines and continued transcript advancement remain
+covered. The existing real TUI startup/resume/rename tests also passed.
+A separate offline pseudo-terminal check with the installed Pi 0.99.2 standalone
+binary emitted the name-only title and persisted metadata while the chat response
+was still gated, then completed chat after release. That focused observation is
+not a general Pi 0.99.2 compatibility claim or a baseline/dependency upgrade.
+No paid model calls were used. The package's uncached lint/typecheck/source pi-check,
+packed-archive check (within its distribution test), changed-file formatting,
+workspace sync check and complete Mara validation passed. No dependencies changed;
+frozen installation and unrelated package suites were not rerun for this follow-up.
+
 :::mara goal GOAL-SESSION-NAME-WINDOWS
 :mid: 01M3VATF1E5EZBEYVPY886GFTF
 :title: Distinguish open Pi windows by their task
@@ -140,7 +167,7 @@ A user can identify an open Pi session/window by a concise task name without rem
 :kind: functional
 :contributes_to: GOAL-SESSION-NAME-WINDOWS
 
-After the first settled agent exchange with usable user text on the active branch, derive a concise LLM-backed name from that branch's earliest nonempty user text and persist it with Pi's session-name API. Name at most once per loaded session instance, never rename on subsequent turns, and never overwrite existing session name metadata, including an intentional clear. Extract only text blocks; image-only input without usable text does not consume the opportunity. No additional commands, tools, flags, pickers, widgets or success notifications are registered.
+When the first usable opening user prompt reaches before_agent_start, start a concise LLM-backed name request in the background without delaying the main response or waiting for the agent to settle. Use the active branch's earliest nonempty user text when already persisted; otherwise use the incoming prompt, which Pi has not yet persisted at this event. Persist the result with Pi's session-name API as soon as it is ready. Name at most once per loaded session instance, never rename on subsequent turns, and never overwrite existing session name metadata, including an intentional clear. Extract only text blocks; image-only input without usable text does not consume the opportunity. No additional commands, tools, flags, pickers, widgets or success notifications are registered.
 :::
 
 :::mara requirement REQ-SESSION-NAME-MODEL
@@ -170,7 +197,7 @@ Bound title-generation input, output, waiting and attempts. Retry at most once f
 :kind: quality
 :contributes_to: GOAL-SESSION-NAME-WINDOWS
 
-An existing or manually changed name wins, including a manual clear during an in-flight request. Abort and invalidate pending naming/title updates on shutdown, replacement and reload; invalidate naming on tree navigation. Recheck the captured session identity and leaf before writing. A provider that resolves after cancellation cannot change the active session, restore a cleared name, cause fallback or update a replacement window. Cleanup is idempotent. No naming state is written directly into session files.
+An existing or manually changed name wins, including a manual clear during an in-flight request. Abort and invalidate pending naming/title updates on shutdown, replacement and reload; invalidate naming on tree navigation. Recheck the captured session identity and operation before writing. Ordinary transcript progress from the concurrent chat, including user, assistant and tool entries, must not invalidate naming merely because the leaf advances. A provider that resolves after cancellation cannot change the active session, restore a cleared name, cause fallback or update a replacement window. Background naming errors must not reject into or block the chat run. Cleanup is idempotent. No naming state is written directly into session files.
 :::
 
 :::mara requirement REQ-SESSION-NAME-TITLE
@@ -185,7 +212,7 @@ With setTitle true, the final interactive terminal title of a named session cont
 
 :::mara design DES-SESSION-NAME-ALGORITHM
 :mid: 01M3VAV21Z7CVFH7SM4D7A4FCG
-:title: Use a guarded settled-event title request and native metadata
+:title: Use a guarded background opening-prompt title request and native metadata
 :status: accepted
 :kind: behavior
 :satisfies: REQ-SESSION-NAME-AUTO
@@ -194,7 +221,7 @@ With setTitle true, the final interactive terminal title of a named session cont
 :satisfies: REQ-SESSION-NAME-LIFECYCLE
 :satisfies: REQ-SESSION-NAME-TITLE
 
-At session_start, invalidate old work, reread the four-key configuration and detect prior session_info metadata. On agent_settled, reserve one naming opportunity and capture session ID/leaf before reading the branch's first usable user text. Use modelRegistry.streamSimple with a dedicated system prompt asking only for a short task title and at most 1000 Unicode code points of prompt text. Use request-local thinking, a 128-token output budget, a 10-second deadline per attempt and maxRetries: 0 where the provider honors it. Capture HTTP status through the public response callback; recognize 408, 429, 5xx and network/timeout failures for one immediate retry, otherwise recover heuristically. Aborted responses are discarded. Clean the first nonempty returned line, strip surrounding quotes/backticks and trailing sentence punctuation, limit to six words and 60 code points; use the same character limit for the fallback. Before applying, require the same operation/session/leaf and no name metadata change, then call setSessionName. Use session_info_changed to cancel pending work on user changes and mirror the current safe name through ui.setTitle only in TUI mode. Defer startup mirroring by one event-loop tick to run after Pi's native startup title update; cancel the timer on shutdown/start. No polling or raw escape writes. Native unnamed titles remain intact. Text extraction, normalization and config parsing are small local helpers, not shared infrastructure.
+At session_start, invalidate old work, reread the four-key configuration and detect prior session_info metadata. On before_agent_start, read the branch's first usable user text or use event.prompt when none is persisted yet. If usable text exists, reserve one naming opportunity and capture the session ID and operation. Launch generation without returning its promise to the handler, so chat proceeds independently; contain background errors. Use modelRegistry.streamSimple with a dedicated system prompt asking only for a short task title and at most 1000 Unicode code points of prompt text. Use request-local thinking, a 128-token output budget, a 10-second deadline per attempt and maxRetries: 0 where the provider honors it. Capture HTTP status through the public response callback; recognize 408, 429, 5xx and network/timeout failures for one immediate retry, otherwise recover heuristically. Aborted responses are discarded. Clean the first nonempty returned line, strip surrounding quotes/backticks and trailing sentence punctuation, limit to six words and 60 code points; use the same character limit for the fallback. Before applying, require the same operation/session, no cancellation and no name metadata change, then call setSessionName. Do not require the leaf to remain unchanged while the chat appends entries; session_tree invalidates pending naming on navigation. Use session_info_changed to cancel pending work on user changes and mirror the current safe name through ui.setTitle only in TUI mode. Defer startup mirroring by one event-loop tick to run after Pi's native startup title update; cancel the timer on shutdown/start. No polling or raw escape writes. Native unnamed titles remain intact. Text extraction, normalization and config parsing are small local helpers, not shared infrastructure.
 :::
 
 :::mara scenario SCN-SESSION-NAME-RECOVERY
@@ -203,7 +230,7 @@ At session_start, invalidate old work, reread the four-key configuration and det
 :status: accepted
 :contributes_to: GOAL-SESSION-NAME-WINDOWS
 
-An unnamed session completes its first exchange. Its title request gets a transient failure, retries once, and fails again. The extension persists a safe shortened opening line and shows it alone in the interactive terminal title. Further turns make no new naming request. With setTitle false the same persisted name is used by native Pi formatting instead.
+An unnamed session receives its first usable opening prompt. The title request runs concurrently with the chat, gets a transient failure, retries once, and fails again. The extension persists a safe shortened opening line and shows it alone in the interactive terminal title without waiting for the chat to finish. Further turns make no new naming request. With setTitle false the same persisted name is used by native Pi formatting instead.
 :::
 
 :::mara scenario SCN-SESSION-NAME-CANCEL
@@ -230,5 +257,5 @@ A title request is pending when the user clears the name, navigates the tree, re
 :validates: SCN-SESSION-NAME-RECOVERY
 :validates: SCN-SESSION-NAME-CANCEL
 
-Use offline deterministic providers and lifecycle fixtures to check all observable acceptance criteria, including text blocks/image-only prompts, the complete config defaults/value checks, transient retry versus permanent failure, timeout, empty/unsafe/overlong output, no-model/auth failures, manual clear, late provider results, shutdown/reload/switch/tree change, and title API absence when disabled or non-TUI. Check prior metadata on reopening. Through the Nx test target, load source and packed artifacts with the pinned Pi SDK in isolated agent directories; install the packed artifact outside the development workspace. Run a real Pi pseudo-terminal test and inspect the final emitted OSC title after startup and native renaming, in enabled and disabled configurations. Run Nx typecheck/lint/pi-check and explicitly pack for pi-check-package; inspect published file selection and license. Run format/sync/frozen-install checks and complete Mara validation. These definitions do not claim any tests have run.
+Use offline deterministic providers and lifecycle fixtures to check all observable acceptance criteria, including text blocks/image-only prompts, the complete config defaults/value checks, transient retry versus permanent failure, timeout, empty/unsafe/overlong output, no-model/auth failures, manual clear, late provider results, shutdown/reload/switch/tree change, and title API absence when disabled or non-TUI. Check prior metadata on reopening. Verify before_agent_start returns while title generation is pending, uses the incoming prompt before persistence or the saved branch opening on resume, and allows ordinary transcript advancement without discarding the result. Through the Nx test target, load source and packed artifacts with the pinned Pi SDK in isolated agent directories; install the packed artifact outside the development workspace. Gate the offline title and chat responses independently to prove both requests start concurrently, the name can be saved before chat completion, and chat can finish while the title response is still pending. Run a real Pi pseudo-terminal test and inspect the final emitted OSC title after startup and native renaming, in enabled and disabled configurations. Run Nx typecheck/lint/pi-check and explicitly pack for pi-check-package; inspect published file selection and license. Run format/sync/frozen-install checks and complete Mara validation. These definitions do not claim any tests have run.
 :::
