@@ -1,4 +1,3 @@
-import type { ReadonlyFooterDataProvider } from '@earendil-works/pi-coding-agent';
 import type { StatuslineStatus } from '@araketski/pi-statusline-protocol';
 import type { GitData } from '../builtins.js';
 import { addStatus } from './shared.js';
@@ -6,12 +5,11 @@ import { addStatus } from './shared.js';
 export function collectGit(
   items: Map<string, StatuslineStatus>,
   keys: Set<string>,
-  footerData: ReadonlyFooterDataProvider,
   data: GitData,
 ): void {
   const git = data.git;
   if (keys.has('branch')) {
-    const branch = footerData.getGitBranch() || git?.branch;
+    const branch = git?.branch;
     if (branch) {
       const counts = git
         ? [git.conflict, git.staged, git.unstaged, git.untracked, git.ahead, git.behind]

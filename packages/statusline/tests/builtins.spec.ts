@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { collectBuiltins } from '../extensions/statusline/src/builtins.js';
+import { collectBuiltins, type GitData } from '../extensions/statusline/src/builtins.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -126,6 +126,32 @@ describe('modular built-in statuses', () => {
     expect(items.get('cache')?.text).toBe('9/1 90%');
     expect(items.get('cost')?.text).toBe('$2.35');
     expect(items.get('model')?.text).toBe('unknown');
+  });
+
+  it.each([
+    ['switched branch', { branch: 'next' }, 'next'],
+    ['detached HEAD', {}, undefined],
+    ['unavailable Git', undefined, undefined],
+  ] as const)('does not resurrect the host cached branch for %s', (_case, branch, expected) => {
+    const git: GitData['git'] = branch && {
+      ...branch,
+      conflict: 0,
+      staged: 0,
+      unstaged: 1,
+      untracked: 0,
+      ahead: 0,
+      behind: 0,
+    };
+    const items = collectBuiltins(
+      { cwd: '/tmp/demo' } as never,
+      {} as never,
+      { getGitBranch: () => 'old' } as never,
+      new Set(['branch', 'changes']),
+      { git },
+    );
+    expect(items.get('branch')?.text).toBe(expected);
+    if (expected) expect(items.get('branch')?.state).toBe('dirty');
+    expect(items.get('changes')?.text).toBe(git ? '~1' : undefined);
   });
 
   it('omits unavailable git, PR and context items without blocking other tokens', () => {

@@ -24,13 +24,13 @@ export interface GitData {
 export function collectBuiltins(
   ctx: ExtensionContext,
   pi: ExtensionAPI,
-  footerData: ReadonlyFooterDataProvider,
+  _footerData: ReadonlyFooterDataProvider,
   keys: Set<string>,
   git: GitData,
 ): Map<string, StatuslineStatus> {
   const items = new Map<string, StatuslineStatus>();
   collectCore(items, keys, ctx, pi);
-  collectGit(items, keys, footerData, git);
+  collectGit(items, keys, git);
   collectUsage(items, keys, ctx);
   return items;
 }

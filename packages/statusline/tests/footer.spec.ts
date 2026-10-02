@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -58,7 +59,7 @@ function fixture() {
   };
   const branchChange = vi.fn();
   const footerData = {
-    getGitBranch: () => undefined,
+    getGitBranch: (): string | undefined => undefined,
     getExtensionStatuses: () => new Map(statuses),
     onBranchChange: () => branchChange,
   };
@@ -121,6 +122,54 @@ describe('Pi footer lifecycle', () => {
       f.callbacks.get('session_shutdown')?.({}, f.ctx);
       expect(f.ui.setFooter).toHaveBeenLastCalledWith(undefined);
     } finally {
+      if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
+    }
+  });
+
+  it('refreshes a checked-out branch without a host branch notification', async () => {
+    const f = fixture();
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: f.root });
+    git('init', '--initial-branch=initial');
+    git(
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.com',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'initial',
+    );
+    f.config([['branch', 'changes']]);
+    f.footerData.getGitBranch = () => 'initial';
+    const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = f.agentDir;
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      statusline(f.pi as never);
+      f.callbacks.get('session_start')?.({}, f.ctx);
+      const component = f.ui.setFooter.mock.lastCall?.[0](f.tui, f.theme, f.footerData);
+      await vi.waitFor(() => expect(component.render(100).join(' ')).toContain('↳ initial'));
+      f.tui.requestRender.mockClear();
+      git('switch', '-c', 'next');
+      vi.advanceTimersByTime(8000);
+      await vi.waitFor(() => {
+        expect(f.tui.requestRender).toHaveBeenCalled();
+        const text = component.render(100).join(' ');
+        expect(text).toContain('↳ next');
+        expect(text).not.toContain('initial');
+      });
+      git('checkout', '--detach', 'HEAD');
+      vi.advanceTimersByTime(8000);
+      await vi.waitFor(() => expect(component.render(100).join(' ')).not.toContain('↳'));
+      f.callbacks.get('session_shutdown')?.({}, f.ctx);
+      const renderCount = f.tui.requestRender.mock.calls.length;
+      vi.advanceTimersByTime(16000);
+      expect(f.tui.requestRender).toHaveBeenCalledTimes(renderCount);
+    } finally {
+      f.callbacks.get('session_shutdown')?.({}, f.ctx);
+      vi.useRealTimers();
       if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
       else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
     }
