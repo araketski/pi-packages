@@ -17,12 +17,14 @@ export function safeText(text: string): string {
     .trim();
 }
 const fields = ['path', 'file_path', 'filePath', 'paths', 'pattern', 'query', 'command'] as const;
-function curatedArguments(raw: unknown): string {
+function curatedArguments(toolName: string, raw: unknown): string {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
   const args = raw as Record<string, unknown>;
   const entries: string[] = [];
   let remaining = 400;
-  for (const field of fields) {
+  // Codemode's native input is { code: string }. Keep only a bounded excerpt;
+  // embedded payloads are intentionally not redacted, and the script is never run here.
+  for (const field of toolName === 'codemode' ? ['code'] : fields) {
     const value = args[field];
     // Only scalar text fields: never traverse nested payloads or serialize arbitrary arguments.
     if (typeof value !== 'string') continue;
@@ -50,7 +52,7 @@ export class ActivityDigest {
       let entry = '';
       if (block.type === 'text') entry = `assistant: ${safeText(limitText(block.text, 600))}`;
       if (block.type === 'toolCall')
-        entry = `tool ${safeText(limitText(block.name, 64))}: ${curatedArguments(block.arguments)}`;
+        entry = `tool ${safeText(limitText(block.name, 64))}: ${curatedArguments(block.name, block.arguments)}`;
       if (!entry) continue;
       entry = limitText(entry, remaining);
       entries.unshift(entry);

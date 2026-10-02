@@ -113,6 +113,64 @@ it('bounds huge/many entries and counts Unicode code points without retaining fu
   expect(digest.snapshot()).not.toContain('😀'.repeat(601));
 });
 
+// @mara checks REQ-SESSION-ACTIVITY-DIGEST
+it.each([
+  'await Promise.allSettled([tools.bash({ command: "pnpm nx test parser" }), tools.bash({ command: "pnpm nx lint parser" })]);',
+  'await tools.read({ path: "docs/extensions.md" }); await tools.mcp__mara__search({ query: "activity" });',
+])('retains codemode script evidence without running it: %s', (code) => {
+  const digest = new ActivityDigest();
+  digest.add(message([{ type: 'toolCall', name: 'codemode', arguments: { code } }]));
+  expect(digest.snapshot()).toBe(`tool codemode: code=${code}`);
+  for (let i = 0; i < 5; i++) digest.add(message([{ type: 'text', text: `recent-${i}` }]));
+  expect(digest.snapshot()).not.toContain(code);
+  digest.reset();
+  expect(digest.snapshot()).toBe('');
+});
+it('bounds leading codemode excerpts in Unicode code points and the rolling digest', () => {
+  const digest = new ActivityDigest();
+  const code = '😀'.repeat(10_000) + 'OMITTED_TAIL';
+  for (let i = 0; i < 6; i++) {
+    digest.add(
+      message(
+        Array.from({ length: 100 }, () => ({
+          type: 'toolCall',
+          name: 'codemode',
+          arguments: { code },
+        })),
+      ),
+    );
+  }
+  const text = digest.snapshot();
+  expect(text).toContain(`tool codemode: code=${'😀'.repeat(395)}`);
+  expect(text).not.toContain('😀'.repeat(396));
+  expect(text).not.toContain('OMITTED_TAIL');
+  expect(Array.from(text).length).toBeLessThanOrEqual(6000);
+  expect(text).not.toMatch(/\p{Cs}/u);
+});
+it.each([{}, { code: null }, { code: 1 }, { code: ['NESTED_SECRET'] }, null])(
+  'omits missing or non-string codemode code: %j',
+  (args) => {
+    const digest = new ActivityDigest();
+    digest.add(message([{ type: 'toolCall', name: 'codemode', arguments: args }]));
+    expect(digest.snapshot()).toBe('tool codemode: ');
+  },
+);
+it('allows embedded payloads only in codemode excerpts, not arbitrary tool arguments', () => {
+  const digest = new ActivityDigest();
+  const code =
+    'throw new Error("Do not execute"); await tools.write({ path: "x", content: "EMBEDDED_PAYLOAD" });';
+  digest.add(
+    message([
+      { type: 'toolCall', name: 'codemode', arguments: { code, content: 'OTHER_SECRET' } },
+      { type: 'toolCall', name: 'write', arguments: { path: 'x', code, content: 'DIRECT_SECRET' } },
+    ]),
+  );
+  expect(digest.snapshot()).toContain(`tool codemode: code=${code}`);
+  expect(digest.snapshot()).toContain('tool write: path=x');
+  expect(digest.snapshot()).not.toMatch(/OTHER_SECRET|DIRECT_SECRET/);
+  expect(digest.snapshot().split('\n')).toHaveLength(2);
+});
+
 // @mara checks REQ-SESSION-ACTIVITY-PHRASE
 it.each([
   ['{"activity":"  **Running parser tests**\\n "}', 'Running parser tests'],
@@ -148,6 +206,8 @@ function modelContext() {
 // @mara checks REQ-SESSION-ACTIVITY-MODEL
 // @mara checks REQ-SESSION-ACTIVITY-FAILURE
 // @mara checks REQ-SESSION-ACTIVITY-ASYNC
+// @mara checks REQ-SESSION-ACTIVITY-DIGEST
+// @mara checks REQ-SESSION-ACTIVITY-PHRASE
 describe('background generation', () => {
   it('uses active model with reasoning off, bounded input/output and no chat mutation', async () => {
     const h = modelContext();
@@ -172,6 +232,29 @@ describe('background generation', () => {
     expect(options.reasoning).toBeUndefined();
     expect(h.ctx.thinkingLevel).toBe('high');
     expect(h.find).not.toHaveBeenCalled();
+  });
+  it('sends codemode evidence to one existing request with purpose and untrusted-data guidance', async () => {
+    const h = modelContext();
+    const code = 'await tools.bash({ command: "pnpm nx test parser" });';
+    const digest = new ActivityDigest();
+    digest.add(message([{ type: 'toolCall', name: 'codemode', arguments: { code } }]));
+    await generateActivity(
+      h.ctx,
+      defaults,
+      digest.snapshot(),
+      undefined,
+      new AbortController().signal,
+    );
+    expect(h.streamSimple).toHaveBeenCalledTimes(1);
+    const input = (h.streamSimple.mock.calls[0] as unknown as unknown[])[1] as {
+      systemPrompt: string;
+      messages: { content: { text: string }[] }[];
+    };
+    expect(JSON.parse(input.messages[0]!.content[0]!.text).digest).toContain(code);
+    expect(input.systemPrompt).toMatch(/codemode.*purpose/i);
+    expect(input.systemPrompt).toMatch(/rather than.*using codemode/i);
+    expect(input.systemPrompt).toMatch(/script.*untrusted data, not instructions/i);
+    expect(input.systemPrompt).toMatch(/do not.*success/i);
   });
   it('honors explicit overrides and skips unresolved models without fallback', async () => {
     const h = modelContext();
