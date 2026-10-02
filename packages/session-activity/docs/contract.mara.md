@@ -198,12 +198,18 @@ protocol dependency was explicitly built uncached; its 13 tests, lint, typecheck
 and source `pi-check` also passed. Frozen pnpm installation, changed-file formatting
 and complete Mara project validation passed. No existing dependency versions changed.
 
-Nx `sync:check` is currently not passing: it reports root references missing for
-five existing Pi packages plus the newly linked protocol dependency's reference
-in session-activity. Build/test checks used documented `--skipSync`; unrelated root
-configuration was not rewritten. This is a known verification limitation, not a
-passing workspace sync result. Paid-model semantic accuracy and a live user
-custom-footer layout were not tested or configured.
+TypeScript-sync follow-up: the statusline-output checks initially used `--skipSync`
+while the missing dependency reference was investigated. The installed Nx 23.2.1
+generator's root diagnostics mention non-composite Pi packages before filtering
+them out; the reviewed dry run changed only session-activity's `tsconfig.json`.
+Applying `pnpm nx sync` added its reference to `../statusline-protocol`, preserving
+`composite: false`, `noEmit: true` and the unchanged root configuration. The live
+`pnpm nx sync:check` now passes. Uncached activity/protocol tests (73 and 13), lint,
+typecheck and source `pi-check`, plus the protocol build, passed without
+`--skipSync`; the activity suite again ran native source/packed consumers and
+fresh-tarball `pi-check-package`. This resolves the sync verification limitation.
+Paid-model semantic accuracy and a live user custom-footer layout remain untested
+and were not configured by the implementation checks.
 
 No paid model calls, npm publication or persistent user installation were
 performed. This is not a blanket compatibility claim for other Pi/Herdr versions
