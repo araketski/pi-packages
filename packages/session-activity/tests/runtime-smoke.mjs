@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer as httpServer } from 'node:http';
 import { createServer as socketServer } from 'node:net';
-import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,13 +13,19 @@ const sdk = await import(pathToFileURL(sdkPath).href);
 const quote = (text) => `'${text.replace(/'/gu, `'\\''`)}'`;
 const waitFor = async (predicate, context = () => '') => {
   const deadline = Date.now() + 12000;
-  while (!predicate()) {
+  while (!(await predicate())) {
     assert.ok(Date.now() < deadline, `timed out: ${context()}`);
     await new Promise((done) => setTimeout(done, 10));
   }
 };
-async function run(config, behavior = 'normal', mode = 'tui') {
+async function run(config, behavior = 'normal', mode = 'tui', withHerdr = true) {
   const dir = await mkdtemp(join(tmpdir(), 'activity-pi-native-'));
+  const statusLog = join(dir, 'status-events.jsonl');
+  const statusEvents = async () =>
+    (await readFile(statusLog, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
   const socketPath = join(dir, 'metadata.sock');
   const rpc = [];
   const requests = [];
@@ -106,6 +112,24 @@ async function run(config, behavior = 'normal', mode = 'tui') {
   let output = '';
   try {
     await mkdir(join(dir, 'sessions'));
+    await writeFile(statusLog, '');
+    const observerPath = join(dir, 'status-observer.ts');
+    await writeFile(
+      observerPath,
+      `
+      import { appendFileSync } from 'node:fs';
+      export default function(pi) {
+        const save = (type, payload) => appendFileSync(${JSON.stringify(statusLog)}, JSON.stringify({ type, payload }) + '\\n');
+        for (const type of ['set', 'clear', 'snapshot']) {
+          pi.events.on('pi-statusline:status:' + type, (payload) => {
+            save(type, payload);
+            if (type === 'set') pi.events.emit('pi-statusline:status:snapshot-request', {});
+          });
+        }
+        pi.on('agent_settled', () => save('settled', {}));
+      }
+    `,
+    );
     await writeFile(join(dir, 'parser.ts'), 'TOOL_RESULT_SECRET\n');
     await writeFile(join(dir, 'session-activity.json'), JSON.stringify(config));
     await writeFile(
@@ -155,6 +179,8 @@ async function run(config, behavior = 'normal', mode = 'tui') {
       'read',
       '-e',
       packageRoot,
+      '-e',
+      observerPath,
       '--provider',
       'activity-chat',
       '--model',
@@ -180,6 +206,11 @@ async function run(config, behavior = 'normal', mode = 'tui') {
     };
     delete env.CI;
     delete env.TMUX;
+    if (!withHerdr) {
+      delete env.HERDR_ENV;
+      delete env.HERDR_SOCKET_PATH;
+      delete env.HERDR_PANE_ID;
+    }
     child =
       mode === 'tui'
         ? spawn(
@@ -220,17 +251,37 @@ async function run(config, behavior = 'normal', mode = 'tui') {
     );
     if (behavior === 'normal' && shouldGenerate) {
       await waitFor(
-        () => rpc.some((r) => r.params.tokens.activity === 'Running parser tests'),
+        async () =>
+          (await statusEvents()).some(
+            (r) =>
+              r.type === 'set' &&
+              r.payload.key === 'activity' &&
+              r.payload.text === 'Running parser tests',
+          ),
         () => output,
       );
+      await waitFor(
+        () => output.includes('Running parser tests'),
+        () => output,
+      );
+      if (withHerdr)
+        await waitFor(
+          () => rpc.some((r) => r.params.tokens.activity === 'Running parser tests'),
+          () => output,
+        );
       assert.equal(child.exitCode, null, 'phrase must publish before chat finishes');
     }
     releaseChat();
     if (mode === 'tui') {
       await waitFor(
-        () => rpc.filter((r) => r.params.tokens.activity === null).length >= 2,
+        async () => (await statusEvents()).some((r) => r.type === 'settled'),
         () => output,
       );
+      if (withHerdr)
+        await waitFor(
+          () => rpc.filter((r) => r.params.tokens.activity === null).length >= 2,
+          () => output,
+        );
       if (behavior === 'late') {
         releaseSummary();
         await new Promise((done) => setTimeout(done, 50));
@@ -240,6 +291,29 @@ async function run(config, behavior = 'normal', mode = 'tui') {
     }
     assert.equal(await exited, 0, output);
     const summaries = requests.filter((r) => r.summary);
+    const events = await statusEvents();
+    const sets = events.filter((r) => r.type === 'set');
+    const clears = events.filter((r) => r.type === 'clear');
+    const snapshots = events.filter((r) => r.type === 'snapshot');
+    if (behavior === 'normal' && shouldGenerate) {
+      assert.equal(sets.length, 1, 'one protocol publication from one summary');
+      assert.equal(sets[0].payload.source, 'session-activity');
+      assert.equal(sets[0].payload.key, 'activity');
+      assert.equal(sets[0].payload.text, 'Running parser tests');
+      assert.equal(snapshots.length, 1, 'late snapshot recovers the current phrase');
+      assert.equal(snapshots[0].payload.statuses[0].text, 'Running parser tests');
+      assert.deepEqual(
+        clears.map((r) => r.payload),
+        [{ source: 'session-activity', key: 'activity' }],
+      );
+    } else {
+      assert.equal(
+        sets.length,
+        0,
+        'headless, failed or cancelled generation must not publish status',
+      );
+    }
+    if (!withHerdr) assert.equal(rpc.length, 0, 'no Herdr context means no socket operations');
     if (mode === 'print')
       assert.equal(rpc.length, 0, 'headless processes must not touch pane metadata');
     assert.equal(
@@ -310,6 +384,8 @@ await run({}, 'failure');
 await run({ provider: 'missing', model: 'missing' });
 await run({}, 'late');
 await run({}, 'normal', 'print');
+await run({}, 'normal', 'tui', false);
+await run({}, 'late', 'tui', false);
 console.log(
-  'PASS: native Pi TUI activity-before-completion, overrides, no retries/fallback, cancellation, print isolation and unchanged transcript/name/title',
+  'PASS: native Pi TUI dual/no-Herdr status, native fallback, late snapshots, cleanup, overrides, no retries/fallback, cancellation, print isolation and unchanged transcript/name/title',
 );

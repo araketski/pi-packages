@@ -1,3 +1,10 @@
+import { EventEmitter } from 'node:events';
+import {
+  STATUS_SET_EVENT,
+  STATUS_CLEAR_EVENT,
+  STATUS_SNAPSHOT_EVENT,
+  STATUS_SNAPSHOT_REQUEST_EVENT,
+} from '@araketski/pi-statusline-protocol';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,14 +37,33 @@ function harness(mode: ExtensionContext['mode'] = 'tui', available = true) {
   };
   const generate = vi.fn<typeof generateActivity>(async () => 'Running parser tests');
   const createPublisher = vi.fn(() => publisher);
+  const events = new EventEmitter();
+  const statuses = new Map<string, string>([['unrelated', 'Keep me']]);
+  const set = vi.fn();
+  const clear = vi.fn();
+  const snapshot = vi.fn();
+  events.on(STATUS_SET_EVENT, set);
+  events.on(STATUS_CLEAR_EVENT, clear);
+  events.on(STATUS_SNAPSHOT_EVENT, snapshot);
+  const setStatus = vi.fn((key: string, text: string | undefined) => {
+    if (text === undefined) statuses.delete(key);
+    else statuses.set(key, text);
+  });
   const ctx = {
     mode,
     hasUI: true,
     isIdle: vi.fn(() => true),
     sessionManager: { getSessionId: () => 'root' },
-    ui: { notify: vi.fn() },
+    ui: { notify: vi.fn(), setStatus, theme: { fg: (_color: string, text: string) => text } },
   } as unknown as ExtensionContext;
   const pi = {
+    events: {
+      emit: (name: string, value: unknown) => events.emit(name, value),
+      on: (name: string, listener: (value: unknown) => void) => {
+        events.on(name, listener);
+        return () => events.off(name, listener);
+      },
+    },
     on: (type: string, handler: Handler) => {
       handlers.set(type, handler);
     },
@@ -62,7 +88,21 @@ function harness(mode: ExtensionContext['mode'] = 'tui', available = true) {
     );
   };
   fixtures.push({ dir, emit });
-  return { dir, ctx, pi, emit, publisher, generate, createPublisher };
+  return {
+    dir,
+    ctx,
+    pi,
+    emit,
+    publisher,
+    generate,
+    createPublisher,
+    events,
+    statuses,
+    set,
+    clear,
+    snapshot,
+    setStatus,
+  };
 }
 // @mara checks REQ-SESSION-ACTIVITY-ISOLATION
 // @mara checks REQ-SESSION-ACTIVITY-CLEANUP
@@ -78,15 +118,65 @@ it.each(['rpc', 'json', 'print'] as const)(
     expect(h.generate).not.toHaveBeenCalled();
     expect(h.publisher.clear).not.toHaveBeenCalled();
     expect(h.publisher.publish).not.toHaveBeenCalled();
+    expect(h.setStatus).not.toHaveBeenCalled();
+    expect(h.events.listenerCount(STATUS_SNAPSHOT_REQUEST_EVENT)).toBe(0);
   },
 );
-it('does nothing without a publisher context', async () => {
+// @mara checks REQ-SESSION-ACTIVITY-STATUSLINE
+it('reports locally without Herdr, recovers late snapshots and clears/disposes only activity', async () => {
   const h = harness('tui', false);
   await h.emit('session_start');
   await h.emit('agent_start');
   await h.emit('turn_end');
-  expect(h.generate).not.toHaveBeenCalled();
+  await tick();
+  expect(h.generate).toHaveBeenCalledTimes(1);
+  expect(h.statuses.get('activity')).toBe('Running parser tests');
+  expect(h.set).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      source: 'session-activity',
+      key: 'activity',
+      text: 'Running parser tests',
+    }),
+  );
+  h.events.emit(STATUS_SNAPSHOT_REQUEST_EVENT, {});
+  expect(h.snapshot).toHaveBeenLastCalledWith({
+    source: 'session-activity',
+    statuses: [expect.objectContaining({ key: 'activity', text: 'Running parser tests' })],
+  });
+  expect(h.publisher.publish).not.toHaveBeenCalled();
   expect(h.publisher.clear).not.toHaveBeenCalled();
+  await h.emit('agent_end');
+  expect(h.statuses.has('activity')).toBe(true);
+  await h.emit('agent_settled');
+  expect(h.statuses.has('activity')).toBe(false);
+  expect(h.statuses.get('unrelated')).toBe('Keep me');
+  expect(h.clear).toHaveBeenCalledExactlyOnceWith({ source: 'session-activity', key: 'activity' });
+  await h.emit('session_shutdown');
+  expect(h.events.listenerCount(STATUS_SNAPSHOT_REQUEST_EVENT)).toBe(0);
+});
+it('publishes and clears locally while Herdr is gated or fails, without duplicate generation', async () => {
+  const h = harness();
+  let release!: (accepted: boolean) => void;
+  h.publisher.publish.mockReturnValueOnce(
+    new Promise((resolve) => {
+      release = resolve;
+    }),
+  );
+  await h.emit('session_start');
+  await h.emit('agent_start');
+  await h.emit('turn_end');
+  expect(h.statuses.get('activity')).toBe('Running parser tests');
+  release(false);
+  await tick();
+  for (let i = 0; i < 5; i++) await h.emit('turn_end');
+  await tick();
+  expect(h.generate).toHaveBeenCalledTimes(2);
+  expect(h.generate.mock.calls[1]?.[3]).toBe('Running parser tests');
+  expect(h.set).toHaveBeenCalledTimes(1);
+  expect(h.publisher.publish).toHaveBeenCalledTimes(1);
+  h.publisher.clear.mockRejectedValueOnce(new Error('Herdr unavailable'));
+  await h.emit('agent_settled');
+  expect(h.statuses.has('activity')).toBe(false);
 });
 it('reports root turns only, clears at final settlement and not at inner agent_end', async () => {
   const h = harness();
@@ -97,12 +187,15 @@ it('reports root turns only, clears at final settlement and not at inner agent_e
     sessionManager: { getSessionId: () => 'nested' },
   } as unknown as ExtensionContext);
   expect(h.generate).not.toHaveBeenCalled();
+  expect(h.setStatus).not.toHaveBeenCalled();
   await h.emit('turn_end');
   await tick();
   expect(h.publisher.publish).toHaveBeenCalledExactlyOnceWith(
     'Running parser tests',
     expect.any(AbortSignal),
   );
+  expect(h.statuses.get('activity')).toBe('Running parser tests');
+  expect(h.generate).toHaveBeenCalledTimes(1);
   h.publisher.clear.mockClear();
   await h.emit('agent_end');
   expect(h.publisher.clear).not.toHaveBeenCalled();
@@ -126,6 +219,7 @@ it('navigation resets and ongoing work summarizes after the next turn, not immed
   await tick();
   (h.ctx.isIdle as ReturnType<typeof vi.fn>).mockReturnValue(false);
   await h.emit('session_tree');
+  expect(h.statuses.has('activity')).toBe(false);
   expect(h.generate).toHaveBeenCalledTimes(1);
   await h.emit('turn_end');
   await tick();
@@ -164,4 +258,67 @@ it('reload rereads configuration, resets ongoing work and rejects the old genera
   expect(h.publisher.publish).not.toHaveBeenCalled();
   expect(nextPublisher.publish).toHaveBeenCalledTimes(1);
   expect(h.publisher.dispose).toHaveBeenCalledTimes(1);
+  expect(h.events.listenerCount(STATUS_SNAPSHOT_REQUEST_EVENT)).toBe(1);
+  h.events.emit(STATUS_SNAPSHOT_REQUEST_EVENT, {});
+  expect(h.snapshot).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      statuses: [expect.objectContaining({ text: 'Running parser tests' })],
+    }),
+  );
+  expect(h.statuses.get('activity')).toBe('Running parser tests');
+});
+it('still attempts Herdr when local publication throws and disposes the registration', async () => {
+  const h = harness();
+  h.setStatus.mockImplementationOnce(() => {
+    throw new Error('local UI failed');
+  });
+  await h.emit('session_start');
+  await h.emit('agent_start');
+  await h.emit('turn_end');
+  await tick();
+  expect(h.publisher.publish).toHaveBeenCalledExactlyOnceWith(
+    'Running parser tests',
+    expect.any(AbortSignal),
+  );
+  expect(h.generate).toHaveBeenCalledTimes(1);
+  expect(h.set).not.toHaveBeenCalled();
+  await h.emit('session_shutdown');
+  expect(h.events.listenerCount(STATUS_SNAPSHOT_REQUEST_EVENT)).toBe(0);
+});
+it('rejects a late Herdr completion after settlement without restoring local status', async () => {
+  const h = harness();
+  let release!: (value: boolean) => void;
+  h.publisher.publish.mockReturnValueOnce(
+    new Promise((resolve) => {
+      release = resolve;
+    }),
+  );
+  await h.emit('session_start');
+  await h.emit('agent_start');
+  await h.emit('turn_end');
+  expect(h.statuses.has('activity')).toBe(true);
+  await h.emit('agent_settled');
+  expect(h.statuses.has('activity')).toBe(false);
+  release(true);
+  await tick();
+  expect(h.set).toHaveBeenCalledTimes(1);
+  h.events.emit(STATUS_SNAPSHOT_REQUEST_EVENT, {});
+  expect(h.snapshot).toHaveBeenLastCalledWith({ source: 'session-activity', statuses: [] });
+});
+it('keeps local activity cleared after a late generation without Herdr', async () => {
+  const h = harness('tui', false);
+  let release!: (value: string) => void;
+  h.generate.mockReturnValueOnce(
+    new Promise((resolve) => {
+      release = resolve;
+    }),
+  );
+  await h.emit('session_start');
+  await h.emit('agent_start');
+  await h.emit('turn_end');
+  await h.emit('agent_settled');
+  release('Obsolete activity');
+  await tick();
+  expect(h.setStatus).not.toHaveBeenCalled();
+  expect(h.statuses.has('activity')).toBe(false);
 });

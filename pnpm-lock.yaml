@@ -210,6 +210,10 @@ importers:
         version: 1.3.27
 
   packages/session-activity:
+    dependencies:
+      '@araketski/pi-statusline-protocol':
+        specifier: workspace:*
+        version: link:../statusline-protocol
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'

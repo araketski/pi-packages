@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createConnection } from 'node:net';
+import type { StatusHandle } from '@araketski/pi-statusline-protocol';
 
 // @mara implements DES-SESSION-ACTIVITY-PUBLISHER
 export interface ActivityPublisher {
@@ -8,6 +9,67 @@ export interface ActivityPublisher {
   clear(signal: AbortSignal): Promise<boolean>;
   dispose(): void;
 }
+// @mara implements REQ-SESSION-ACTIVITY-STATUSLINE
+// @mara implements DES-SESSION-ACTIVITY-PUBLISHER
+export class DualActivityPublisher implements ActivityPublisher {
+  private disposed = false;
+  constructor(
+    private status: StatusHandle,
+    private herdr: ActivityPublisher,
+  ) {}
+  get available(): boolean {
+    return !this.disposed;
+  }
+  publish(activity: string, signal: AbortSignal): Promise<boolean> {
+    return this.send(activity, signal);
+  }
+  clear(signal: AbortSignal): Promise<boolean> {
+    return this.send(null, signal);
+  }
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    // Clear separately so a UI failure cannot prevent snapshot unsubscription.
+    try {
+      this.status.clear();
+    } catch {
+      /* Best-effort local cleanup. */
+    }
+    try {
+      this.status.dispose();
+    } catch {
+      /* Best-effort local cleanup. */
+    }
+    try {
+      this.herdr.dispose();
+    } catch {
+      /* Best-effort optional transport cleanup. */
+    }
+  }
+  private async send(activity: string | null, signal: AbortSignal): Promise<boolean> {
+    if (!this.available || signal.aborted) return false;
+    let local = false;
+    try {
+      if (activity === null) this.status.clear();
+      else this.status.update({ text: activity });
+      local = true;
+    } catch {
+      /* A local failure must not suppress Herdr publication. */
+    }
+    let remote = false;
+    try {
+      if (this.herdr.available && !signal.aborted && !this.disposed) {
+        remote = await (activity === null
+          ? this.herdr.clear(signal)
+          : this.herdr.publish(activity, signal));
+      }
+    } catch {
+      /* Herdr failure must not suppress local publication. */
+    }
+    return local || remote;
+  }
+}
+
 const sequenceKey = Symbol.for('@araketski/pi-session-activity/metadata-sequence');
 function nextSequence(): number {
   // Preserve ordering across adapter instances and extension reloads in this process.

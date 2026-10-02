@@ -1,12 +1,15 @@
 {
   "name": "@araketski/pi-session-activity",
   "version": "0.1.0",
-  "description": "Expose current Pi agent activity through standard Herdr metadata",
+  "description": "Expose current Pi agent activity through statusline and optional Herdr metadata",
   "license": "MIT",
   "files": [
     "extensions"
   ],
   "type": "module",
+  "dependencies": {
+    "@araketski/pi-statusline-protocol": "workspace:*"
+  },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "catalog:"
   },

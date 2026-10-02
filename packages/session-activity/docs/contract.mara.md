@@ -1,38 +1,47 @@
 # Session activity reporter
 
-`session-activity` exposes what the main Pi agent is doing now through Herdr's
-standard custom `$activity` metadata token. It requires no particular renderer.
+`session-activity` exposes what the main Pi agent is doing now through
+statusline-protocol key `activity` and, when available, Herdr's standard custom
+`$activity` metadata token. It requires no particular renderer.
 The structured contract below records accepted intended behavior; acceptance is
 not evidence of implementation or passing runtime tests.
 
 ## Responsibility boundaries
 
-| Surface                | Meaning                           | Owner                          |
-| ---------------------- | --------------------------------- | ------------------------------ |
-| Pi session name        | What the agent is responsible for | Existing naming behavior       |
-| Herdr lifecycle status | Working / blocked / done / idle   | Existing lifecycle integration |
-| Herdr `$activity`      | What the agent is doing right now | `session-activity`             |
+| Surface                  | Meaning                           | Owner                          |
+| ------------------------ | --------------------------------- | ------------------------------ |
+| Pi session name          | What the agent is responsible for | Existing naming behavior       |
+| Herdr lifecycle status   | Working / blocked / done / idle   | Existing lifecycle integration |
+| Herdr `$activity`        | What the agent is doing right now | `session-activity`             |
+| Pi statusline `activity` | The same current-work phrase      | `session-activity`             |
 
-Only the activity token is published/cleared. The extension does not change
-session names, titles, lifecycle status, unrelated metadata or other agents, and
-sends no inter-agent messages. Herdr consumers choose how to display the token.
+Only the activity key/token is published/cleared. The extension does not change
+session names, titles, lifecycle status, unrelated statuses/metadata or other
+agents, and sends no inter-agent messages. Consumers choose how to display it.
+The protocol provides native footer fallback and late snapshot recovery; the
+custom footer can display the key with the direct `"activity"` layout token or
+include it in the `"statuses"` aggregate. Its default layout and user configuration
+are not changed. No default prefix, color or state is assigned.
 Example values: `Running parser tests`, `Investigating API schema`.
 
 ## Configuration and integration reference
 
 For a development invocation, run `pi -e ./packages/session-activity` from the
-workspace root inside Herdr. To persist a repository-local installation, use
+workspace root in a main Pi TUI session, with or without Herdr. To persist a
+repository-local installation, use
 `pi install ./packages/session-activity --local` and native `/reload`; installation
 is an explicit user action, not part of this implementation. The package is source
-TypeScript loaded by Pi, with no build step or extra runtime helper dependency.
-The current increment is not an npm publication.
+TypeScript loaded by Pi, with no extension build step. Its runtime dependency
+`@araketski/pi-statusline-protocol` is a compiled library: build it through Nx
+before local source consumption, and include its fresh archive in isolated packed
+consumer checks. The current increment is not an npm publication.
 
 Model selection and configuration follow the
 [session-name pattern](../../session-name/docs/contract.mara.md), without its
 `setTitle` behavior or heuristic fallback. The only optional file is
 `<agent-dir>/session-activity.json`, normally `~/.pi/agent/session-activity.json`;
 respect Pi's configured agent directory. It is read at start/reload only within
-eligible main-TUI/Herdr scope. No project layer, file watcher or automatic file
+eligible root/main-TUI scope, independently of Herdr availability. No project layer, file watcher or automatic file
 creation exists. Restart or `/reload` after editing it.
 
 ```json
@@ -97,7 +106,12 @@ The implementation selects these bounded engineering details:
   control/format characters and surrounding quotes/emphasis markers; count
   whitespace-delimited words and Unicode code points. Skip overlong output,
   rather than shortening it. Exact normalized duplicates need no metadata write.
-- Use the reporter-owned source `pi:session-activity`, inherited pane ID, UUID
+- Register a session-scoped protocol producer with key `activity` and source
+  `session-activity`. Publish/clear its native and structured status synchronously,
+  then attempt optional Herdr publication independently. One successful destination
+  is sufficient for prior-phrase comparison; unchanged phrases do not replay just
+  to retry a failed destination. Dispose the producer on reload/replacement/shutdown.
+- For optional Herdr metadata, use reporter-owned source `pi:session-activity`, inherited pane ID, UUID
   request IDs and process-global monotonically increasing sequences based on
   `Date.now()*1000`. One active/one latest pending socket write is allowed, with
   a one-second attempt deadline and 64-KiB response cap. Parse matching complete
@@ -168,6 +182,29 @@ formatting and complete Mara project validation also passed. These checks verify
 input delivery and prompt policy, not paid-model semantic accuracy or a live
 managed-pane codemode session.
 
+Statusline-output increment: the root/main TUI now reports through the protocol
+whether or not Herdr context is present; headless and nested contexts remain
+excluded. Red-phase fixtures reproduced missing local output and the former
+Herdr-only gate. The full uncached Nx package suite passed 73 tests, including
+native Pi 0.99.1 Linux pseudo-terminal checks for source and independently installed
+activity/protocol archives. They observe native footer text, structured publication,
+late snapshots and final clearing with and without Herdr, while the main chat is
+still gated; cancelled late summaries and print mode publish no local status.
+Fixtures also cover independent destination failures, immediate local output during
+gated Herdr work, duplicate suppression, unrelated-key preservation, reload/tree
+cleanup and snapshot unsubscription. Nx lint, typecheck and source `pi-check`
+passed, and the distribution suite runs fresh-tarball `pi-check-package`. The
+protocol dependency was explicitly built uncached; its 13 tests, lint, typecheck
+and source `pi-check` also passed. Frozen pnpm installation, changed-file formatting
+and complete Mara project validation passed. No existing dependency versions changed.
+
+Nx `sync:check` is currently not passing: it reports root references missing for
+five existing Pi packages plus the newly linked protocol dependency's reference
+in session-activity. Build/test checks used documented `--skipSync`; unrelated root
+configuration was not rewritten. This is a known verification limitation, not a
+passing workspace sync result. Paid-model semantic accuracy and a live user
+custom-footer layout were not tested or configured.
+
 No paid model calls, npm publication or persistent user installation were
 performed. This is not a blanket compatibility claim for other Pi/Herdr versions
 or platforms. Windows endpoint mapping is implemented but not exercised by the
@@ -176,20 +213,20 @@ an end-to-end session inside a real Herdr-managed Pi pane.
 
 :::mara goal GOAL-SESSION-ACTIVITY
 :mid: 01M3W093BNSK3RXJNTWKRFSV61
-:title: Expose current Pi work as standard Herdr display metadata
+:title: Expose current Pi work through statusline and optional Herdr metadata
 :status: accepted
 
-Let Herdr consumers observe what the main Pi agent is doing now without conflating current activity with its stable responsibility or lifecycle status. The standalone session-activity extension publishes the standard custom $activity token; no particular renderer or layout is required.
+Let Pi statusline and Herdr consumers observe what the main Pi agent is doing now without conflating current activity with its stable responsibility or lifecycle status. The standalone session-activity extension publishes statusline-protocol key activity in root/main interactive TUI sessions and the standard custom Herdr $activity token when caller context is available; no particular renderer or layout is required.
 :::
 
 :::mara requirement REQ-SESSION-ACTIVITY-ISOLATION
 :mid: 01M3W09FSGMT90QTP9VDHR5MF0
-:title: Publish only activity through standard Herdr metadata
+:title: Publish only activity in main TUI sessions through supported outputs
 :status: accepted
 :kind: constraint
 :contributes_to: GOAL-SESSION-ACTIVITY
 
-Publish the custom activity token through Herdr's standard pane.report_metadata RPC method for the calling Pi agent's pane (exposed by the CLI as pane report-metadata). Report only the root/main interactive Pi TUI session with complete Herdr caller context; headless RPC/JSON/print invocations and nested/subagent sessions must not report even if they inherit pane environment variables. Require only Pi and standard Herdr metadata, not a particular renderer or a repository-specific Herdr extension. Do not change Pi session names, terminal titles, Herdr lifecycle status, unrelated metadata, or other agents. Do not send messages to other agents or add reporter content to the chat transcript. Outside the supported reporting scope, perform no reporter model requests or metadata operations.
+Report only the root/main interactive Pi TUI session, whether or not Herdr caller context is present. Publish the statusline activity key as specified by [[REQ-SESSION-ACTIVITY-STATUSLINE]]. With complete Herdr caller context, also publish the custom activity token through Herdr's standard pane.report_metadata RPC method for the calling Pi agent's pane (exposed by the CLI as pane report-metadata). Headless RPC/JSON/print invocations and nested/subagent sessions must not report or register a status producer even if they inherit pane environment variables. Do not require a particular renderer or repository-specific Herdr extension. Do not change Pi session names, terminal titles, Herdr lifecycle status, unrelated metadata or statuses, or other agents. Do not send messages to other agents or add reporter content to the chat transcript. Outside the supported reporting scope, perform no reporter model requests, status registration or metadata operations.
 :::
 
 :::mara requirement REQ-SESSION-ACTIVITY-CADENCE
@@ -259,7 +296,7 @@ Apply a 10-second deadline to each generation attempt. Timeout, provider errors,
 :kind: functional
 :contributes_to: GOAL-SESSION-ACTIVITY
 
-Clear the reporter's activity token when the main-agent run finally stops, by completion or abort, and on reload, session resume/replacement, tree navigation or orderly shutdown. Reset counters, digest and prior-phrase comparison state at reporting resets. An inner turn ending or agent_end before automatic continuation is not proof of final settlement. Invalidate pending generation/publication, make cleanup idempotent, and prevent late results from restoring cleared activity or affecting a replacement run/session. Clear only the reporter's activity token, not unrelated metadata. A run settling before its first summary completes may publish no phrase. Use orderly cleanup only: do not add a reporter TTL, heartbeat or repeated identical lease-renewal writes. If Pi is killed or clearing fails while Herdr is unavailable, stale metadata may remain subject to Herdr's own cleanup; the extension does not guarantee crash cleanup.
+Clear the reporter's statusline activity and optional Herdr activity token when the main-agent run finally stops, by completion or abort, and on reload, session resume/replacement, tree navigation or orderly shutdown. Reset counters, digest and prior-phrase comparison state at reporting resets. An inner turn ending or agent_end before automatic continuation is not proof of final settlement. Invalidate pending generation/publication, make cleanup idempotent, and prevent late results from restoring cleared activity or affecting a replacement run/session. Clear only the reporter's activity key/token, not unrelated statuses or metadata. Dispose the protocol producer and its snapshot listener on reload, session replacement or shutdown; keep it available across run/tree resets. A run settling before its first summary completes may publish no phrase. Use orderly cleanup only: do not add a reporter TTL, heartbeat or repeated identical lease-renewal writes. If Pi is killed or clearing fails while Herdr is unavailable, stale metadata may remain subject to Herdr's own cleanup; the extension does not guarantee crash cleanup.
 :::
 
 :::mara verification VER-SESSION-ACTIVITY-CONTRACT
@@ -276,13 +313,14 @@ Clear the reporter's activity token when the main-agent run finally stops, by co
 :verifies: REQ-SESSION-ACTIVITY-ASYNC
 :verifies: REQ-SESSION-ACTIVITY-FAILURE
 :verifies: REQ-SESSION-ACTIVITY-CLEANUP
+:verifies: REQ-SESSION-ACTIVITY-STATUSLINE
 
 Repeat deterministic behavioral fixtures and native Pi/Herdr integration checks. This item defines a verification method, not a standing passing execution result; observed executions and limits are recorded in the document's implementation state.
 
 | Case                    | Observable expectation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Cadence/reset           | Fresh state per run; interval five triggers at turns 1, 6 and 11 and a nondefault interval changes spacing. Tool-calling responses qualify, not tool-result multiplicity, nested/subagent work or reporter requests. Failed/aborted assistant responses do not qualify. Reload, resume/replacement and navigation cancel/clear/reset without reconstructing history, then wait for the next qualifying turn if working.                                                                                                                               |
-| Eligibility             | Only the root main TUI with complete Herdr caller context reports. Headless RPC/JSON/print, nested/subagent contexts and missing caller context make no model/metadata requests.                                                                                                                                                                                                                                                                                                                                                                      |
+| Eligibility             | Only the root main TUI reports. Without Herdr context, statusline still works and no socket requests occur. Headless RPC/JSON/print and nested/subagent contexts make no model/status/metadata requests.                                                                                                                                                                                                                                                                                                                                              |
 | Configuration/model     | Agent-directory-only session-activity.json is read at start/reload. Validate exact supported keys and positive safe-integer intervalTurns; invalid files warn once for the load and use defaults. Default active model/thinking off and explicit provider/model/thinking overrides do not alter chat settings. Missing model/auth skips without fallback.                                                                                                                                                                                             |
 | Digest                  | Latest five turns independent of cadence, curated arguments at most 400 code points per entry, visible text at most 600 and serialized digest at most 6,000, with retained collection bounded. No thinking, result bodies, full history or additional reads enter provider input. Direct tools omit file contents, edit replacements and bulk payloads; codemode retains only a labeled leading code excerpt within the same 400-point argument cap, with embedded payload exposure explicitly allowed. Previous phrase is separate comparison input. |
 | Phrase                  | Target three words, at most five words/60 code points after normalization. Reject overlong/unusable output rather than truncate. Explicit unchanged and normalized exact duplicates cause no write. Failed writes are not recorded as published. Semantic fixtures do not guarantee universal equivalence judgment.                                                                                                                                                                                                                                   |
@@ -294,6 +332,8 @@ Repeat deterministic behavioral fixtures and native Pi/Herdr integration checks.
 Use offline gated providers and disposable Herdr fixtures. Never mutate another contributor's pane or contact a paid provider merely to run the suite. Native checks use the selected repository Pi baseline. Record actual results separately; deterministic fixtures and independent native layers do not prove an unrun combined managed-pane end-to-end session.
 
 Codemode regression fixtures use the native { code: string } argument shape with batched test commands and documentation reads. Assert that those cues reach the existing summary request, that the prompt asks for enclosed purpose instead of the wrapper name and treats scripts as untrusted evidence, and that only one model request is made. Check Unicode truncation, invalid/missing code arguments, direct-tool exclusions, rolling-window reset and total digest bounds. Offline model fixtures verify evidence and instructions, not live semantic accuracy.
+
+Exercise protocol key activity/source session-activity in root TUI sessions with and without Herdr. Verify native fallback, late snapshot recovery, identical phrase across outputs with one generation request, unchanged suppression, status clearing on settlement/tree/reload/shutdown, snapshot listener disposal and stale-result rejection. Gate/fail Herdr publication and clearing: local status must appear/clear immediately and unrelated status keys remain untouched. Gate/fail local protocol updates: Herdr must still be attempted. Native source and independent packed-consumer fixtures observe protocol events and clear with no Herdr context as well as dual output; pack the explicitly built protocol dependency and verify frozen-lockfile workspace installation.
 :::
 
 :::mara requirement REQ-SESSION-ACTIVITY-TRANSPORT
@@ -308,7 +348,7 @@ Use direct Herdr socket RPC for the initial metadata transport, following the tr
 
 :::mara design DES-SESSION-ACTIVITY-PUBLISHER
 :mid: 01M3W0PMQDT9NJQ27R2DT3B3YZ
-:title: Separate activity behavior from the initial Herdr socket RPC adapter
+:title: Separate activity behavior from statusline and optional Herdr publication
 :status: accepted
 :kind: interface
 :satisfies: REQ-SESSION-ACTIVITY-TRANSPORT
@@ -316,12 +356,13 @@ Use direct Herdr socket RPC for the initial metadata transport, following the tr
 :satisfies: REQ-SESSION-ACTIVITY-ASYNC
 :satisfies: REQ-SESSION-ACTIVITY-FAILURE
 :satisfies: REQ-SESSION-ACTIVITY-CLEANUP
+:satisfies: REQ-SESSION-ACTIVITY-STATUSLINE
 
-Keep one local adapter boundary, not a generic RPC framework. ActivityCoordinator receives an ActivityPublisher at construction; registerSessionActivity supplies the HerdrPublisher factory in production and allows fake/replacement publishers in tests. The coordinator owns root-TUI eligibility, cadence, bounded digest, generation, deduplication and run/session invalidation. The adapter owns endpoint discovery, pane/source binding, wire encoding, validation, ordering and socket cleanup.
+Keep one local adapter boundary, not a generic RPC framework. ActivityCoordinator receives an ActivityPublisher at construction; registerSessionActivity registers a statusline-protocol producer and wraps its handle plus the optional HerdrPublisher in one DualActivityPublisher; the Herdr factory remains replaceable in tests. The coordinator owns root-TUI eligibility, cadence, bounded digest, generation, deduplication and run/session invalidation. The adapter owns endpoint discovery, pane/source binding, wire encoding, validation, ordering and socket cleanup.
 
-ActivityPublisher exposes readonly available, publish(activity, signal) and clear(signal) returning Promise<boolean>, and idempotent dispose(). Expose no Herdr wire objects or socket fields to summary logic. Keep at most one active and one latest pending write; superseded pending writes resolve false. Bound each socket attempt to 1,000 ms and its response to 65,536 bytes. Contain background failures with no immediate retries. Ordered clear, cancellation and sequence numbers prevent older publication from winning after cleanup. Remember a phrase only after successful publication.
+ActivityPublisher exposes readonly available, publish(activity, signal) and clear(signal) returning Promise<boolean>, and idempotent dispose(). Expose no Herdr wire objects or socket fields to summary logic. Keep at most one active and one latest pending write; superseded pending writes resolve false. Bound each socket attempt to 1,000 ms and its response to 65,536 bytes. Contain background failures with no immediate retries. Ordered clear, cancellation and sequence numbers prevent older publication from winning after cleanup. Remember a phrase after successful publication to either destination. DualActivityPublisher updates/clears the protocol handle synchronously before awaiting any optional Herdr operation, catches each destination's failure independently, and returns whether at least one destination succeeded. It never requires Herdr availability, never retries a duplicate solely for a failed destination, and owns protocol disposal as well as Herdr disposal. Honor cancellation/disposal before publication; a late Herdr completion cannot republish statusline data. Register key activity and source session-activity without default prefix/color/state, following [[DES-STATUSLINE-PROTOCOL]].
 
-Use Node net and inherited HERDR_ENV=1, HERDR_SOCKET_PATH and HERDR_PANE_ID. Missing caller context means unavailable and no socket/model requests. Use the inspected integration's Unix socket / Windows named-pipe endpoint pattern, with newline-delimited JSON. This is Herdr RPC, not Pi's headless RPC mode or a JSON-RPC 2.0 envelope. No CLI fallback, plugin registry, generic RPC framework or transport selector is required.
+Use Node net and inherited HERDR_ENV=1, HERDR_SOCKET_PATH and HERDR_PANE_ID. Missing Herdr caller context means no socket requests; the statusline producer remains available and root-TUI summarization still runs. Use the inspected integration's Unix socket / Windows named-pipe endpoint pattern, with newline-delimited JSON. This is Herdr RPC, not Pi's headless RPC mode or a JSON-RPC 2.0 envelope. No CLI fallback, plugin registry, generic RPC framework or transport selector is required.
 
 Use pane.report_metadata, reporter source pi:session-activity distinct from herdr:pi, agent pi and unique UUID-based request IDs. Bind the inherited caller pane; publish only tokens.activity and clear it with null. Leave lifecycle/title/session-reference fields untouched. Allocate seq before enqueueing, monotonically advancing a process-global counter seeded/refreshed from Date.now()*1000, so adapter replacement/reload preserves ordering. Do not add TTL or heartbeat. This scheme does not promise clock-rollback-safe ordering across separate processes; concurrent root agents sharing one pane are outside the selected scope.
 
@@ -364,4 +405,14 @@ Use a disposable socket server to capture newline-framed pane.report_metadata re
 Gate an active publication, queue many updates and a clear, and prove retained writes are at most one active/one latest pending. Superseded queued updates resolve false. Cancellation/reset and a newer clear must prevent stale activity restoration; adapter replacement preserves sequence order within the process. Verify no TTL/heartbeat fields or renewal writes exist.
 
 In an isolated actual Herdr 0.9.1/protocol-22 pane/session, verify string publication and null deletion, preserve unrelated metadata/title/lifecycle state, and reject a lower-sequence publication after clearing. Source/schema inspection alone does not pass this check. Never modify the installed managed integration, live user server or another agent's pane.
+:::
+
+:::mara requirement REQ-SESSION-ACTIVITY-STATUSLINE
+:mid: 01M3Y890CNR4R9XXHMGV39P24X
+:title: Publish current activity through the statusline protocol
+:status: accepted
+:kind: functional
+:contributes_to: GOAL-SESSION-ACTIVITY
+
+In every supported root/main Pi TUI session, publish the generated activity phrase through @araketski/pi-statusline-protocol with key activity and source session-activity. Use no producer prefix, color or state by default; footer configuration may override presentation. Use the same phrase, summarizer request, cadence and unchanged suppression as optional Herdr metadata; do not add another model request. Register one session-scoped producer that supplies native fallback and late protocol snapshots. Herdr availability or delivery failure must not prevent local status publication or cleanup. Publication to either destination is sufficient to remember the phrase; do not replay unchanged phrases solely to retry a failed destination. Clear only the activity status on final settlement and existing reset boundaries, dispose its registration on session replacement/reload/shutdown, and reject stale asynchronous publication. Headless and nested contexts must not publish or register status producers. Publishing the key does not change the custom footer's default layout or user configuration.
 :::

@@ -55,6 +55,21 @@ it('packs only consumer resources and runs the independently installed extension
       },
     );
     expect(check.status, check.stdout + check.stderr || String(check.error)).toBe(0);
+    // Install the freshly built dependency archive, not a workspace symlink or registry copy.
+    const protocol = JSON.parse(
+      execFileSync(
+        'pnpm',
+        [
+          '-C',
+          join(workspace, 'packages/statusline-protocol'),
+          'pack',
+          '--pack-destination',
+          dir,
+          '--json',
+        ],
+        { cwd: workspace, encoding: 'utf8', timeout: 60000 },
+      ),
+    ) as { filename: string };
     const consumer = join(dir, 'consumer');
     mkdirSync(consumer);
     writeFileSync(
@@ -70,6 +85,7 @@ it('packs only consumer resources and runs the independently installed extension
         '--no-fund',
         '--no-package-lock',
         pack.filename,
+        protocol.filename,
         '@earendil-works/pi-coding-agent@0.99.1',
       ],
       { cwd: consumer, encoding: 'utf8', timeout: 120000 },

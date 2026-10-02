@@ -1,9 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { registerStatus } from '@araketski/pi-statusline-protocol';
 import { loadConfig } from './config.ts';
 import { ActivityCoordinator } from './coordinator.ts';
-import { HerdrPublisher, type ActivityPublisher } from './publisher.ts';
+import { DualActivityPublisher, HerdrPublisher, type ActivityPublisher } from './publisher.ts';
 import { generateActivity } from './summary.ts';
 
+// @mara implements REQ-SESSION-ACTIVITY-STATUSLINE
 // @mara implements REQ-SESSION-ACTIVITY-ISOLATION
 // @mara implements REQ-SESSION-ACTIVITY-CLEANUP
 // @mara implements DES-SESSION-ACTIVITY-PUBLISHER
@@ -33,11 +35,10 @@ export function registerSessionActivity(
     // Never let headless/nested sessions sharing the extension bus touch the root pane.
     if (ctx.mode !== 'tui') return;
     void shutdown().catch(() => {});
-    const nextPublisher = createPublisher();
-    if (!nextPublisher.available) {
-      nextPublisher.dispose();
-      return;
-    }
+    const nextPublisher = new DualActivityPublisher(
+      registerStatus(pi, ctx.ui, { source: 'session-activity', key: 'activity' }),
+      createPublisher(),
+    );
     publisher = nextPublisher;
     rootId = ctx.sessionManager.getSessionId();
     const config = loadConfig((message) => {
