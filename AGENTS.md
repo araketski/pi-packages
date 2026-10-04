@@ -23,6 +23,10 @@
 - Use Work for durable implementation items and dependencies; keep product contracts and project documentation in Mara rather than copying specifications into task bodies.
 - Load the `work` skill before operating on items. Select the intended checkout explicitly, inspect CLI capabilities, and do not treat readiness as a claim or invent unsupported agent-management commands.
 - During the workflow-package campaign, follow [parallel implementation guidance](docs/parallel-implementation.mara.md) for coordinator authority, isolated worktrees, review loops, and completion evidence.
+- Follow the **Backlog policy** section of [triage-findings](.pi/skills/triage-findings/SKILL.md) for intake, organization, and scheduling. It is the single shared policy; priority scales and existing topic labels remain project configuration.
+- `backlog this` requests recording the referenced outcome under that policy, not code changes. If Work is unavailable, state that no item was created.
+- Keep acceptance checklists and delivery evidence in item bodies. Use Work tools for metadata and relations, canonical full IDs in durable references, and narrow opaque-body edits that preserve headers; run Work diagnostics afterward. Use `depends_on` for lifecycle prerequisites, not grouping or informational links.
+- Check an acceptance box only after producing evidence that its criterion passes. Close a manual implementation item only after verified integration into its declared delivery target, with acceptance criteria passing and required review complete. Use manual completion for acceptance-gated deliverables; a `children` aggregate derives completion from its children and is not a separate acceptance approval.
 
 ## Documentation ownership and lifecycle
 
@@ -63,10 +67,21 @@
 - Preserve current version choices unless a dependency change is required and intentional. Do not restore dependencies from the original branch merely because they existed there.
 - Regenerate `pnpm-lock.yaml` through pnpm when dependencies or catalog entries change. Verify that a frozen-lockfile install succeeds.
 
+## Code review and finding triage
+
+- Review against the current task, applicable Mara contracts, and the actual end-to-end workflow. Report actionable, consequential defects with concrete impact; leave deterministic style and formatting checks to automated checks.
+- In ordinary reviews, a finding requires a fix in the current change when it violates accepted requirements or task acceptance, or is critical: it blocks the primary workflow, makes the delivered outcome unusable, risks unrecoverable user data, or creates a directly exploitable vulnerability in the intended deployment. Valid non-critical improvements outside current acceptance go to the backlog without expanding the change; duplicates, resolved findings, speculative hardening, and non-actionable preferences are dismissed with evidence.
+- Load [triage-findings](.pi/skills/triage-findings/SKILL.md) for local, cloud, and combined-state findings. The implementer or integration coordinator owns triage; the independent reviewer remains read-only and does not change code or tracking. Give every finding a supported disposition: fix now, backlog, dismiss, or ask the user. Preserve raw findings/verdicts and record source/revision, rationale, actual fix/checks or backlog destination. A backlog label or working happy path never waives current acceptance or critical safeguards.
+- When a user request or delegated task explicitly requires the [local Pi review loop](.pi/skills/pi-review-loop/SKILL.md), load and run it after implementation and before handoff. Inspect relevant accepted backlog entries before each review and supply a captured known-findings snapshot as the skill directs, not previous raw reviews, fix instructions, or a desired verdict. Freeze the reviewed checkout during each independent review and verify completion and unchanged inputs; exit zero or silence alone is not a pass. A reviewer must not recursively invoke the loop.
+- Triage each completed review, fix and verify all required findings within authorized scope, commit fixes, then review fresh until no required fix or clarification remains. Do not repeat solely to eliminate supported backlog or dismissed findings. Follow stricter explicit task or campaign gates, including their assigned harness and baseline; this guidance does not replace the workflow-package campaign's Codex review requirement. Unresolved product choices, authorization, remedies, or evidence remain blocked.
+- Claim **clean review** only from a completed unchanged independent review with no findings and a correct verdict. Otherwise report **accepted after triage** only when no required fix or clarification remains, applicable verification passes, every finding and relevant known deferral is accounted for, and authorized backlog recording succeeds. Include actual backlog references, dismissal reasons, and a supported assessment of any contrary raw verdict; retain the raw verdict unchanged.
+- Apply the same triage policy to combined integration trees; worker acceptance does not prove the combination. Triage does not authorize integration/publication, work closure, or bypass required verification, CI, cloud review, or delivery-target gates.
+
 ## Completion criteria
 
 - The increment satisfies its agreed acceptance criteria.
 - Relevant tests and available Nx checks pass; affected Mara knowledge is current and validates successfully.
+- Required review is complete, every finding has a supported disposition, and no required fix or clarification remains. Report clean review versus accepted after triage accurately under the review guidance above; stricter explicit gates still apply.
 - Review the diff for unrelated changes, stale documentation, and unintended dependency updates.
 - Report what changed, which checks actually ran, and any remaining limitations. Never claim unrun checks passed.
 
