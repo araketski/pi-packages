@@ -4,8 +4,8 @@ The [goal contract](./contract.mara.md) owns continuation and explicit pauses.
 Required work and result delivery keep an active goal waiting through gates;
 this is not an explicit pause of its wall clock. Goal does not own job execution,
 result delivery, or cleanup.
-Use the [shared jobs lifecycle](../jobs-core/lifecycle.mara.md),
-[delivery receipts](../jobs-core/delivery.mara.md), and
+Use the [shared jobs lifecycle](../../../packages/jobs-core/docs/lifecycle.mara.md),
+[delivery receipts](../../../packages/jobs-core/docs/delivery.mara.md), and
 [gates contract](../../../packages/gates-protocol/docs/contract.mara.md).
 
 This defines intended behavior, not a migrated goal extension or verified

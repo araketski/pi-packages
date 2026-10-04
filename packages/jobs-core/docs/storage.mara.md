@@ -18,7 +18,7 @@ access, custom entries, model-visible custom messages, in-memory sessions, and
 shutdown reasons that separate quit from reload/new/resume/fork. Pi 0.99.1 creates
 a new session file on the first user or assistant message; setup/custom entries
 alone can remain buffered. This advances the assistant-only boundary observed in
-0.87.1; see the [baseline reconciliation](../../pi-0991-reconciliation.mara.md).
+0.87.1; see the [baseline reconciliation](../../../docs/pi-0991-reconciliation.mara.md).
 An accepted append call is not an immediate filesystem-durability guarantee; do not introduce a separate gate journal or file-existence admission
 check merely to strengthen Pi session resumability.
 

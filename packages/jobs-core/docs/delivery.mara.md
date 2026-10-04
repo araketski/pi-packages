@@ -3,14 +3,14 @@
 This defines intended behavior alongside the [lifecycle policy](./lifecycle.mara.md).
 It is not an implemented API, a promise of exactly-once delivery, or evidence of
 working goal/caffeinate integration. The owner delivers results; observers and
-[gates](../../../packages/gates-protocol/docs/contract.mara.md) do not independently
+[gates](../../gates-protocol/docs/contract.mara.md) do not independently
 start turns or redeliver them.
 
 ## Consumer-owned decisions
 
 Job owners project their awaited execution and required result delivery into the
-same generic gates consumed by [goal](../goal/jobs-integration.mara.md) and
-[caffeinate](../caffeinate/jobs-integration.mara.md). Neither consumer inspects job
+same generic gates consumed by [goal](../../../docs/planned/goal/jobs-integration.mara.md) and
+[caffeinate](../../../docs/planned/caffeinate/jobs-integration.mara.md). Neither consumer inspects job
 phases through a jobs API or requires gate-purpose distinctions. Their canonical
 requirements and verification live in their own planned folders.
 

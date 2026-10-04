@@ -157,6 +157,12 @@ importers:
         specifier: 'catalog:'
         version: 2.8.1
 
+  packages/jobs-core:
+    dependencies:
+      tslib:
+        specifier: 'catalog:'
+        version: 2.8.1
+
   packages/judgments:
     devDependencies:
       '@earendil-works/pi-coding-agent':
