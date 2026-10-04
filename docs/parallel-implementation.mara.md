@@ -38,15 +38,15 @@ root reserved for the existing coordinator's final integration/review obligation
 | --- | --- | --- | --- | --- |
 | Coordinator | Pi in Herdr | `gpt-6-astra` | high | One |
 | Workers | Pi in Herdr | `gpt-6.1-sol` | high | At most five active workers |
-| Reviewers | Codex CLI in Herdr | `gpt-6.1-sol` | x-high | Excluded from worker count |
+| Reviewers | Fresh Pi process | `openai/gpt-6.1-sol` | xhigh, fast | Excluded from worker count |
 
 The coordinator and all implementation workers are **Pi agents**, started with
-Herdr's `--kind pi`. **Only reviews run in Codex CLI**; do not substitute Codex
-for a worker or coordinator. A Pi provider named `openai-codex` does not change
-the harness to Codex. Worker/reviewer settings are not interchangeable. Work
-metadata is a dispatch instruction, not enforcement by Work. Verify the actual
-selected harness/model/settings; if unavailable, report the blocker rather than
-substituting another harness or model.
+Herdr's `--kind pi`. Independent local reviews use
+[pi-review-loop](../.pi/skills/pi-review-loop/SKILL.md), not Codex CLI. Its launcher
+owns the fresh reviewer process and required model/settings; worker settings are
+not reviewer settings. Work metadata is a dispatch instruction, not enforcement
+by Work. Verify actual harness/model/settings and report unavailable prerequisites
+rather than substituting another profile or claiming review completion.
 
 The coordinator may resolve implementation details, shared API designs, dependency
 sequencing, and integration conflicts within accepted contracts. It must escalate
@@ -83,7 +83,7 @@ number; check labels identify the check. For example:
 | Worker tab/pane/Pi session | `wf / jobs-core / impl / w-36824905` |
 | Worker live agent | `wf-pi-jobs-core-36824905` |
 | Reviewer tab/pane | `wf / jobs-core / review 1 / w-36824905` |
-| Reviewer live agent, when recognized | `wf-cx-jobs-core-36824905-r1` |
+| Reviewer live agent, when recognized | `wf-pi-jobs-core-36824905-r1` |
 | Auxiliary check tab/pane | `wf / jobs-core / test / w-36824905` |
 
 Use the actual assignment, not these example IDs. Agent names must be unique in
@@ -99,9 +99,9 @@ meaningful Herdr agent name and native `--name` session label. Verify names and
 harness through the returned state and read-only get/list operations before sending
 the assignment; do not rely on shell or application-generated default titles.
 
-Review commands always have named tabs/panes. If Herdr recognizes a live Codex
-agent during the non-interactive command, give it the corresponding unique name
-with `agent rename`; do not force an interactive startup handshake or fabricate
+When review execution uses Herdr, use named tabs/panes. If Herdr recognizes a
+live Pi reviewer during the non-interactive command, give it the corresponding
+unique name with `agent rename`; do not force an interactive startup handshake or fabricate
 agent reports just to attach a name. A command not exposed as a live agent remains
 inspectable through its named pane and saved review report. Record names and IDs
 in the dispatch ledger and review evidence. On reassignment, update labels/session
@@ -187,46 +187,45 @@ Work in red-green-refactor increments. Each handoff identifies implemented scope
 remaining scope, commits, checks actually executed, and limitations. Fakes do not
 prove real Pi, native inhibition, Herdr, or end-to-end consumer behavior.
 
-## Worker-owned Codex review loop
+## Worker-owned Pi review loop
 
-Each worker runs this loop for each independently integrated increment:
+Each worker runs the
+[local Pi review loop](../.pi/skills/pi-review-loop/SKILL.md) for each independently
+integrated increment after scoped implementation, checks, Mara updates, self-review,
+and a green candidate commit. That skill owns launch, evidence validation, fresh
+iterations, and cleanup; [triage-findings](../.pi/skills/triage-findings/SKILL.md)
+owns finding dispositions and the single backlog policy. Reviewers report only;
+workers fix and verify required defects. Reviewers must not invoke the loop.
 
-1. Finish the scoped implementation, tests, Mara updates, and self-review. Commit
-   the green candidate, so all intended new files are included and the reviewed
-   worktree has no uncommitted implementation changes.
-2. Use the immutable integration base SHA assigned for this item, recorded before
-   implementation. Run `codex review --base <assigned-base-sha>`, selecting
-   `gpt-6.1-sol` and Codex's x-high reasoning setting. Inspect installed CLI help and
-   effective configuration, including any review-model override. Do not use
-   `origin/main`, a moving branch reference, or advance the base to hide findings.
-3. The worker creates a dedicated Herdr review tab with its own pane, cwd set to
-   that worker's worktree, preserving user focus. Parse returned IDs and apply the
-   campaign naming convention to the tab, pane, and any recognized live reviewer.
-   This is a non-interactive CLI review command; do not assume an interactive
-   `agent start` readiness handshake will fit it. Reviewer access should be
-   read-only; workers, not reviewers, make fixes.
-4. Monitor the actual review command and capture its completed output and exit
-   status. Command submission, echoed terminal text, idle/done badges, silence,
-   timeout, or exit zero alone do not establish a clean review. Preserve the report
-   before removing the tab, with base SHA, reviewed HEAD, model/settings, verdict,
-   and relevant findings. Use scoped review artifacts rather than a new job daemon.
-5. Investigate findings against the accepted contracts. Fix valid findings with
-   regression tests where behavioral, rerun checks, and commit the fixes. Escalate
-   contradictory findings or policy changes; never weaken requirements just to
-   make a reviewer quiet.
-6. After the previous review has finished and its report is saved, close only that
-   worker-created old review tab. Open a fresh dedicated tab/pane and rerun the
-   same-base review against the updated candidate. Repeat until a completed review
-   explicitly reports no actionable findings. An unavailable/failed/inconclusive
-   review is a blocker, not a pass. Do not silently waive recurring findings.
-7. Handoff the reviewed HEAD, base SHA, checks, and clean-review evidence to the
-   coordinator. The final review tab may be closed after its report is preserved.
+The coordinator assigns and records the local review base before dispatch. Resolve
+that supplied logical base immediately before each iteration and pass its full SHA
+to the launcher; record both supplied SHA and actual merge base. An assigned
+immutable SHA stays fixed unless the coordinator explains a prerequisite-driven
+baseline change. Do not guess a base, substitute `origin/main`, or advance it to
+hide findings. Normal advancement of an assigned logical ref is not itself a
+reason to restart or rebase.
 
-An integration/rebase change that changes the reviewed implementation requires
-fresh checks and review. If prerequisites require a new baseline, the coordinator
-records and explains that new immutable base; a worker does not redefine it alone.
-Reviewers do not count toward the five-worker ceiling, but each worker uses one
-review attempt at a time rather than accumulating overlapping reviews.
+Capture relevant accepted backlog context outside the checkout before each review
+as the triage skill directs. Freeze checkout and backlog during review. Run the
+launcher directly unless the user requests Herdr execution; then use a dedicated
+named tab/pane in the assigned checkout, preserve focus, and capture its IDs.
+Keep one review attempt active at a time, verify it has stopped before retrying,
+and preserve evidence before closing only worker-owned review resources.
+
+Triage every completed review. Fix, check, and commit required findings, then run
+a fresh independent review. Stop when no required fix or clarification remains,
+every finding has a supported disposition, authorized backlog recording succeeds,
+and applicable verification passes. Do not rerun solely to eliminate supported
+backlog or dismissed findings. Unavailable, failed, or inconclusive reviews remain
+blocked; no arbitrary iteration cap or working happy path waives acceptance.
+
+Handoff the actual reviewed HEAD, dirty state, logical base, supplied/actual
+baseline SHAs, iterations, dispositions, checks, and evidence paths. Distinguish
+**clean review** from **accepted after triage** under the skills' rules; preserve
+raw verdicts and identify backlog references and dismissal reasons. Neither
+status authorizes integration or closure. Changed implementation or integration
+inputs need their own checks and review; worker acceptance does not prove the
+combined tree. Reviewers remain outside the five-worker ceiling.
 
 ## Inspected launch syntax and preflight boundary
 
@@ -242,28 +241,17 @@ herdr agent start "$AGENT_NAME" --kind pi --pane "$PANE_ID" -- \
   --model "$PI_MODEL" --thinking high --name "$DISPLAY_LABEL"
 ```
 
-For Codex CLI 0.159.0, run the following in the named review pane in the assigned
-worker worktree, capturing the report and exit status as required above. The
-native spelling of x-high is `xhigh`. Set both the ordinary and review-specific
-model so a saved review override cannot select a different model:
+For local review launch and preflight, follow
+[pi-review-loop](../.pi/skills/pi-review-loop/SKILL.md) rather than maintaining a
+second command template here. It requires a fresh Pi process using
+`openai/gpt-6.1-sol`, `xhigh`, fast mode, and its explicit reviewer instructions.
+Codex CLI authentication/configuration is no longer a review prerequisite.
 
-```sh
-codex review --base "$ASSIGNED_BASE_SHA" \
-  -c 'model="gpt-6.1-sol"' \
-  -c 'review_model="gpt-6.1-sol"' \
-  -c 'model_reasoning_effort="xhigh"' \
-  -c 'sandbox_mode="read-only"'
-```
-
-Baseline reconciliation inspected Pi 0.99.1, Codex CLI 0.159.0, CLI help, and
-the compatible running Herdr 0.9.1 server without launching agents. Pi's offline
-model list included the requested models; its no-refresh authentication check
-reported ready. Codex reported logged in, its model catalog advertised `gpt-6.1-sol` with `xhigh`, and `features list`
-accepted the above configuration overrides. `--strict-config` is not supported
-by that inspection command. These checks are not an agent launch, an effective
-review-session configuration check, or proof of a successful model request.
-Recheck actual harness/model/thinking and resource names at launch, and stop on a
-mismatch. No model substitution or completed-review claim follows from preflight.
+Earlier baseline reconciliation inspected Pi 0.99.1 and the compatible Herdr 0.9.1
+server without launching agents. Those historical checks do not establish current
+reviewer availability, effective settings, or a successful model request. Recheck
+actual prerequisites and resource names at launch; unavailable verification is a
+blocker, not permission to substitute a model or claim a completed review.
 
 ## Integration and completion
 
@@ -274,10 +262,11 @@ for newly discovered work while preserving dependencies and accepted requirement
 Before closing the root, perform combined real Pi lifecycle/consumer checks,
 isolated real Herdr checks, actual supported Linux inhibition checks, source Pi
 checks, explicit fresh builds/packs and tarball checks, and independent npm/pnpm
-consumer checks as applicable. Run a final Codex review/fix/review loop of the
-combined integration against the campaign's recorded starting SHA, with the same
-reviewer model and evidence rules. Resolve cross-package findings rather than
-assuming separately reviewed packages compose correctly.
+consumer checks as applicable. Run the local Pi review loop on the combined
+integration against the campaign's recorded starting SHA, with the same evidence
+and triage rules. Resolve required cross-package findings and record supported
+deferrals/dismissals rather than assuming separately reviewed packages compose
+correctly.
 
 Validate Mara completely, diagnose Work, inspect final diffs, and report commits,
 reviewed baselines, executed checks, artifacts, and remaining limitations. Unavailable

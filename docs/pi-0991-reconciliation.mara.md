@@ -29,8 +29,11 @@ historical context, not contradictory current requirements.
 The user authorized the remaining isolated feasibility probes and three parallel
 existing-package repair workers: statusline accounting, statusline model display,
 and conservative fast-mode eligibility. Workers use Pi `openai-codex/gpt-6.1-sol`
-with `high`; worker-owned Codex reviews use `gpt-6.1-sol` with `xhigh` in fresh
-named Herdr tabs, repeating review/fix/review until explicitly clean. Use isolated
+with `high`; required local reviews now use the
+[Pi review loop](../.pi/skills/pi-review-loop/SKILL.md) and
+[finding triage](../.pi/skills/triage-findings/SKILL.md), not Codex CLI. Stop when
+required fixes and clarifications are resolved and all findings are dispositioned;
+distinguish clean review from accepted after triage. Use isolated
 Herdr worktrees and the review/provenance rules in
 [parallel implementation](parallel-implementation.mara.md). This does not dispatch
 the workflow-package campaign, authorize publishing, or revive the retired
@@ -419,4 +422,6 @@ integration or establish live fast-service provider behavior, and do not authori
 publication. The separate classifier pilot is not a substitute for those checks. Recheck the
 [named-agent/model preflight](parallel-implementation.mara.md) before a separately
 controlled restart; coordinator remains Astra/high, workers Sol 6.1/high, and
-Codex reviewers Sol 6.1/xhigh.
+local reviewers use fresh Pi `openai/gpt-6.1-sol`/`xhigh`/fast under the review skill.
+Historical Codex review results above retain their original provenance; they do
+not impose a current Codex review gate.
