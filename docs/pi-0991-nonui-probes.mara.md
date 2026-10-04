@@ -2,8 +2,8 @@
 
 The user authorized isolated offline startup, waiting, result-delivery and
 cancellation probes after accepting [[REQ-PI-NONUI-AWAIT]]. These observations are
-not a workflow implementation, a diagnosis of the historical reviewer incident,
-or permission to restart the campaign. No live inference was performed.
+not a workflow implementation or a diagnosis of the historical reviewer incident.
+No live inference was performed.
 
 ## Subject and isolation
 
@@ -86,8 +86,7 @@ local/Herdr processes, generic gate integration, process trees, result-storage
 failures and nested receipts remain unverified. Unknown-owner waits, next-turn
 versus automatic delivery at settlement, goal pause/budget boundaries, and exact
 machine-readable terminal/exit semantics are still unresolved design choices.
-Existing local Pi API drafts remain drafts; these findings do not authorize
-additional API drafting, submission, an upgrade, implementation or dispatch.
+Existing local Pi API proposals remain drafts, not available or verified host APIs.
 
 ## Supplementary turn-end observations
 
@@ -178,7 +177,7 @@ including the known failure modes. It does not mean [[VER-PI-NONUI-AWAIT]] or
 
 Executed and replayed 17 isolated offline scenarios through the installed compiled Pi 0.99.1 CLI using an in-process synthetic provider and timer-only work. The report above and [archived sources/observations](pi-0991-nonui-probe-data.mara.md) distinguish unguarded early settlement, successful native pre-settlement result consumption, delayed RPC abort without a boundary signal, SIGTERM fixture cleanup, CLI flag/startup races and missing JSON startup events, native first-input transformation, help-only loading, and boundary errors that still exit zero.
 
-All final fixture assertions and fresh-directory replay completed successfully, including assertions of host limitations. Outcome is inconclusive for the linked full verification methods: these are partial host observations, not an implemented goal/jobs/Herdr integration or a passing non-UI workflow. No live inference, managed OS jobs, campaign agents or reviewers ran. The observed premature completion resembles the user's regression scenario but does not diagnose the historical reviewer incident. The campaign remains paused; cancellation, startup and terminal-outcome designs remain open.
+All final fixture assertions and fresh-directory replay completed successfully, including assertions of host limitations. Outcome is inconclusive for the linked full verification methods: these are partial host observations, not an implemented goal/jobs/Herdr integration or a passing non-UI workflow. No live inference, managed OS jobs, campaign agents or reviewers ran. The observed premature completion resembles the user's regression scenario but does not diagnose the historical reviewer incident. Cancellation, startup and terminal-outcome integration remain outside this evidence's verified scope.
 :::
 
 :::mara evidence EVD-PI-0991-TURN-END-PROBES

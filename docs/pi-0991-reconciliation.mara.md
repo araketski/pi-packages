@@ -1,8 +1,8 @@
-# Pi 0.99.1 campaign reconciliation
+# Pi 0.99.1 capability reconciliation
 
 Pi 0.99.1 is the agreed development baseline. Source inspection, completed baseline
 checks, and limited classifier evaluation below are distinct from full workflow
-runtime verification or authorization to dispatch the paused campaign.
+runtime verification. Delivery status and routine review/check receipts belong in Work.
 The release-time verification policy remains [[REQ-PI-RELEASE-COMPAT]].
 
 ## Current implementation scope after user simplification
@@ -26,62 +26,7 @@ configured whole-goal token/wall-time limits are separate and remain opt-in.
 Earlier budget choices, conditional API proposals, and probe findings below are
 historical context, not contradictory current requirements.
 
-The user authorized the remaining isolated feasibility probes and three parallel
-existing-package repair workers: statusline accounting, statusline model display,
-and conservative fast-mode eligibility. Workers use Pi `openai-codex/gpt-6.1-sol`
-with `high`; required local reviews now use the
-[Pi review loop](../.pi/skills/pi-review-loop/SKILL.md) and
-[finding triage](../.pi/skills/triage-findings/SKILL.md), not Codex CLI. Stop when
-required fixes and clarifications are resolved and all findings are dispositioned;
-distinguish clean review from accepted after triage. Use isolated
-Herdr worktrees and the review/provenance rules in
-[parallel implementation](parallel-implementation.mara.md). This does not dispatch
-the workflow-package campaign, authorize publishing, or revive the retired
-integration checkout. Record actual repair assignments and evidence in Work.
-
-## Repair implementation checkpoint (2026-10-01)
-
-At this checkpoint, `repair/native-pi-integration` combined the reviewed
-statusline accounting and observed-model repairs in
-[[DES-STATUSLINE-BUILTIN-VALUES]] with a conservative fast-mode omission. That
-omission disabled all fast wire mutations, including direct selections, while
-preserving intent. The user subsequently rejected that loss of functionality;
-the restoration below supersedes the blanket no-op policy. Earlier verification
-here remains historical evidence, not proof that the disabled feature worked.
-
-At implementation revision `fab471dae79b5ce2a7ff07a235213ca60f099e3e`, uncached
-checks passed 51 statusline and 45 fast-mode tests, typechecking, lint and source
-Pi checks, including SDK 0.99.1 loopback and fresh packed npm loading. Worker
-Codex reviews completed clean after their fix loops.
-
-Final combined review at `7df7f6963c7ecddd9e9db645ae6f4413514b1fc2`, against the
-unchanged `4a8cc2fb42b3748494d73cda0c64adcdd95e185d` base, also completed explicitly
-clean (Codex Sol 6.1, xhigh, read-only). Independent coordinator checks passed
-109 tests: 51 statusline, 45 fast-mode and 13 statusline-protocol, plus their
-resolved typecheck/lint/source Pi targets, frozen install, protocol build,
-fresh archive checks and complete Mara validation. Fresh npm and pnpm consumers
-loaded both extensions together on SDK 0.99.1 and replayed the bounded loopback
-no-mutation/persisted-intent case. Full reports, commands, artifact hashes and
-limitations are recorded in repair Work item `w-7b1cafa2`.
-
-The first fresh fast-only check exposed missing protocol declarations when
-its typecheck ran concurrently with the build; final checks explicitly built
-the protocol first. That unchanged target-ordering issue is tracked separately
-as `w-4021e096`, not silently counted as fixed. The user subsequently approved
-merging the repair branch: `rework` now contains `d31b087`, with the same 109 tests
-and scoped checks passing again in that checkout. The user separately authorized
-the build-order follow-up. It is now fixed by `05ca10e`, integrated unchanged into
-`rework` as `c6023bb`: standalone fast-mode typecheck automatically builds its
-protocol prerequisite. Worker red/green and an independent coordinator cold-output
-replay verified this without manual prebuild; the integrated 109-test/scoped-check
-run and complete Mara validation passed. The Sol 6.1/xhigh review was explicitly
-clean. The repeatable method is in [[VER-FAST-REQUEST]] and full execution evidence
-is in Work item `w-4021e096`. No interactive QA, live fast-service support or
-publication is claimed. The workflow campaign stays
-paused. Installed Pi CLI 0.99.2 has not changed the repository/consumer SDK
-baseline.
-
-## User-requested fast-mode restoration (2026-10-01)
+## Fast-mode compatibility observations
 
 The user explicitly requested usable fast mode after encountering the no-op
 warning. [[REQ-FAST-ELIGIBILITY]] and [[DES-FAST-REQUEST]] now restore the existing
@@ -100,8 +45,7 @@ into the native payload list after Pi generates its defaults, preserving effort,
 thinking-binding and OAuth betas. The SDK serializes this list into the HTTP
 header; the extension no longer registers a header-only mutation handler.
 No live service acceptance or speedup is claimed.
-Work item `w-4d6781fd` records execution/check evidence. The workflow campaign
-remains paused; no dependency upgrade or settings rewrite accompanies restoration.
+Work item `w-4d6781fd` records execution/check evidence.
 
 The user subsequently reported that `openai/gpt-6.1-sol` was still excluded.
 That exact ID is now explicitly allowlisted for OpenAI Responses and OAuth Codex
@@ -129,7 +73,7 @@ local jobs, Herdr, goal, caffeinate and gates-inspection extensions, with only
 necessary execution lifecycle/ownership/storage/delivery shared between local and
 Herdr execution; see [[DES-JOBS-PACKAGE-BOUNDARY]]. Pi retains tool discovery,
 composition and agent scheduling. Producer independence still applies. Concrete
-interfaces and proof mechanisms remain unverified; the campaign is still paused.
+interfaces and proof mechanisms require implementation-time verification.
 
 ## Native capabilities to reuse
 
@@ -150,7 +94,7 @@ interfaces and proof mechanisms remain unverified; the campaign is still paused.
   `turn_end`/`agent_before_settle`, and notification-only `agent_settled`. Do not
   equate low-level `agent_end`, queue acceptance, or RPC prompt disposition with
   final delivery or settled inactivity. These lifecycle boundaries are not all
-  new in 0.99.1; their existing semantics still govern the campaign.
+  new in 0.99.1; their existing semantics still govern integration behavior.
 - Use Pi UI components and active theme callbacks. The new default `system`
   palette can change at runtime; avoid permanently cached ANSI colors. Existing
   `theme.fg()`/`bg()` remain supported alongside `style()`, colors, and appearance.
@@ -265,12 +209,12 @@ The plugin itself has no inferred `pi-check` target; the eligible generated
 consumer packages were checked. Other packages, Node versions and full workflow
 integration were not reverified by this bounded repair.
 
-## Agreed changes not yet implemented
+## Agreed capability boundaries
 
 - [[REQ-STATUSLINE-BUILTINS]] and [[DES-STATUSLINE-BUILTIN-VALUES]] now include
-  tool-result/native usage and selected-to-actual model display. Current code is
-  still assistant-usage-only and selected-model-only. Earlier passing fixtures
-  do not establish these new behaviors.
+  tool-result/native usage and selected-to-actual model display. The requirements
+  and their verification methods define coverage; the historical host inspection
+  alone does not establish implementation conformance.
 - At inspection, [[REQ-FAST-ELIGIBILITY]] required actual-request identity.
   Its later direct-mode restoration above supersedes blanket omission; routed
   support remains unavailable. Sol 6.1 was subsequently explicitly added after
@@ -302,15 +246,13 @@ other sessions. [[REQ-GOAL-NO-PROGRESS]] now scopes classifier observations to
 completed assistant turns in the current active goal interval, while retaining the
 deterministic fallback's narrower sampling. Pause/resume, gates, budgets, evidence,
 and completion safeguards remain unchanged. The updated verification methods are
-future checks, not runtime evidence. Work item bodies follow the corrected model;
-metadata, dependencies, sequencing and the campaign pause are unchanged.
+repeatable integration checks, not runtime evidence.
 
 [[REQ-PI-NONUI-AWAIT]] subsequently revises the earlier separate-explicit-wait
 policy: selected awaited work must prevent premature non-UI completion, including
 reviewers without an active goal. Required final results must reach the model before
 it finishes the task; an assistant saying it is waiting is not successful completion.
-[[VER-PI-NONUI-AWAIT]] defines the regression and cancellation/exit checks. Isolated
-offline lifecycle probes were authorized; implementation and campaign dispatch are not.
+[[VER-PI-NONUI-AWAIT]] defines the regression and cancellation/exit checks.
 Subsequent [[EVD-PI-0991-NONUI-PROBES]] records 17 CLI scenarios and a fresh replay:
 native pre-settlement waiting can deliver a result for model consumption without
 polling, but the tested wait has no boundary cancellation signal, RPC abort waits
@@ -344,33 +286,35 @@ Responsive owners with known pending work remain normal waits. The updated
 conformance. The user subsequently chose explicit `/goal resume` after a
 needs-attention pause, even if the owner recovers; see [[REQ-GOAL-PAUSE-RECOVERY]].
 Independent jobs and result delivery remain unaffected by that goal pause.
-API drafts, conditional exit signaling and the campaign pause are unchanged.
+The current supported scope is defined by the requirements above, not the local API drafts.
 
 Before implementation/API freeze, verify the prefixed tool surface, bash replacement
 and explicit disabling; resolve model-visible nested receipts; public routed-model
 identity; foreground/handoff cancellation; reload/session-scoped callbacks; concrete
 active-goal context/lifecycle isolation and mode-specific CLI startup; and usage/activity
 attribution for classifier calls inside and outside tools. Record unsupported cases
-honestly rather than using private state or adding a tool broker. The existing Work graph is not dispatch authorization.
+honestly rather than using private state or adding a tool broker.
 
 Subsequent user-authorized [[EVD-PI-0991-NATIVE-PROBES]] records 21 isolated SDK
 and loopback scenarios with no live model calls. It confirms useful tool/lifecycle
-seams, while exposing missing pre-dispatch routed identity and non-tool usage
+seams, while exposing missing pre-request routed identity and non-tool usage
 attribution, classifier retry/deadline nuances, and differing direct/nested signal
 lifetimes. Nested delivery receipts and current-goal lifecycle/revision isolation
 remain design work; the superseded per-chat attachment policy is not an API gap.
 See [the report and replay fixtures](pi-0991-native-probes.mara.md); these limited
-observations do not complete workflow verification or authorize dispatch.
+observations do not complete workflow verification.
 
 The subsequent user decision sets native classifier `maxRetries: 0` in
 [[DES-GOAL-CLASSIFIER-POLICY]]. Local-only [[DES-PI-EXTENSION-USAGE-API]] and
 [[DES-PI-REQUEST-IDENTITY-API]] draft the two requested upstream additions;
 [their scope and open questions](pi-api-proposals.mara.md) are not implemented
-or accepted upstream APIs. No submission, Pi upgrade, or restart is authorized.
+or accepted upstream APIs. The drafts do not establish host support.
 
-## Verification before dispatch
+<a id="verification-before-dispatch"></a>
 
-The coordinator-owned baseline Work prerequisite blocks the first scaffold until:
+## Baseline compatibility checks
+
+Historical baseline verification covered the following compatibility criteria.
 
 1. Repository Pi development versions and independent consumer fixtures select
    0.99.1; the lockfile is generated through pnpm and frozen installation passes.
@@ -386,7 +330,7 @@ The coordinator-owned baseline Work prerequisite blocks the first scaffold until
 ### Observed repository checks
 
 On Node 26.7.0 with pnpm 12.8.1 and npm 11.19.0, the preparation working tree
-passed the following checks; no release or campaign implementation is implied:
+passed the following checks; no release or workflow implementation is implied:
 
 - The new first-user persistence regression failed on 0.87.1 at the expected
   missing-file assertion (22 other tests passed), then all 23 gates-protocol
@@ -411,17 +355,7 @@ passed the following checks; no release or campaign implementation is implied:
   Nx emitted its known native-TypeScript/CommonJS loading warnings before its
   successful fallback; these were not runtime compatibility failures.
 
-The user approved retaining pnpm's automatic `minimumReleaseAgeExclude` additions
-for the eight exact-version Pi 0.99.1 packages and committing this verified upgrade.
-No unrelated catalog versions or package release versions were selected for change.
-The baseline Work item records local logs and archive hashes. Completing that
-prerequisite does not lift the campaign pause or authorize implementation dispatch.
-
-These baseline checks do not close future native jobs/Herdr/goal/caffeinate/gates
-integration or establish live fast-service provider behavior, and do not authorize
-publication. The separate classifier pilot is not a substitute for those checks. Recheck the
-[named-agent/model preflight](parallel-implementation.mara.md) before a separately
-controlled restart; coordinator remains Astra/high, workers Sol 6.1/high, and
-local reviewers use fresh Pi `openai/gpt-6.1-sol`/`xhigh`/fast under the review skill.
-Historical Codex review results above retain their original provenance; they do
-not impose a current Codex review gate.
+These historical baseline checks do not establish full jobs/Herdr/goal/caffeinate/gates
+integration, live fast-service provider behavior, or release readiness. Routine
+commands, logs, archive hashes, and delivery receipts are recorded in the owning
+Work items; the classifier pilot is not a substitute for runtime integration.

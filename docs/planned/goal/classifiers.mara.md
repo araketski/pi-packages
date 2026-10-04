@@ -1,7 +1,7 @@
 # Goal classifier policy and limited evaluation
 
 These are agreed provisional settings and recorded synthetic evaluation, not an
-implemented goal extension, calibrated production accuracy, or campaign dispatch.
+implemented goal extension or calibrated production accuracy.
 Use Pi's available classifiers and existing provider configuration, with an
 extension-configured opt-out, necessary assessment context, and no new approval or
 cost-management layer. Concrete settings, supported lifecycle/cancellation hooks,
@@ -19,7 +19,7 @@ are omitted rather than turned into mandatory API prerequisites.
 
 On 2026-09-30, with repository HEAD `4d13b89e6c49a21fca10f0ce32faf8f428cf17e4` unchanged, used Pi 0.99.1's native `models.getAvailableOfType("classifier")` and `models.classify()` from codemode. Availability inspection was followed by actual classifier requests; no provider was enabled and no new AI client was introduced. These were synthetic evaluations, not goal extension execution, repository-content review, or a native goal lifecycle test.
 
-The user authorized 40 calls across OpenRouter `typesafe/jev-1.13` and `jaredpalmer/kev-4b`, then 60 additional Jev calls, under one USD 1 estimated-spend ceiling and a stop-on-unaccountable-pricing/usage condition. Exactly 100 calls completed (80 Jev, 20 Kev), one at a time, without missing usage, call errors, or extra retries. All authorized calls are consumed; this is not authorization for further evaluations.
+The user authorized 40 calls across OpenRouter `typesafe/jev-1.13` and `jaredpalmer/kev-4b`, then 60 additional Jev calls, under one USD 1 estimated-spend ceiling and a stop-on-unaccountable-pricing/usage condition. Exactly 100 calls completed (80 Jev, 20 Kev), one at a time, without missing usage, call errors, or extra retries.
 
 Twenty prelabelled pilot cases per model covered progress, repetition, legitimate waiting, blockers, uncertainty, acceptance-criteria quality, evidence, and embedded misleading instructions. Jev matched 19/20 exact labels and all 20 intended action outcomes; its one disagreement was insufficient versus uncertain, both refusing review. Kev matched 16/20 labels and 18/20 action outcomes, including two incorrect criteria approvals. This supports selecting Jev as an evaluation reference, not treating its answers as facts.
 

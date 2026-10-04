@@ -41,8 +41,7 @@ clarifies transport-failure/profile fallback while retaining applicable review
 vetoes, and records explicit user recovery for abandoned wait obligations.
 [[EVD-GOAL-CLASSIFIER-PILOT]] records actual synthetic calls, not an implemented goal
 runtime or calibrated production accuracy. Public hook/context/usage integration
-still needs design and verification. No provider is enabled by this specification,
-and neither these decisions nor the pilot authorize campaign dispatch.
+still needs design and verification. No provider is enabled by this specification.
 
 ## Agreed knowledge
 

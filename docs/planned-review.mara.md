@@ -5,7 +5,7 @@ start, plus the linked gates/workflow contracts, classifier records and native
 non-UI probe findings. Another contributor subsequently scaffolded session-activity
 and moved its reviewed contract to `packages/session-activity/docs/`.
 The review did not implement the workflow packages, run their future tests,
-enable providers, or restart the implementation campaign.
+or enable providers.
 
 ## Review scope and conclusions
 

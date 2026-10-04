@@ -1,11 +1,10 @@
 # Local drafts for Pi API additions
 
-The user authorized **drafting**, not upstream submission, implementation, a Pi
-upgrade, or campaign restart. The designs below are **draft proposals**:
+The designs below are **local draft proposals**, not implemented host features:
 names and signatures are illustrative, not APIs available in Pi 0.99.1 or
 accepted upstream contracts. The user's subsequent scope decision is to implement
 against current public Pi capabilities and omit unsupported features. None of these
-four proposals is a campaign prerequisite, an instruction to build a host workaround,
+four proposals is an implementation prerequisite, an instruction to build a host workaround,
 or a reason to block otherwise supported extension functionality.
 
 The basis is [[EVD-PI-0991-NATIVE-PROBES]] and the installed 0.99.1

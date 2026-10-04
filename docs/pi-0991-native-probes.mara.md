@@ -1,9 +1,8 @@
 # Pi 0.99.1 isolated native API probes
 
 This report records SDK and loopback-transport observations, not implementation of
-the planned workflow packages. The campaign remains paused. No accepted policy,
-Work dependency, provider selection, package implementation or user setting was
-changed by these probes.
+the planned workflow packages. The fixtures exercise host capabilities without
+changing provider configuration or implementing the packages.
 
 :::mara evidence EVD-PI-0991-NATIVE-PROBES
 :mid: 01M3RZCYDE3WEPS6SKADT4CPKN
@@ -21,7 +20,7 @@ On 2026-09-30, with repository implementation unchanged at the subject revision,
 
 ## Isolation and scope
 
-Every script ran in a fresh Linux user/network namespace, with an empty inherited environment except PATH, an isolated HOME, PI_OFFLINE=1 and the result filename. Only the wire script enabled that namespace's loopback interface. There was no external network route, inherited provider credential, live model inference, campaign agent or reviewer. Chat responses and classifier answers were deterministic fixtures. The wire script used Pi's actual OpenAI Responses and System One implementations against a loopback HTTP server: two chat requests and six classifier HTTP attempts, not calls to a model service. Reported fixture usage/cost is test data, not money spent. All 100 earlier live-classifier authorizations remain consumed.
+Every script ran in a fresh Linux user/network namespace, with an empty inherited environment except PATH, an isolated HOME, PI_OFFLINE=1 and the result filename. Only the wire script enabled that namespace's loopback interface. There was no external network route, inherited provider credential, live model inference, campaign agent or reviewer. Chat responses and classifier answers were deterministic fixtures. The wire script used Pi's actual OpenAI Responses and System One implementations against a loopback HTTP server: two chat requests and six classifier HTTP attempts, not calls to a model service. Reported fixture usage/cost is test data, not money spent.
 
 Created disposable SDK sessions and resource loaders under the cache directory, using public SDK/extension interfaces. Read implementation sources only to interpret public behavior, not to mutate private state or use a private usage writer. No Herdr resource, managed OS job or inhibitor was created. Current Nx targets cover existing packages, not these standalone external-cache SDK probes; no package test, build, pack or consumer target was rerun for this documentation-only increment.
 
@@ -65,7 +64,7 @@ This supports honest selected-to-observed-model presentation, not a safe pre-dis
 
 Overall result is **inconclusive for the linked full verification methods**. The probes establish useful native seams and specific limits, not workflow implementation, complete namespace/provider compatibility, delivery receipts, classifier budgets/temporal policy, OS inhibition or real managed execution. They do not cover interactive/print/JSON/RPC parity, reload handoff of real processes, or every provider. No implementation item was closed and the Work graph was not resequenced.
 
-Before further implementation, resolve non-tool usage attribution, the identifiable nested delivery path, native retry/deadline accounting, exact tool names/disablement semantics, current-goal lifecycle/revision isolation and managed cancellation handoff. Any proposal to change Pi, relax a contract, or alter campaign prerequisites requires separate agreement; these findings do not authorize an upstream submission, dependency upgrade or campaign restart.
+Before further implementation, resolve non-tool usage attribution, the identifiable nested delivery path, native retry/deadline accounting, exact tool names/disablement semantics, current-goal lifecycle/revision isolation and managed cancellation handoff. These observations establish tested host limitations, not implementation conformance or support for the local API proposals.
 :::
 
 ## Reproduction
