@@ -26,9 +26,3 @@ Connect actual Pi activity/messages and all tracked session gate views to inhibi
 ## Observable acceptance
 
 Test session A pending while B is current/idle, switching/reload without forgetting holds, multiple independent reasons, unknown versus confirmed-empty owners, explicit overrides/rearming and final owner clearance. Include active classifier work inside and outside assistant turns under REQ-CAFFEINATE-AUTO-HOLD, through public activity or generic gates and with equivalent independent-producer fixtures. No historical-session scan, producer inspection, gate mutation, delivery or turn scheduling. If a generic protocol seam needs repair, coordinate it centrally and keep job-specific state outside the consumer.
-
-## Execution and handoff
-
-Read AGENTS.md and docs/parallel-implementation.mara.md. Resolve the listed Mara IDs in this checkout; IDs remain stable after documentation relocation. Use red-green-refactor for behavior and appropriate validation for non-executable changes. Define/update the slice design before implementation where the accepted contract delegates mechanisms. Do not claim a whole multi-package verification from partial fixtures.
-
-Run applicable resolved Nx checks and source pi-check after eligible package changes; validate affected Mara completely and inspect the diff. Follow the worker-owned Codex gpt-6.1-sol/x-high fresh-tab review/fix/review loop against the coordinator-assigned immutable integration base. Handoff green commits, reviewed base/HEAD, clean-review evidence, executed checks and limitations. Only the coordinator integrates and closes this item. Root configuration/shared public contract changes need explicit coordinator ownership or delegation.

@@ -21,6 +21,7 @@
 ## Durable execution tracking: Work
 
 - Use Work for durable implementation items and dependencies; keep product contracts and project documentation in Mara rather than copying specifications into task bodies.
+- Keep item bodies task-specific: outcomes, Mara references, acceptance criteria, blockers, delivery assignments, and evidence. Do not duplicate repository rules or skill procedures, including reviewer profiles, review loops, generic checks, commit rules, or handoff boilerplate. Worker prompts supply execution context; record actual assigned bases, delivery targets, and verification identities durably in the item or coordinator ledger.
 - Load the `work` skill before operating on items. Select the intended checkout explicitly, inspect CLI capabilities, and do not treat readiness as a claim or invent unsupported agent-management commands.
 - During the workflow-package campaign, follow [parallel implementation guidance](docs/parallel-implementation.mara.md) for coordinator authority, isolated worktrees, review loops, and completion evidence.
 - Follow the **Backlog policy** section of [triage-findings](.pi/skills/triage-findings/SKILL.md) for intake, organization, and scheduling. It is the single shared policy; priority scales and existing topic labels remain project configuration.
