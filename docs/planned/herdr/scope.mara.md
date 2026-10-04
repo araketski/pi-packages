@@ -24,7 +24,7 @@ JSON RPC adapter.
 | --- | --- |
 | Worktrees, workspaces, tabs, and panes | Managed execution identity and lifecycle |
 | Launching, inspecting, and controlling backend processes | Reconciliation of running, completed, and unknown state |
-| Terminal screen reads, input, and navigation/attach | Output records, bounded results, and completion delivery |
+| Terminal screen reads, input, and navigation/attach | Output records, bounded results, and queued/coalesced completion delivery |
 | Backend-specific ownership and liveness evidence | Timeout, explicit-wait, and gate-integration policy |
 
 The jobs module tracks executions, not inferred agent assignments. A finite
@@ -44,7 +44,11 @@ cancellation of owned managed commands from explicitly persistent Herdr terminal
 which remain running. Job cleanup must not close parent workspaces or delete
 worktrees. Shared [delivery behavior](../jobs-core/delivery.mara.md) is specified
 separately from consumer-owned [goal](../goal/jobs-integration.mara.md) and
-[caffeinate](../caffeinate/jobs-integration.mara.md) policies. Runner/storage details
+[caffeinate](../caffeinate/jobs-integration.mara.md) policies. The originating-session
+completion inbox ([[REQ-JOBS-COMPLETION-INBOX]]) belongs to shared jobs delivery:
+results can accumulate while the owner works, with one pending wake rather than
+one prompt per completion. This is not child-assignment tracking; a Herdr status
+event alone does not establish an assignment result. Runner/storage details
 and actual lifecycle/consumer integration still need designs and tests; this
 document does not claim those integrations work.
 
