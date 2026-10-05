@@ -224,8 +224,10 @@ tags, offsets and checksum before exposing historical bytes. The filename is
 an opaque random UUID with .output suffix; it is not a consumer-selected path.
 
 Persist via one same-directory .tmp sibling, close then rename over the
-artifact; no backup/journal/fsync claim. At most 2B+4096 bytes at rest and
-4B+8192 during replacement per job. Unlink the temporary file on failure where
+artifact; no backup/journal/fsync claim. In successful steady state, 2B+4096 bytes at rest; at most
+4B+8192 during replacement or after a failed temporary cleanup per job.
+Further replacements stop after failure, so leftover temporary bytes do not
+accumulate. Temporary cleanup is best-effort and its failure is diagnosed. Unlink the temporary file on failure where
 possible and diagnose cleanup failure; failures do not restart writing into
 a second authoritative store. Live owner capture is 2B bytes; at most one
 immutable write snapshot adds 2B+4096. There is no accumulated write queue.
@@ -234,17 +236,24 @@ and coalesced per-job historical I/O reads at most 2B+4096. Returned text is
 derived from retained bytes; JS UTF-16 text is at most 2B code units.
 Metadata is bounded by the 65,536-byte entry envelope, with a fixed schema
 (no arbitrary extra fields), one observation/result/intent and bounded diagnostic
-slots (one latest metadata and one latest output error, each at most 1,024
-characters). JS engine object/allocator overhead is not claimed as a portable
+slots (one latest metadata, one latest output and one counter-exhaustion error,
+each at most 1,024 characters). JS engine object/allocator overhead is not claimed as a portable
 exact byte count; binary allocations, text code-unit limits and object/index
 counts are explicit. No independent helper/reply/memory authority exists.
 
 ## One owner ordering and failure rules
 
 All accepted capture, metadata transitions, live reads and eligibility changes
-linearize synchronously in call order at the owner. Inputs are validated and
-detached before acceptance. Reads copy current owner state and never overwrite
-it from disk. One coalesced writer per owner serializes immutable output
+linearize synchronously in call order at the owner. Inputs are schema/size-screened before copying, then validated again after
+detachment and before acceptance. Invalid/unknown payload fields are not copied
+into capture/fallback state. Reads copy current owner state and never overwrite
+it from disk. A current capture with an uncommitted write revision is reported
+memory-only, not already saved. Detailed byte reads retain stream/offset truth;
+readOutput decodes contiguous UTF-8 across the prefix/tail seam while keeping
+separated truncated ranges distinct. readExcerpt receives native Pi truncation
+as a caller-supplied function; it keeps presentationTruncated separate from
+capturedComplete/capturedOmittedBytes and always carries the output reference.
+No storage method sends a model message or verifies a receipt. One coalesced writer per owner serializes immutable output
 snapshots; writes accepted during an in-flight snapshot update only the owner
 ring and require a newer snapshot afterward. Disk replies carry that snapshot's
 revision and never assign old capture, metadata or terminal state back to the

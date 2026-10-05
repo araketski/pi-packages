@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SessionManager } from '@earendil-works/pi-coding-agent';
+import { SessionManager, truncateHead } from '@earendil-works/pi-coding-agent';
 import { afterEach, expect, it } from 'vitest';
 import * as core from './index.js';
 import { createUnknownJobFixture } from './testing.js';
@@ -411,4 +412,262 @@ it('allows independent jobs/producers/stores/sessions to exceed the per-job ceil
   expect(await readdir(outputRoot)).toHaveLength(3);
   await first.dispose();
   await second.dispose();
+});
+
+it('decodes contiguous complete UTF-8 output across the prefix/tail seam', async () => {
+  const { store, sink } = await setup({ maxBytes: 16, prefixBytes: 3 });
+  await sink.append({ stream: 'stdout', bytes: bytes('ab😀c') });
+  expect(ok(await store.readOutput(job())).text).toBe('ab😀c');
+  expect(ok(await store.readOutput(job())).complete).toBe(true);
+});
+
+it('does not describe newer capture as saved while an older disk replacement is delayed', async () => {
+  const outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let writes = 0,
+    release!: () => void,
+    entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const { store, sink } = await setup({
+    io: {
+      ...io,
+      write: async (...args) => {
+        if (++writes === 2) {
+          entered();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        await io.write(...args);
+      },
+    },
+  });
+  const writing = sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  await started;
+  expect(ok(await store.readCapturedOutput(job())).availability).toBe('memory-only');
+  release();
+  await writing;
+  expect(ok(await store.readCapturedOutput(job())).availability).toBe('saved');
+});
+
+it('runs a real child, continues draining through actual filesystem write failure, and preserves its nonzero exit', async () => {
+  const outputRoot = await root();
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    maxBytes: 100,
+    prefixBytes: 10,
+  });
+  const token = ok(await store.jobStore.reserve(launch())),
+    sink = ok(store.output(token)),
+    ref = ok(await store.inspect(job())).outputReference;
+  await mkdir(join(outputRoot, `${ref}.tmp`)); // Actual exclusive replacement failure, not a fake disk reply.
+  const child = spawn(
+    process.execPath,
+    [
+      '-e',
+      "process.stdout.write('A'.repeat(10000));process.stdout.write('Z'.repeat(1000));process.exitCode=7",
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  const exit = new Promise<number | null>((resolve) => child.once('close', resolve));
+  for await (const chunk of child.stdout)
+    await sink.append({ stream: 'stdout', bytes: new Uint8Array(chunk) });
+  expect(await exit).toBe(7);
+  ok(await store.resultSink.save(result()));
+  const captured = ok(await store.readCapturedOutput(job()));
+  expect(captured.availability).toBe('memory-only');
+  expect(captured.totalBytes).toBe(11000);
+  expect(captured.omittedBytes).toBe(10900);
+  expect(text(captured.prefix!.bytes)).toBe('A'.repeat(10));
+  expect(text(captured.tail!.bytes)).toBe('Z'.repeat(90));
+  expect(ok(await store.resultSink.read(result().identity)).outcome).toEqual({
+    kind: 'exit',
+    exitCode: 7,
+  });
+});
+
+it('does not launch a real side-effecting child when actual output setup is blocked', async () => {
+  const base = await root(),
+    blocked = join(base, 'blocked'),
+    marker = join(base, 'started');
+  await writeFile(blocked, 'not a directory');
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot: blocked,
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  const admitted = await store.jobStore.reserve(launch());
+  if (admitted.status === 'ok')
+    spawnSync(process.execPath, [
+      '-e',
+      "require('node:fs').writeFileSync(process.argv[1],'started')",
+      marker,
+    ]);
+  expect(admitted.status).toBe('unavailable');
+  await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+it('uses actual Pi in-memory custom entries and keeps bounded metadata/results after an after-launch append failure', async () => {
+  const manager = SessionManager.inMemory(),
+    sessionId = manager.getSessionId(),
+    outputRoot = await root();
+  let broken = false;
+  const capability = core.createJobsSessionCapability({
+    sessionId,
+    persistent: false,
+    isCurrent: () => manager.getSessionId() === sessionId,
+    appendEntry: (kind, data) => {
+      if (broken) throw new Error('append lost');
+      manager.appendCustomEntry(kind, data);
+    },
+    readEntries: () => manager.getEntries(),
+  });
+  const identity = job('J', sessionId),
+    store = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: capability,
+      maxBytes: 10,
+      prefixBytes: 3,
+    });
+  const token = ok(await store.jobStore.reserve(launch(identity)));
+  await ok(store.output(token)).append({ stream: 'stderr', bytes: bytes('abcdefghijk') });
+  broken = true;
+  expect((await store.resultSink.save(result(identity))).status).toBe('unavailable');
+  expect(ok(await store.inspect(identity)).resumability).toBe('memory-only');
+  expect(ok(await store.resultSink.read(result(identity).identity))).toEqual(result(identity));
+  expect(manager.getSessionFile()).toBeUndefined();
+  expect(manager.buildSessionContext().messages).toEqual([]);
+  broken = false;
+  ok(await store.resultSink.save(result(identity)));
+  const replayed = core.createSessionJobStorage({ sessionId, outputRoot, session: capability });
+  expect(ok(await replayed.replay())[0].historical).toBe(true);
+  expect(ok(await replayed.resultSink.read(result(identity).identity))).toEqual(result(identity));
+  await store.dispose();
+  expect(await readdir(outputRoot)).toEqual([]);
+  expect(manager.getEntries().filter((entry) => entry.type === 'custom')).toHaveLength(2);
+});
+
+it('rejects stale/malformed/forked replay and preserves saved terminal and delivery evidence', async () => {
+  const entries: unknown[] = [];
+  let now = 100;
+  const capability = core.createJobsSessionCapability({
+    sessionId: 'S',
+    persistent: true,
+    isCurrent: () => true,
+    appendEntry: (kind, data) => {
+      entries.push({ type: 'custom', customType: kind, data });
+    },
+    readEntries: () => entries,
+  });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot: await root(),
+    session: capability,
+    maxBytes: 10,
+    prefixBytes: 3,
+    now: () => now,
+    retentionMs: 1,
+  });
+  const token = ok(await store.jobStore.reserve(launch()));
+  ok(await store.recordIntent(token, { kind: 'stop-unconfirmed', reason: 'No terminal evidence' }));
+  const historical = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot: await root(),
+    session: capability,
+    now: () => now,
+    retentionMs: 1,
+  });
+  expect(ok(await historical.replay())[0].observation.execution.state).toBe('unknown');
+  now += 100;
+  expect(ok(await historical.expireEligibleOutputs()).expired).toEqual([]);
+  ok(await store.resultSink.save(result()));
+  ok(await store.jobStore.save(token, terminal()));
+  const final = structuredClone(entries.at(-1)) as { data: Record<string, unknown> };
+  entries.push({
+    ...final,
+    data: { ...final.data, revision: 100, observation: createUnknownJobFixture(job()) },
+  });
+  entries.push({
+    ...final,
+    data: {
+      ...final.data,
+      revision: 101,
+      result: { ...result(), outcome: { kind: 'exit', exitCode: new Number(0) } },
+    },
+  });
+  entries.push({
+    ...final,
+    data: { ...final.data, revision: 102, identity: { ...job(), sessionId: 'fork' } },
+  });
+  const saved = ok(await historical.replay())[0];
+  expect(saved.observation.execution.state).toBe('terminal');
+  expect(saved.result).toEqual(result());
+  saved.result!.content = 'tampered';
+  expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
+});
+
+it('uses injected actual Pi truncation for model excerpts without confusing presentation loss with captured loss', async () => {
+  const { store, sink } = await setup({ maxBytes: 100, prefixBytes: 10 });
+  await sink.append({ stream: 'stdout', bytes: bytes('one\ntwo\nthree\nfour\n') });
+  const excerpt = ok(
+    await store.readExcerpt(job(), (text) => truncateHead(text, { maxLines: 2, maxBytes: 10 })),
+  );
+  expect(excerpt.text).toBe('one\ntwo');
+  expect(excerpt.presentationTruncated).toBe(true);
+  expect(excerpt.capturedOmittedBytes).toBe(0);
+  expect(excerpt.capturedComplete).toBe(true);
+  expect(excerpt.reference).toMatch(/\.output$/);
+});
+
+it('rejects unbounded/unknown payloads before copying them into owner memory', async () => {
+  const { store } = await setup();
+  let copied = 0;
+  const invalid = {
+    ...result(),
+    get unexpected() {
+      copied++;
+      return new Uint8Array(1_000_000);
+    },
+  };
+  expect((await store.resultSink.save(invalid)).status).toBe('invalid');
+  expect(copied).toBe(0);
+});
+
+it('discards an awaited replay invalidated during the read without accepting another session history', async () => {
+  let release!: (entries: unknown[]) => void,
+    reads = 0,
+    appends = 0;
+  const capability = core.createJobsSessionCapability({
+    sessionId: 'S',
+    persistent: true,
+    isCurrent: () => true,
+    appendEntry: () => {
+      appends++;
+    },
+    readEntries: () => {
+      reads++;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    },
+  });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot: await root(),
+    session: capability,
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  const reading = store.replay();
+  capability.invalidate();
+  release([]);
+  expect((await reading).status).toBe('unavailable');
+  expect(reads).toBe(1);
+  expect((await store.jobStore.reserve(launch())).status).toBe('unavailable');
+  expect(appends).toBe(0);
 });

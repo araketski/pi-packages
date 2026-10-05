@@ -86,7 +86,11 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 function text(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
+  return (
+    typeof value === 'string' &&
+    value.length <= JOBS_SESSION_ENTRY_MAX_BYTES &&
+    value.trim().length > 0
+  );
 }
 function mode(value: unknown): boolean {
   return value === 'automatic' || value === 'next-natural-turn' || value === 'display-only';
@@ -166,7 +170,8 @@ function finalResult(value: unknown): value is FinalResult {
     identity(value.identity.job) &&
     id(value.identity.resultId) &&
     outcome(value.outcome) &&
-    typeof value.content === 'string'
+    typeof value.content === 'string' &&
+    value.content.length <= JOBS_SESSION_ENTRY_MAX_BYTES
   );
 }
 /** Integration supplies synchronous public append, bound to this origin, not a deferred retargeting callback. */
@@ -239,6 +244,13 @@ export interface CapturedOutput extends Partial<CapturedBytes> {
   availability: 'saved' | 'memory-only' | 'missing' | 'expired' | 'corrupt';
   diagnostics: string[];
 }
+export interface ModelOutputExcerpt {
+  text: string;
+  reference: string;
+  capturedComplete: boolean;
+  capturedOmittedBytes: number;
+  presentationTruncated: boolean;
+}
 export interface SessionJobStorage {
   jobStore: JobStore;
   resultSink: ResultSink;
@@ -246,6 +258,11 @@ export interface SessionJobStorage {
   inspect(job: JobIdentity): Promise<JobReply<StoredJob>>;
   readCapturedOutput(job: JobIdentity): Promise<JobReply<CapturedOutput>>;
   readOutput(job: JobIdentity): Promise<JobReply<OutputWindow>>;
+  /** Inject public native Pi truncation; presentation loss is NOT captured-byte loss. */
+  readExcerpt(
+    job: JobIdentity,
+    truncate: (text: string) => { content: string; truncated: boolean },
+  ): Promise<JobReply<ModelOutputExcerpt>>;
   recordIntent(reservation: StorageReservation, intent: StorageIntent): Promise<JobReply<void>>;
   replay(): Promise<JobReply<readonly StoredJob[]>>;
   replaceSessionCapability(capability: JobsSessionCapability): JobReply<void>;
@@ -459,14 +476,14 @@ export function createSessionJobStorage(options: {
         !owner.expired &&
         owner.persistedRevision < owner.captureRevision
       ) {
-        const revision = owner.captureRevision,
-          image = owner.capture!.image(owner.metadata.outputReference);
+        const revision = owner.captureRevision;
         try {
+          const image = owner.capture!.image(owner.metadata.outputReference);
           await io.write(owner.metadata.outputReference, image);
           owner.persistedRevision = revision;
         } catch (error) {
           owner.outputFailed = true;
-          owner.outputError = `Output persistence lost: ${reason(error)}`;
+          owner.outputError = `Output persistence lost: ${reason(error)}`.slice(0, 1024);
         }
       }
     });
@@ -494,7 +511,7 @@ export function createSessionJobStorage(options: {
         return true;
       } catch (error) {
         owner.expired = false;
-        owner.outputError = `Output expiry failed: ${reason(error)}`;
+        owner.outputError = `Output expiry failed: ${reason(error)}`.slice(0, 1024);
         return false;
       }
     });
@@ -525,7 +542,10 @@ export function createSessionJobStorage(options: {
       return {
         ...base,
         ...owner.capture.view(),
-        availability: owner.outputFailed ? 'memory-only' : 'saved',
+        availability:
+          owner.outputFailed || owner.persistedRevision !== owner.captureRevision
+            ? 'memory-only'
+            : 'saved',
       };
     if (owner.historicalRead) return owner.historicalRead;
     const reading = Promise.resolve().then(async (): Promise<CapturedOutput> => {
@@ -534,11 +554,8 @@ export function createSessionJobStorage(options: {
           base.reference,
           JOBS_OUTPUT_HEADER_BYTES + 2 * JOBS_OUTPUT_MAX_BYTES,
         );
-        return {
-          ...base,
-          ...decodeOutputImage(base.reference, image),
-          availability: owner.expired ? 'expired' : 'saved',
-        };
+        if (owner.expired) return { ...base, availability: 'expired' };
+        return { ...base, ...decodeOutputImage(base.reference, image), availability: 'saved' };
       } catch (error) {
         return {
           ...base,
@@ -662,6 +679,7 @@ export function createSessionJobStorage(options: {
         if (!owner) return fail('denied', 'No admitted storage token.');
         let value: JobObservation;
         try {
+          if (!observation(input)) return fail('invalid', 'Invalid or unbounded observation.');
           value = detached(input);
         } catch {
           return fail('invalid', 'Invalid observation.');
@@ -700,6 +718,11 @@ export function createSessionJobStorage(options: {
         if (disposed) return fail('unavailable', 'Storage disposed.');
         let value: FinalResult;
         try {
+          if (!finalResult(input))
+            return fail(
+              'invalid',
+              'Save bounded identity/outcome/content only; no output snapshots.',
+            );
           value = detached(input);
         } catch {
           return fail('invalid', 'Invalid compact result.');
@@ -785,11 +808,31 @@ export function createSessionJobStorage(options: {
         return fail('unavailable', `Output ${value.availability}; saved results remain separate.`);
       const decoder = new TextDecoder();
       return ok({
-        text: decoder.decode(value.prefix.bytes) + decoder.decode(value.tail.bytes),
+        text:
+          decoder.decode(value.prefix.bytes, { stream: value.omittedBytes === 0 }) +
+          decoder.decode(value.tail.bytes),
         reference: value.reference,
         complete: value.complete,
         omittedBytes: value.omittedBytes,
       });
+    },
+    async readExcerpt(job, truncate) {
+      const reply = await api.readOutput(job);
+      if (reply.status !== 'ok') return reply;
+      try {
+        const excerpt = truncate(reply.value.text);
+        if (typeof excerpt.content !== 'string' || typeof excerpt.truncated !== 'boolean')
+          return fail('invalid', 'Invalid native truncation result.');
+        return ok({
+          text: excerpt.content,
+          reference: reply.value.reference,
+          capturedComplete: reply.value.complete,
+          capturedOmittedBytes: reply.value.omittedBytes,
+          presentationTruncated: excerpt.truncated,
+        });
+      } catch (error) {
+        return fail('unavailable', reason(error));
+      }
     },
     async recordIntent(token, input) {
       if (disposed) return fail('unavailable', 'Storage disposed.');
@@ -797,6 +840,7 @@ export function createSessionJobStorage(options: {
       if (!owner) return fail('denied', 'No live admitted storage token.');
       let value: StorageIntent;
       try {
+        if (!intent(input)) return fail('invalid', 'Invalid or unbounded stop intent.');
         value = detached(input);
       } catch {
         return fail('invalid', 'Invalid stop intent.');
@@ -824,6 +868,7 @@ export function createSessionJobStorage(options: {
             entry.customType !== JOBS_SESSION_ENTRY_TYPE
           )
             continue;
+          if (!metadata(entry.data, sessionId)) continue;
           const m = detached(entry.data);
           if (!metadata(m, sessionId)) continue;
           const existing = owners.get(key(m.identity));
@@ -898,7 +943,7 @@ export function createSessionJobStorage(options: {
             await io.remove(owner.metadata.outputReference);
             owner.expired = true;
           } catch (error) {
-            owner.outputError = `Temporary cleanup failed: ${reason(error)}`;
+            owner.outputError = `Temporary cleanup failed: ${reason(error)}`.slice(0, 1024);
           }
         }
       }

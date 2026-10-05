@@ -11,6 +11,7 @@ export type {
   StorageIntent,
   StoredJob,
   CapturedOutput,
+  ModelOutputExcerpt,
   SessionJobStorage,
 } from './session-storage.js';
 export {
