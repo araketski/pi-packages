@@ -428,7 +428,12 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         reply.absence === 'identity-mismatch'
       )
         return failure(reply.reason);
-      if (reply.status === 'unavailable' && local && !('absence' in reply))
+      if (
+        reply.status === 'unavailable' &&
+        local &&
+        (!('absence' in reply) ||
+          (reply.absence === 'not-saved' && local.result?.identity.resultId === identity.resultId))
+      )
         warn(identity.job, reply.reason);
       if (
         reply.status !== 'ok' &&

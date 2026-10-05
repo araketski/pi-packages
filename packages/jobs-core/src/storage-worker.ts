@@ -96,7 +96,13 @@ async function transaction(request: Request): Promise<unknown> {
   responseLimit = Math.min(Number.MAX_SAFE_INTEGER, 2 * policy.totalBytes + 1024 * 1024);
   if (request.operation === 'init' && request.policy && !isDeepStrictEqual(request.policy, policy))
     return invalid('Conflicting root policy. Use the explicit user-policy operation.');
-  const jobs: { path: string; data: StoredJob; outputSize: number; temporaryBytes: number }[] = [];
+  const jobs: {
+    path: string;
+    data: StoredJob;
+    outputSize: number;
+    outputPresent: boolean;
+    temporaryBytes: number;
+  }[] = [];
   let extra = 2 * (await regular(policyPath)) + (await regular(join(root, 'quota.lock')));
   for (const name of await readdir(root)) {
     if (name === 'policy.json' || name === 'quota.lock') continue;
@@ -141,11 +147,13 @@ async function transaction(request: Request): Promise<unknown> {
     )
       throw new Error('Corrupt retention timestamp.');
     let outputSize = 0,
+      outputPresent = false,
       temporaryBytes = 0;
     for (const member of await readdir(path)) {
       const size = await regular(join(path, member));
       if (member === 'record.json') continue;
       if (member === 'output.bin') {
+        outputPresent = true;
         outputSize = size;
         continue;
       }
@@ -160,7 +168,7 @@ async function transaction(request: Request): Promise<unknown> {
       }
       throw new Error('Unknown job storage entry.');
     }
-    jobs.push({ path, data, outputSize, temporaryBytes });
+    jobs.push({ path, data, outputSize, outputPresent, temporaryBytes });
   }
   const charge = () =>
     extra +
@@ -353,12 +361,12 @@ async function transaction(request: Request): Promise<unknown> {
   }
   if (request.operation === 'append' || request.operation === 'output-read') {
     let window: ByteWindow = { bytes: Buffer.alloc(0), seen: 0, head: 0 };
-    if (job.outputSize) {
+    if (job.outputPresent) {
       if (job.outputSize > data.policy.outputBytes + 24) throw new Error('Corrupt output size.');
       window = decodeWindow(await readFile(join(path, 'output.bin')));
     }
     const digest = (w: ByteWindow) => createHash('sha256').update(encodeWindow(w)).digest('hex');
-    const diskDigest = job.outputSize ? digest(window) : 'missing';
+    const diskDigest = job.outputPresent ? digest(window) : 'missing';
     if (request.operation === 'output-read')
       return ok({
         bytes: window.bytes.toString('base64'),

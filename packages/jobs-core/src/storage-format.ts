@@ -80,6 +80,7 @@ export function validObservation(value: unknown): value is JobObservation {
     return false;
   if (!oneOf(d.mode, ['automatic', 'next-natural-turn', 'display-only'])) return false;
   if (d.state === 'delivered') {
+    if (e.state !== 'terminal' || d.mode === 'display-only') return false;
     const r = d.receipt;
     if (
       !object(r) ||
@@ -96,8 +97,7 @@ export function validObservation(value: unknown): value is JobObservation {
       return false;
   } else if (
     !(
-      d.state === 'pending' ||
-      d.state === 'unknown' ||
+      ((d.state === 'pending' || d.state === 'unknown') && !('receipt' in d)) ||
       (d.state === 'not-required' && d.mode === 'display-only')
     )
   )

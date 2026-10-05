@@ -64,6 +64,77 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review four regression: truncated zero-byte output is corrupt, not empty complete history', async () => {
+  const { storage, reservation, options, dir } = await setup();
+  await storage.output(reservation).append({ stream: 'combined', bytes: Buffer.from('lost') });
+  await writeFile(join(dir, 'output.bin'), Buffer.alloc(0));
+  const fresh = await createJobStorage(options);
+  expect((await fresh.readOutput(reservation.job)).status).toBe('unavailable');
+  expect((await fresh.jobs.save(reservation, running)).status).toBe('ok');
+  await fresh.output(reservation).append({ stream: 'combined', bytes: Buffer.from('new') });
+  expect((await fresh.readOutput(reservation.job)).status).toBe('unavailable');
+  expect(await readFile(join(dir, 'output.bin'))).toHaveLength(0);
+});
+it('review four regression: a missing known saved result retains bounded recovery and diagnoses loss', async () => {
+  const { storage, reservation, dir } = await setup();
+  const result = {
+    identity: { job: reservation.job, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'known completion',
+  };
+  expect((await storage.results.save(result)).status).toBe('ok');
+  await rm(join(dir, 'result.json'));
+  expect(await storage.results.read(result.identity)).toMatchObject({
+    status: 'ok',
+    value: result,
+  });
+  expect(storage.diagnostics()).toContainEqual(
+    expect.objectContaining({ kind: 'persistence-loss', reducedRecoverability: true }),
+  );
+  expect(
+    (
+      await storage.jobs.reserve({
+        ...launch,
+        identity: { ...launch.identity, jobId: 'after-loss' },
+      })
+    ).status,
+  ).toBe('unavailable');
+});
+it.each([
+  'running-delivered',
+  'unknown-delivered',
+  'display-delivered',
+  'pending-receipt',
+  'unknown-receipt',
+])('review four regression: rejects participant-incompatible %s', async (kind) => {
+  const { storage, reservation } = await setup();
+  const receipt = {
+    result: { job: reservation.job, resultId: 'saved' },
+    record: { sessionId: reservation.job.sessionId, entryId: 'E', kind: 'tool-result' as const },
+    contentDigest: 'digest',
+  };
+  const observation = {
+    ...running,
+    execution:
+      kind === 'running-delivered'
+        ? running.execution
+        : kind === 'unknown-delivered'
+          ? { state: 'unknown', reason: 'unknown' }
+          : { state: 'terminal', outcome: { kind: 'exit', exitCode: 0 } },
+    delivery: {
+      mode: kind === 'display-delivered' ? 'display-only' : 'automatic',
+      state:
+        kind === 'pending-receipt'
+          ? 'pending'
+          : kind === 'unknown-receipt'
+            ? 'unknown'
+            : 'delivered',
+      receipt,
+    },
+  } as JobObservation;
+  expect((await storage.jobs.save(reservation, observation)).status).toBe('invalid');
+  expect(storage.diagnostics()).toEqual([]);
+});
 it('review three regression: fitting terminal observations survive a failed rewrite', async () => {
   const { storage, reservation, dir } = await setup();
   const terminal: JobObservation = {

@@ -190,4 +190,10 @@ The bounded tracking fallback preserves a complete observation whose serialized 
 Private helper stdout begins with a small versioned framing header declaring its byte limit, computed while holding the root lock from the validated authoritative root policy. The reader validates the header (at most 1 KiB), then bounds UTF-8 reply bytes by that current transaction limit, not a reader's earlier cached preferences. This lets existing readers observe authorized shared-policy changes without recreating instances. There is no public port or disk-format change.
 
 Per-job interrupted atomic-file byte charges are released after physical deletion, including when retention removes the containing record before leftover cleanup. Survivors' temporary-byte totals are reduced when their leftovers are unlinked so a later quota eviction cannot subtract them twice. Retention and eviction therefore admit against remaining files within the same locked transaction.
+
+An existing output file is distinct from no output file: even a zero-length file must pass header decoding and otherwise be reported corrupt/unavailable; do not restart its seen-byte history. File presence is transient scan metadata, not a disk-format addition.
+
+If a known cached final result's file disappears while its tracking record remains, not-saved absence is persistence loss rather than ordinary first-time polling. Expose reduced recoverability and return that bounded known completion from memory without treating it as durable or as a delivery receipt. Whole-record confirmed retention removal still invalidates caches.
+
+Observation validation matches the unchanged participant cross-field contract: delivered requires terminal execution and a mode other than display-only, with a matching structured receipt. Pending/unknown delivery states cannot carry receipts. Refuse incompatible observations before storage mutation; do not infer delivery or execution from files.
 :::
