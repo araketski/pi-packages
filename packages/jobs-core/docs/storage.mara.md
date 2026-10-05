@@ -355,6 +355,15 @@ custom entries and historical replay. Independent jobs/producers/copies/sessions
 must exceed one job's bound in aggregate. Fresh packed npm/pnpm runtime and
 generated-declaration consumers exercise this API. Intended format agreement
 is not evidence of implemented behavior or passing checks.
+
+
+Before invoking an append callback, mark the newly asserted metadata/output
+status as unacknowledged. An identical reentrant call cannot infer acceptance
+from the previous assertion; only its own completed append can acknowledge it.
+Successful output expiry releases the owner's data/tag buffers after removal;
+a failed removal retains bounded known capture. Orderly disposal releases all
+capture buffers after its owned writes/cleanup settle, while preserving compact
+metadata/results and leaving persistent artifacts under their retention policy.
 :::
 
 :::mara decision ADR-JOBS-SESSION-BOUNDED-STORAGE

@@ -546,6 +546,8 @@ export function createSessionJobStorage(options: {
   };
   const appendMetadata = (owner: Owner): JobReply<void> => {
     const asserted = owner.metadata;
+    owner.metadataAccepted = false;
+    owner.outputStatusAccepted = false;
     const reply = !fits(asserted)
       ? fail<void>('invalid', 'Compact entry exceeds 65,536 UTF-8 JSON bytes.')
       : session
@@ -604,6 +606,7 @@ export function createSessionJobStorage(options: {
     owner.metadata = { ...owner.metadata, revision };
     delete owner.metadata.outputPending;
     if (unavailable) owner.metadata.outputUnavailable = unavailable;
+    owner.outputStatusAccepted = false;
     const reply = session ? session.append(delta) : ok(undefined);
     if (owner.metadata.revision === revision) {
       owner.outputStatusAccepted = reply.status === 'ok';
@@ -662,6 +665,7 @@ export function createSessionJobStorage(options: {
         owner.expired = true;
         try {
           await io.remove(owner.metadata.outputReference);
+          owner.capture = undefined;
           return 'expired';
         } catch (error) {
           owner.expired = false;
@@ -1170,6 +1174,7 @@ export function createSessionJobStorage(options: {
             owner.outputError = `Temporary cleanup failed: ${reason(error)}`.slice(0, 1024);
           }
         }
+        owner.capture = undefined;
       }
     },
   };

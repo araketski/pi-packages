@@ -611,6 +611,61 @@ it('rejects stale/malformed/forked replay and preserves saved terminal and deliv
   expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
 });
 
+it('does not inherit acceptance for an identical result reentered before its outer append fails', async () => {
+  const manager = SessionManager.inMemory(),
+    sessionId = manager.getSessionId(),
+    identity = job('J', sessionId),
+    outputRoot = await root();
+  let store!: core.SessionJobStorage,
+    nested: Promise<JobReply<void>> | undefined,
+    entered = false;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: false,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        if ((data as { kind: string }).kind === 'result' && !entered) {
+          entered = true;
+          nested = store.resultSink.save(result(identity));
+          throw new Error('outer append failed');
+        }
+        manager.appendCustomEntry(kind, data);
+      },
+      readEntries: () => manager.getEntries(),
+    });
+  store = core.createSessionJobStorage({
+    sessionId,
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  ok(await store.jobStore.reserve(launch(identity)));
+  expect((await store.resultSink.save(result(identity))).status).toBe('unavailable');
+  ok(await nested!);
+  const historical = core.createSessionJobStorage({ sessionId, outputRoot, session: capability() });
+  ok(await historical.replay());
+  expect(ok(await historical.resultSink.read(result(identity).identity))).toEqual(result(identity));
+});
+
+it('releases default-bound data/tag buffers after successful expiry and orderly disposal', async () => {
+  const outputRoot = await root(),
+    moduleUrl = new URL('../dist/index.js', import.meta.url).href;
+  const script = `import * as core from ${JSON.stringify(moduleUrl)};import {setImmediate} from 'node:timers/promises';const base=${JSON.stringify(outputRoot)};let now=0;globalThis.holds=[];const gc=async()=>{for(let i=0;i<3;i++){await setImmediate();global.gc();}return process.memoryUsage().arrayBuffers;};
+  const make=async(prefix,count)=>{const store=core.createSessionJobStorage({sessionId:'S',outputRoot:base,retentionMs:1,now:()=>now});globalThis.holds.push(store);for(let i=0;i<count;i++){const identity={runtimeId:'R',ownerId:'O',sessionId:'S',jobId:prefix+i,producerId:'P'};const launch={identity,authority:{runtimeId:'R',ownerId:'O',generation:'G'},awaiting:false,delivery:'display-only',lifetime:'managed'};const reserved=await store.jobStore.reserve(launch);if(reserved.status!=='ok')throw Error(reserved.reason);const saved=await store.resultSink.save({identity:{job:identity,resultId:'final'},outcome:{kind:'exit',exitCode:0},content:'done'});if(saved.status!=='ok')throw Error(saved.reason);}return store;};
+  const expired=await make('E',3),beforeExpiry=await gc();now=2;const reply=await expired.expireEligibleOutputs();if(reply.status!=='ok'||reply.value.expired.length!==3)throw Error('expiry failed');const afterExpiry=await gc();const disposed=await make('D',2),beforeDisposal=await gc();await disposed.dispose();const afterDisposal=await gc();console.log(JSON.stringify({beforeExpiry,afterExpiry,beforeDisposal,afterDisposal,held:globalThis.holds.length}));`;
+  const child = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', script], {
+    encoding: 'utf8',
+  });
+  if (child.status !== 0) throw new Error(child.stderr || `Memory probe exited ${child.status}`);
+  expect(child.status).toBe(0);
+  const metrics = JSON.parse(child.stdout.trim());
+  console.info('Default-buffer cleanup:', metrics);
+  expect(metrics.beforeExpiry - metrics.afterExpiry).toBeGreaterThanOrEqual(59_000_000);
+  expect(metrics.beforeDisposal - metrics.afterDisposal).toBeGreaterThanOrEqual(39_000_000);
+});
+
 it('never acknowledges a newer failed result from an older reentrant append receipt', async () => {
   const manager = SessionManager.inMemory(),
     sessionId = manager.getSessionId(),
