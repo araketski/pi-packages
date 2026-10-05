@@ -276,6 +276,8 @@ export function createJobLifecycle<Handle>(options: {
   let observing: Promise<void> | undefined;
   let stopping: Promise<JobReply<StopStatus>> | undefined;
   let intent: StopIntent | undefined;
+  let pendingIntent: StopIntent | undefined;
+  const stopObservationBounds = new Set<() => void>();
   const unavailable = (): JobReply<never> => ({
     status: 'unavailable',
     reason: 'Lifecycle monitoring disposed; execution outcome unchanged.',
@@ -324,6 +326,33 @@ export function createJobLifecycle<Handle>(options: {
     });
     return observing;
   }
+  function refreshBeforeStop(): Promise<void> {
+    const sample = refresh();
+    return new Promise((resolve) => {
+      let finished = false;
+      let cancel: (() => void) | undefined;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        cancel?.();
+        stopObservationBounds.delete(finish);
+        resolve();
+      };
+      stopObservationBounds.add(finish);
+      cancel = clock.schedule(() => {
+        if (!disposed && state.execution.state !== 'terminal')
+          state = {
+            ...state,
+            execution: {
+              state: 'unknown',
+              reason: 'Pre-stop observation exceeded its polling budget.',
+            },
+          };
+        finish();
+      }, settings.pollIntervalMs);
+      void sample.then(finish);
+    });
+  }
   async function stop(
     value: ControlRequest,
     stopReason: StopReason = 'explicit',
@@ -338,8 +367,14 @@ export function createJobLifecycle<Handle>(options: {
       authority: value.authority,
     };
     if (stopping) return stopping;
+    pendingIntent = {
+      requestId: captured.requestId,
+      reason: stopReason,
+      state: 'unconfirmed',
+      reply: { status: 'unknown', reason: 'Pre-stop observation/admission is pending.' },
+    };
     stopping = (async (): Promise<JobReply<StopStatus>> => {
-      await refresh();
+      await refreshBeforeStop();
       const rejected = allowed(captured);
       if (rejected) return rejected;
       if (state.execution.state === 'terminal')
@@ -382,6 +417,7 @@ export function createJobLifecycle<Handle>(options: {
       return reply;
     })().finally(() => {
       stopping = undefined;
+      pendingIntent = undefined;
     });
     return stopping;
   }
@@ -402,11 +438,12 @@ export function createJobLifecycle<Handle>(options: {
       state = { ...state, awaiting: value.awaiting };
       return { status: 'ok', value: copy(state) };
     },
-    stopIntent: () => intent && copy(intent),
+    stopIntent: () => (pendingIntent ?? intent) && copy((pendingIntent ?? intent)!),
     dispose() {
       disposed = true;
       cancelDeadline?.();
       cancelDeadline = undefined;
+      for (const finish of stopObservationBounds) finish();
     },
   };
   if (settings.hardTimeoutMs !== undefined) {
@@ -476,7 +513,7 @@ export interface SelectedJobStatus {
 }
 export interface JobsWaitResult {
   state: 'completed' | 'timed-out' | 'cancelled';
-  /** Latest accepted round in selection order; observation is not a delivery receipt. */
+  /** Latest accepted status in selection order; observation is not a delivery receipt. */
   jobs: readonly SelectedJobStatus[];
 }
 /** Read-only selection policy. Timeout/cancellation never calls execution or delivery control. */
@@ -508,7 +545,7 @@ export function waitForJobs(
   const jobs = copy([...selection.jobs]);
   const waitMode = selection.mode;
   const signal = request.signal;
-  let latest: SelectedJobStatus[] = jobs.map((identity) => ({
+  const latest: SelectedJobStatus[] = jobs.map((identity) => ({
     identity,
     reply: { status: 'unknown', reason: 'No wait observation yet.' },
   }));
@@ -525,48 +562,57 @@ export function waitForJobs(
       resolve({ status: 'ok', value: { state, jobs: copy(latest) } });
     };
     const abort = () => finish('cancelled');
-    const poll = async () => {
+    const inFlight = new Set<number>();
+    const terminal = (value: SelectedJobStatus) =>
+      value.reply.status === 'ok' && value.reply.value.execution.state === 'terminal';
+    const accept = (index: number, value: SelectedJobStatus) => {
+      if (settled) return;
+      const previous = latest[index]!;
+      if (previous.reply.status === 'ok' && previous.reply.value.execution.state === 'terminal') {
+        // Preserve execution evidence, not stale awaiting/delivery/capability fields.
+        if (value.reply.status === 'ok')
+          latest[index] = {
+            ...value,
+            reply: {
+              status: 'ok',
+              value: { ...value.reply.value, execution: previous.reply.value.execution },
+            },
+          };
+      } else latest[index] = value;
+      if (waitMode === 'any' ? latest.some(terminal) : latest.every(terminal)) finish('completed');
+    };
+    const sample = async (identity: JobIdentity, index: number): Promise<void> => {
+      try {
+        const raw = await inspect(copy(identity));
+        let reply: JobReply<JobObservation>;
+        if (raw.status === 'ok' && observation(raw.value, identity)) reply = copy(raw);
+        else if (
+          raw.status !== 'ok' &&
+          diagnostic(raw.reason) &&
+          ['unknown', 'unavailable', 'denied', 'unsupported', 'invalid'].includes(raw.status)
+        )
+          reply = copy(raw);
+        else reply = { status: 'unknown', reason: 'Malformed or mismatched selected observation.' };
+        accept(index, { identity, reply });
+      } catch (error) {
+        accept(index, {
+          identity,
+          reply: { status: 'unknown', reason: `Inspection failed: ${reason(error)}` },
+        });
+      } finally {
+        inFlight.delete(index);
+      }
+    };
+    const poll = () => {
       cancelPoll = undefined;
       if (settled) return;
-      const terminal = (value: SelectedJobStatus) =>
-        value.reply.status === 'ok' && value.reply.value.execution.state === 'terminal';
-      const accept = (index: number, value: SelectedJobStatus) => {
-        if (settled) return;
-        // Confirmed terminal execution cannot be undone by a later missing owner/sample.
-        if (!terminal(latest[index]!)) latest[index] = value;
-        if (waitMode === 'any' ? latest.some(terminal) : latest.every(terminal))
-          finish('completed');
-      };
-      await Promise.all(
-        jobs.map(async (identity, index): Promise<void> => {
-          try {
-            const raw = await inspect(copy(identity));
-            let reply: JobReply<JobObservation>;
-            if (raw.status === 'ok' && observation(raw.value, identity)) reply = copy(raw);
-            else if (
-              raw.status !== 'ok' &&
-              diagnostic(raw.reason) &&
-              ['unknown', 'unavailable', 'denied', 'unsupported', 'invalid'].includes(raw.status)
-            )
-              reply = copy(raw);
-            else
-              reply = {
-                status: 'unknown',
-                reason: 'Malformed or mismatched selected observation.',
-              };
-            accept(index, { identity, reply });
-          } catch (error) {
-            accept(index, {
-              identity,
-              reply: { status: 'unknown', reason: `Inspection failed: ${reason(error)}` },
-            });
-          }
-        }),
-      );
-      if (!settled)
-        cancelPoll = clock.schedule(() => {
-          void poll();
-        }, interval);
+      // One stalled owner retains only its own in-flight slot, never the whole selection.
+      jobs.forEach((identity, index) => {
+        if (inFlight.has(index)) return;
+        inFlight.add(index);
+        void sample(identity, index);
+      });
+      if (!settled) cancelPoll = clock.schedule(poll, interval);
     };
     if (signal?.aborted) {
       finish('cancelled');
@@ -579,6 +625,6 @@ export function waitForJobs(
     signal?.addEventListener('abort', abort, { once: true });
     if (request.timeoutMs !== undefined)
       cancelTimeout = clock.schedule(() => finish('timed-out'), request.timeoutMs);
-    void poll();
+    poll();
   });
 }

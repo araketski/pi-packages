@@ -358,6 +358,151 @@ describe('execution and owner control', () => {
   });
 });
 
+describe('review race regressions', () => {
+  it.each(['explicit', 'hard-timeout'] as const)(
+    'hung observation cannot prevent %s stop admission',
+    async (mode) => {
+      const fake = createJobsTestAdapter(clock);
+      let finishObservation!: (state: ExecutionState) => void;
+      const observe = vi.fn<() => Promise<ExecutionState>>(
+        () =>
+          new Promise((resolve) => {
+            finishObservation = resolve;
+          }),
+      );
+      const lifecycle = core.createJobLifecycle({
+        request: { ...request, ...(mode === 'hard-timeout' ? { hardTimeoutMs: 10 } : {}) },
+        handle: fake.handle,
+        adapter: { ...fake.adapter, observe },
+        clock,
+        startedAtMs: 0,
+        settings: { pollIntervalMs: 5 },
+        authorize: (r) => r.authority === authority,
+      });
+      const inspection = lifecycle.inspect(identity);
+      const stop = mode === 'explicit' ? lifecycle.stop(control) : undefined;
+      await vi.advanceTimersByTimeAsync(20);
+      expect(fake.stopCalls).toHaveLength(1);
+      expect(lifecycle.stopIntent()).toMatchObject({ state: 'requested' });
+      expect(await stop).toEqual(
+        mode === 'explicit' ? { status: 'ok', value: { state: 'requested' } } : undefined,
+      );
+      finishObservation(terminal);
+      await inspection;
+      expect(await lifecycle.inspect(identity)).toMatchObject({ value: { execution: terminal } });
+      lifecycle.dispose();
+      fake.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+  it('dispose removes a pending pre-stop observation bound and prevents action', async () => {
+    const fake = createJobsTestAdapter(clock);
+    const lifecycle = core.createJobLifecycle({
+      request,
+      handle: fake.handle,
+      adapter: { ...fake.adapter, observe: async () => new Promise(() => undefined) },
+      clock,
+      startedAtMs: 0,
+      authorize: () => true,
+    });
+    const admission = lifecycle.stop(control);
+    expect(lifecycle.stopIntent()).toMatchObject({ state: 'unconfirmed' });
+    expect(vi.getTimerCount()).toBe(1);
+    lifecycle.dispose();
+    expect(await admission).toMatchObject({ status: 'unavailable' });
+    expect(fake.stopCalls).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+    fake.dispose();
+  });
+  it('a hung any-wait owner does not starve later healthy completion or duplicate hung calls', async () => {
+    const hung = { ...identity, jobId: 'hung' };
+    let healthyCalls = 0;
+    let hungCalls = 0;
+    const wait = core.waitForJobs(
+      { requestId: 'W', selection: { mode: 'any', jobs: [identity, hung] }, timeoutMs: 50 },
+      async (job) => {
+        if (job.jobId === 'hung') {
+          hungCalls++;
+          return new Promise(() => undefined);
+        }
+        healthyCalls++;
+        return {
+          status: 'ok',
+          value: {
+            ...createUnknownJobFixture(job),
+            execution: healthyCalls > 1 ? terminal : { state: 'running' },
+          },
+        };
+      },
+      { clock, pollIntervalMs: 5 },
+    );
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await wait).toMatchObject({ value: { state: 'completed' } });
+    expect(healthyCalls).toBeGreaterThan(1);
+    expect(hungCalls).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('all waits preserve terminal execution while accepting later awaiting/delivery/capability status', async () => {
+    const b = { ...identity, jobId: 'B' };
+    let aCalls = 0;
+    const wait = core.waitForJobs(
+      { requestId: 'W', selection: { mode: 'all', jobs: [identity, b] }, timeoutMs: 30 },
+      async (job) => {
+        if (job.jobId === 'J') {
+          aCalls++;
+          return {
+            status: 'ok',
+            value: {
+              ...createUnknownJobFixture(job),
+              execution: aCalls === 1 ? terminal : { state: 'unknown', reason: 'missing' },
+              awaiting: aCalls === 1,
+              delivery: {
+                state: 'pending',
+                mode: aCalls === 1 ? 'automatic' : 'next-natural-turn',
+              },
+              capabilities: {
+                stop: false,
+                setAwaiting: aCalls > 1,
+                setDelivery: false,
+                readOutput: false,
+                readResult: false,
+              },
+            },
+          };
+        }
+        return {
+          status: 'ok',
+          value: {
+            ...createUnknownJobFixture(job),
+            execution: aCalls > 1 ? terminal : { state: 'running' },
+          },
+        };
+      },
+      { clock, pollIntervalMs: 5 },
+    );
+    await vi.advanceTimersByTimeAsync(30);
+    expect(await wait).toMatchObject({
+      value: {
+        state: 'completed',
+        jobs: [
+          {
+            reply: {
+              value: {
+                execution: terminal,
+                awaiting: false,
+                delivery: { mode: 'next-natural-turn' },
+                capabilities: { setAwaiting: true },
+              },
+            },
+          },
+          expect.anything(),
+        ],
+      },
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('explicit current-owner routing', () => {
   it('routes complete identities to actual owners and never derives authority from snapshots', async () => {
     const a = setup();

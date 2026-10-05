@@ -176,6 +176,16 @@ it.each(['npm', 'pnpm'] as const)(
         assert.equal(completion.value.state,'completed');
         assert.equal(completion.value.jobs[0].reply.value.execution.outcome.kind,'terminated');
         lifecycle.dispose();fake.dispose();assert.equal(timers.size,0);
+        // A hung observation must not defeat the compiled policy's hard-stop path.
+        const deadlineFake = createJobsTestAdapter(clock);
+        const deadline = createJobLifecycle({request:{identity:job.identity,authority,awaiting:true,lifetime:'managed',delivery:'automatic',hardTimeoutMs:1},
+          handle:deadlineFake.handle,adapter:{...deadlineFake.adapter,observe:()=>new Promise(()=>{})},clock,startedAtMs:clock.now(),
+          settings:{graceMs:0,pollIntervalMs:1},authorize:r=>r.authority===authority});
+        const forced = await waitForJobs({requestId:'deadline-proof',selection:{mode:'one',jobs:[job.identity]},timeoutMs:1000},
+          async()=>({status:'ok',value:{...job,execution:await deadlineFake.adapter.observe(deadlineFake.handle)}}),{clock,pollIntervalMs:1});
+        assert.equal(forced.value.state,'completed');
+        assert.equal(deadline.stopIntent().state,'requested');assert.equal(deadlineFake.stopCalls.length,1);
+        deadline.dispose();deadlineFake.dispose();assert.equal(timers.size,0);
         console.log('installed artifact:', local);
       `,
       );
