@@ -611,6 +611,86 @@ it('rejects stale/malformed/forked replay and preserves saved terminal and deliv
   expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
 });
 
+it('accepts semantically identical final outcomes and retries regardless of key insertion order', async () => {
+  const { store, token } = await setup();
+  ok(await store.jobStore.save(token, terminal()));
+  const reordered = {
+    content: result().content,
+    outcome: { exitCode: 7, kind: 'exit' as const },
+    identity: {
+      resultId: 'final',
+      job: {
+        producerId: job().producerId,
+        jobId: 'J',
+        sessionId: 'S',
+        ownerId: 'O',
+        runtimeId: 'R',
+      },
+    },
+  };
+  ok(await store.resultSink.save(reordered));
+  ok(await store.resultSink.save(result()));
+  expect(ok(await store.resultSink.read(result().identity))).toEqual(result());
+});
+
+it('replays accepted delivery-mode changes while retaining saved terminal results and protecting new pending obligations', async () => {
+  const entries: unknown[] = [];
+  let now = 1;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId: 'S',
+      persistent: true,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        entries.push({ type: 'custom', customType: kind, data });
+      },
+      readEntries: () => entries,
+    });
+  const outputRoot = await root();
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+    now: () => now,
+    retentionMs: 10,
+  });
+  const token = ok(await store.jobStore.reserve(launch()));
+  ok(await store.resultSink.save(result()));
+  const delivered: JobObservation = {
+    ...terminal(),
+    delivery: {
+      mode: 'automatic',
+      state: 'delivered',
+      receipt: {
+        result: result().identity,
+        record: { sessionId: 'S', entryId: 'native-final', kind: 'custom-message' },
+        contentDigest: 'digest',
+      },
+    },
+  };
+  ok(await store.jobStore.save(token, delivered));
+  ok(await store.jobStore.save(token, terminal()));
+  const historical = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    now: () => now,
+    retentionMs: 10,
+  });
+  expect(ok(await historical.replay())[0].observation.delivery).toEqual(terminal().delivery);
+  const pending: JobObservation = {
+    ...terminal(),
+    delivery: { mode: 'next-natural-turn', state: 'pending' },
+  };
+  ok(await store.jobStore.save(token, pending));
+  expect(ok(await historical.replay())[0].observation.delivery).toEqual(pending.delivery);
+  now = 100;
+  expect(ok(await historical.expireEligibleOutputs()).expired).toEqual([]);
+  expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
+});
+
 it('uses injected actual Pi truncation for model excerpts without confusing presentation loss with captured loss', async () => {
   const { store, sink } = await setup({ maxBytes: 100, prefixBytes: 10 });
   await sink.append({ stream: 'stdout', bytes: bytes('one\ntwo\nthree\nfour\n') });

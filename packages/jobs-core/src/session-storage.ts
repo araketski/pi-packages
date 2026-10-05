@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { JOBS_CONTRACT_VERSION } from './index.js';
 import type {
   FinalResult,
@@ -83,7 +84,7 @@ function key(job: JobIdentity): string {
   return JSON.stringify([job.runtimeId, job.ownerId, job.sessionId, job.jobId, job.producerId]);
 }
 function same(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return isDeepStrictEqual(a, b);
 }
 function text(value: unknown): value is string {
   return (
@@ -889,6 +890,7 @@ export function createSessionJobStorage(options: {
               continue;
             if (previous.result && (!m.result || !same(previous.result, m.result))) continue;
             if (
+              previous.observation.delivery.mode === m.observation.delivery.mode &&
               previous.observation.delivery.state === 'delivered' &&
               m.observation.delivery.state !== 'delivered'
             )
