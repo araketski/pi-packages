@@ -1,14 +1,15 @@
 # Jobs persistence and bounded output
 
-These are accepted storage policies, not an implemented store or passing
-verification of the revised session-backed design. They support [session continuity](./lifecycle.mara.md) and
+These are accepted minimal, best-effort storage policies, not an implemented
+store or passing verification of that profile. They support [session continuity](./lifecycle.mara.md) and
 [delivery receipts](./delivery.mara.md), without creating another Pi session system.
 
 ## Reuse Pi state facilities
 
-Use Pi session identities and lifecycle reasons. Store compact job records,
-lifecycle/delivery history and final results through namespaced public custom
-entries; these stay out of model context. Only bounded output artifacts live in
+Use Pi session identities and lifecycle reasons. Attempt compact startup/final metadata and necessary lifecycle/delivery facts
+through namespaced public custom entries; these stay out of model context.
+Normal successful history can be reopened; failed writes have no strict retry or
+exact replay-equivalence guarantee. Only bounded output artifacts live in
 external jobs-owned storage. Do not edit Pi session JSONL or put whole logs in
 custom entries. History does not rewind execution or establish liveness/control.
 Genuine deactivation triggers bounded best-effort managed cancellation, not a
@@ -30,14 +31,18 @@ keep a small initial excerpt and a rolling window of recent output; expose omitt
 output honestly. This is rolling storage, not a floating terminal UI requirement.
 Retained combined output is limited to 10 MB (10,000,000 bytes) per job. There is
 no shared ceiling, aggregate accounting, completion reservation or quota-pressure
-admission/eviction. Aggregate disk use can grow with retained jobs; eligible
-output still expires by time. This does not bound Herdr scrollback or arbitrary
+admission/eviction. Aggregate disk use can grow with retained jobs; persistent
+output may remain until explicitly cleaned up. Automatic seven-day expiry is not
+promised. This does not bound Herdr scrollback or arbitrary
 command-written files, or support multiple Pi writers to one conversation.
 
 [[DES-JOBS-SESSION-STORE]] and [[ADR-JOBS-SESSION-BOUNDED-STORAGE]] replace the
 external-record/shared-quota direction. Define compact entry and rolling-output
-formats, per-job ordering, bounded write overhead, retention and honest fallback
-before implementation; do not carry forward the paused quota-store machinery.
+formats and ordinary serialized same-job use before implementation. Live reads
+use bounded memory; best-effort snapshots occur on completion or explicit read,
+not on every chunk. Per-stream accounting, checksums, arbitrary interleavings and
+recovery machinery are not required; do not carry forward either stronger store
+mechanism.
 The retired quota requirement below is retained as history, not current policy.
 
 ## Agreed knowledge
@@ -50,9 +55,13 @@ The retired quota requirement below is retained as history, not current policy.
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 :derives_from: REQ-JOBS-SESSION-CONTINUITY
 
-Use Pi session identity, lifecycle events, and namespaced custom entries through supported public Pi APIs for compact job records, lifecycle/delivery history, and final results. These entries stay outside model context; model-directed delivery uses normal Pi messages or recorded tool results. Keep only bounded output artifacts in jobs-owned storage under the selected Pi user state, outside repositories/worktrees; output-format bookkeeping may accompany captured bytes but must not become a separate execution/result database. Do not edit Pi session JSONL directly, put whole logs in custom entries, or build a parallel session system. Preserve job/result and producer identity, but never treat a saved running record as current liveness or historical identity as control authority.
+Use Pi session identity and public namespaced custom entries for compact startup/final job metadata and the lifecycle/delivery facts needed by the existing shared interfaces. Keep custom entries outside model context; model-visible results still use normal Pi messages or recorded tool results. Keep bounded output artifacts external under the selected Pi user state. Do not edit session JSONL, put whole logs in custom entries, create execution/result sidecars or build another session system.
 
-Follow [[REQ-JOBS-SESSION-CONTINUITY]]: genuine session deactivation triggers best-effort cancellation, with no guarantee of continued monitoring, completion capture or result delivery afterward. Record known outcomes and cancellation uncertainty through the originating session's still-valid public append boundary where possible; never use an invalidated callback or redirect a late result into another session. Reopening a session restores saved metadata/results, not execution or ownership. Follow Pi resumability: an accepted append is not immediate filesystem durability or fsync. Pi 0.99.1 creates a new persistent session file on its first user or assistant message; custom/setup entries alone may remain buffered. Do not gate launches on session-file existence. For --no-session/in-memory runs, use in-memory job state and temporary bounded output, best-effort normal-shutdown cleanup, and no post-exit recovery promise.
+For supported trusted, serialized use, successfully saved entries can restore ordinary historical metadata/results with stable job/result/producer identity. Historical running state is not liveness or control authority. Persistence is best effort: no strict save retry, exact live/replay equivalence after failed writes, transactional recovery, corruption-repair or crash-recovery guarantee. Report unavailable/missing data rather than inventing it. A thrown append is not confirmed success, and an accepted append is not fsync. Pi 0.99.1 may buffer setup/custom entries until its first user or assistant message; absence of a session file is not an admission guard.
+
+Live state belongs to one in-process owner per job. Read current bounded output from that owner; attempt disk snapshots on completion or an explicit output read, not on every incoming chunk. Continuous on-disk freshness is not promised. In-memory/no-session operation has no post-exit resumability and attempts orderly temporary-output cleanup without a guaranteed cleanup/recovery service.
+
+[[REQ-JOBS-SESSION-CONTINUITY]] remains unchanged: genuine deactivation requests bounded best-effort managed cancellation through the owning integration. Never redirect late activity into a replacement session or use invalidated public callbacks. Concrete process control, receipts, delivery scheduling and gates are outside this storage simplification.
 :::
 
 :::mara requirement REQ-JOBS-OUTPUT-BOUNDS
@@ -62,9 +71,11 @@ Follow [[REQ-JOBS-SESSION-CONTINUITY]]: genuine session deactivation triggers be
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Retain at most 10 MB (10,000,000 bytes) of combined captured command output per job. This is the per-job output ceiling, not a model-context allowance or a shared-root quota. Capture complete output while it fits. At the limit, preserve a small initial excerpt plus a rolling window of the latest output and clearly report omitted bytes/data. Continue draining output with bounded memory and disk use; reaching the logging limit does not stop the command. Implementation must define bounded representation overhead and temporary-file/write behavior before coding, without introducing global quota accounting. Send only bounded excerpts to the model using applicable Pi truncation facilities, with job identity and a reference for retrieving retained output. Never claim the retained log is complete after discarding data. No floating UI panel is required.
+Retain at most 10 MB (10,000,000 bytes) of combined captured output per job. Capture complete bytes while they fit; on overflow retain a small beginning plus rolling tail and report the omitted middle. Continue draining when the limit is reached or snapshot persistence fails. Normal supported capture must report its retained bytes and omission/completeness correctly; an unavailable snapshot must not be described as a complete log.
 
-There is no aggregate output/storage ceiling across jobs, sessions, producers or loaded core copies, no completion-capacity reservation, and no quota-pressure admission or eviction. Aggregate disk use can grow with the number of retained jobs; [[REQ-JOBS-RETENTION]] remains applicable. This ceiling does not bound Herdr-owned scrollback or arbitrary files commands write.
+Use bounded capture memory and bounded snapshot size. Define a simple byte representation and write timing before implementation. Per-stream loss accounting, byte tags, checksums, corruption recovery, exact allocator/temporary-write accounting and continuous whole-buffer replacements are not obligations. Supported live reads use the owner buffer; external snapshots are best effort on completion or explicit read. Send only bounded model excerpts using applicable Pi truncation and include job/output identity.
+
+There is no aggregate/shared ceiling, completion-capacity reservation, quota-driven admission or pressure eviction. Independent jobs/producers/core copies and distinct sessions can exceed one job's bound in aggregate, without concurrent mutation of the same job. This does not bound Herdr scrollback or arbitrary command-written files. [[REQ-JOBS-RETENTION]] defines the minimal cleanup policy.
 :::
 
 :::mara requirement REQ-JOBS-STORAGE-QUOTA
@@ -79,14 +90,16 @@ Apply a configurable user-scoped 1 GiB default total ceiling to jobs-owned recor
 
 :::mara requirement REQ-JOBS-RETENTION
 :mid: 01M3PZQ2XHXSZ43HMN2THHF2TV
-:title: Expire eligible output artifacts without rewriting Pi session history
+:title: Keep output cleanup explicit and best effort
 :status: accepted
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Automatically remove bounded output artifacts for finished jobs whose selected delivery obligation is fulfilled, using configurable seven-day default retention. Retention expiry applies to external output, not physical deletion of compact job metadata or final results already appended to Pi session history. Report expired or missing output as unavailable; keep any saved final outcome distinct from the availability of its log, and never rerun a command to recreate expired output. Do not rewrite Pi session JSONL or introduce a metadata-compaction database for retention.
+The minimal storage profile does not promise automatic seven-day retention, scheduled expiry, root scans or a cleanup service. Persistent output may remain until explicitly cleaned up; aggregate disk use is not bounded. Do not add retention settings merely to satisfy the superseded automatic-expiry requirement.
 
-No quota-pressure eviction is required. While jobs are tracked, do not automatically remove running, unresolved or pending-result output merely because it is old. A cancellation request or genuine deactivation does not prove a terminal outcome or fulfilled delivery; uncertain artifacts are not promoted to cleanup-eligible state. Bounded log truncation is distinct from whole-artifact deletion. The no-session and best-effort normal-shutdown exceptions remain [[REQ-JOBS-PI-STATE]]; no inactive-session result recovery or crash-cleanup mechanism is added.
+If explicit output cleanup is provided, limit it to known owned artifacts, keep tracked running/unknown/pending-result output protected, and leave compact Pi metadata/results intact. Report a missing/deleted output artifact separately from its saved final result; never rerun execution to recreate a log or rewrite session JSONL.
+
+No-session orderly shutdown attempts removal of this instance's temporary output after its supported operations settle. Cleanup errors are diagnostic, not guaranteed repair or post-crash recovery. Session/process cleanup safeguards and delivery obligations remain separate and unchanged.
 :::
 
 :::mara requirement REQ-JOBS-STORAGE-FAILURE
@@ -96,14 +109,16 @@ No quota-pressure eviction is required. While jobs are tracked, do not automatic
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Refuse a new launch when required compact tracking cannot be accepted through the supported Pi session append capability or required bounded output storage cannot be established. Setup-only buffering, in-memory sessions and accepted append calls follow [[REQ-JOBS-PI-STATE]]; absence of a session file or lack of fsync acknowledgement is not an additional launch guard. There is no shared-quota admission or completion-capacity reservation.
+Refuse a new launch when required initial live tracking/compact startup append or basic output setup fails. This is a straightforward admission check, not a quota reservation, session-file test, transactional filesystem guarantee or fsync gate. Follow Pi's normal buffering/in-memory semantics.
 
-If an append/output write fails after launch while the job is tracked, keep bounded honest in-memory tracking and report persistence/output loss and reduced resumability; do not kill the command solely because logging failed. Missing data must not fabricate successful completion, confirmed cancellation, liveness, completeness or delivery. Keep output diagnostics separate from execution outcome. A late or failed read must not erase newer captured output, a known terminal outcome or a newer admitted job, and fallback must not invent missing bytes or zero omissions. Fallback is not a duplicate authoritative execution database. Genuine deactivation ends guaranteed tracking under [[REQ-JOBS-SESSION-CONTINUITY]]; failures do not create a promise of results surviving Pi exit.
+After launch, metadata/snapshot failure is best effort: record a diagnostic, keep the bounded owner state available while possible and continue draining without stopping the command solely because logging failed. Actual execution outcome remains separate from logging. Missing data must not fabricate completion, confirmed cancellation, completeness or delivery. Do not invoke invalidated origin callbacks or redirect late activity into another session.
+
+This personal-tooling profile does not guarantee repairing failed appends, exactly-once persistence, strict same-identity retry acknowledgement, replay equivalence after partial writes, or continued capture after genuine deactivation. Trusted callers serialize mutations of a job; arbitrary concurrent/reentrant mutations, hostile objects, exhaustive fault combinations and recovery services are outside the supported storage contract. Failures can be investigated and fixed when observed rather than requiring speculative hardening upfront. This does not waive existing executor ownership, cancellation, result-delivery or gate safeguards.
 :::
 
 :::mara verification VER-JOBS-PI-STORAGE
 :mid: 01M3PZQ8WNB76EPEQX874JRXZE
-:title: Exercise Pi-backed persistence, ephemeral operation, and storage failures
+:title: Exercise ordinary Pi session storage and basic failure reporting
 :status: accepted
 :method: test
 :level: integration
@@ -111,32 +126,34 @@ If an append/output write fails after launch while the job is tracked, keep boun
 :verifies: REQ-JOBS-STORAGE-FAILURE
 :verifies: DES-JOBS-SESSION-STORE
 
-Use actual persistent and in-memory Pi 0.99.1 session managers with isolated user-state/output roots. Append compact job records, final outcomes and lifecycle/delivery metadata through public APIs; replay them with stable job/result/producer identity. Verify custom entries stay outside model context, model-directed results use Pi messages, full logs remain external, and no raw JSONL edits or separate execution/result files/database are required. Exercise setup-only buffering without requiring an existing session file or claiming fsync; verify the first user message persists preceding custom entries before an assistant reply. In --no-session mode, run jobs with in-memory state and temporary output, exercise best-effort orderly cleanup, and advertise no later resumability.
+Use actual isolated Pi 0.99.1 persistent and in-memory SessionManagers with supported public APIs. Save compact startup/final metadata, reopen successful history with stable job/result/producer identity, keep custom entries outside model context and full logs external, and do not rerun execution or treat historical running state as live control.
 
-Apply [[VER-JOBS-SESSION-AND-EXIT]] for deactivation: record known outcome or unconfirmed cancellation where the originating append capability is still valid, do not call stale session APIs, and do not deliver a late result into another session. Reopen saved metadata/results without rerunning work or treating saved running state as live. Continued completion capture/delivery after deactivation and crash/forced-kill recovery are not acceptance obligations.
+Verify setup-only buffering and first-user-message persistence before assistant reply without requiring a pre-existing session file or claiming fsync. Live output reads use the in-process bounded capture; disk snapshots are attempted at completion/explicit read. No-session operation advertises no later resumability and attempts orderly temporary cleanup.
 
-Fail required tracking/output setup before launch and assert no command starts. Fail writes after launch and require bounded in-memory fallback, visible diagnostics and continued draining without fabricated outcomes or completeness. Exercise overlapping append/read/observation operations with delayed replies: older replies must not erase newer admission/output/terminal evidence. Preserve byte-loss accounting through fallback. These are future checks, not passing evidence; normal metadata/format operations still require concrete tests.
+Cover ordinary initial tracking/output setup failure (no launch), one after-launch append or snapshot failure (diagnostic, bounded live output and unchanged actual execution outcome), missing output (not complete), and origin invalidation (no late retargeted append). Use trusted inputs and serialized same-job operations. Exhaustive delayed-reply/reentrant/interleaving matrices, strict retry acknowledgements, corruption recovery and exact replay after failed writes are not acceptance obligations. [[VER-JOBS-SESSION-AND-EXIT]] remains the separate lifetime/cancellation contract; this method neither implements nor weakens it.
+
+These are selected future checks, not passing implementation evidence. Existing stronger-store results do not prove this minimal profile.
 :::
 
 :::mara verification VER-JOBS-STORAGE-BOUNDS
 :mid: 01M3PZQBVH6SQ557TE0G3T2XG5
-:title: Verify ten-megabyte output windows and protected time-based retention
+:title: Verify bounded combined output and best-effort snapshots
 :status: accepted
 :method: test
 :level: integration
 :verifies: REQ-JOBS-OUTPUT-BOUNDS
 :verifies: REQ-JOBS-RETENTION
 
-Check the fixed per-job ceiling of 10,000,000 captured bytes and configurable seven-day eligible-output retention. Use injected smaller test bounds and controlled time to exercise overflow. Emit identifiable beginning/middle/tail data: retain the initial excerpt and newest rolling tail, report exact omissions, continue draining without stopping the command, and bound memory, output artifacts and representation/write overhead. Verify model excerpts use Pi truncation and reference the remaining output.
+With small test bounds, emit recognizable beginning/middle/tail bytes. Verify complete capture while it fits; after overflow retain the beginning and newest tail, report omitted bytes, keep draining, and keep live capture/snapshot sizes bounded. Verify ordinary UTF-8 output and model excerpts through native Pi truncation. One default-bound smoke verifies the 10,000,000-byte policy without a full fault/performance campaign.
 
-Exercise independent jobs/producers/core copies and distinct sessions sharing the output root. Their combined retained output may exceed 10,000,000 bytes without a root quota, completion reservation, pressure eviction or quota-based launch rejection. Concurrent operations must not corrupt another job or apply stale replies over newer state. With writes/reads failing, fallback preserves known bytes and honest omission/completeness information.
+Verify incoming chunks do not trigger continuous full-capacity disk replacements: live reads use memory and snapshots occur on completion or explicit read. Use a basic successful snapshot/read and a failed snapshot diagnostic without changing the command outcome or claiming unavailable bytes are complete. Independent jobs/producers/copies/sessions can exceed the single-job bound in aggregate; same-job mutation remains serialized and no quota/reservation/eviction layer exists.
 
-Verify timed cleanup of finished/delivered output, protection of tracked running/unresolved/pending output, and no promotion of unconfirmed cancellation to terminal/cleanup eligibility. Expired output is unavailable without re-execution; saved Pi metadata/final outcomes remain in session history, without raw JSONL deletion. These are future checks; no existing quota-store tests establish acceptance of this revised policy.
+Check missing/deleted output separately from saved results and best-effort no-session orderly cleanup. If explicit persistent cleanup exists, limit it to eligible owned artifacts and protect tracked running/unknown/pending output. Automatic seven-day expiry, per-stream accounting, checksums, exact temporary-write accounting, arbitrary concurrency/reentrancy and crash recovery are not required. This method records intended acceptance, not a passing result.
 :::
 
 :::mara design DES-JOBS-SESSION-STORE
 :mid: 01M46H96EH71C9168T3V70FVY0
-:title: Use Pi session metadata and one bounded output owner per job
+:title: Use minimal best-effort session metadata and bounded output
 :status: accepted
 :kind: data
 :satisfies: REQ-JOBS-PI-STATE
@@ -148,30 +165,34 @@ Verify timed cleanup of finished/delivered output, protection of tracked running
 
 ## Selected boundary
 
-Store compact job identity/producer/origin, lifecycle intent/outcome, output reference and delivery/final-result metadata as namespaced Pi custom entries. Use supported public append/read capabilities supplied by the owning integration; keep the compiled core consumer-neutral rather than importing a Pi session singleton. Entries are append-only meaningful lifecycle/result transitions, not output chunks or a second session database. Reconstruct saved metadata with stable job/result identity; historical state grants neither liveness nor current control. Execution adapters provide live evidence while the session is active. Model-visible delivery and receipt arbitration remain the separate delivery integration.
+This is personal developer tooling, not a production-grade storage system. Keep one live in-process owner per job, compact startup/final metadata through injected public Pi append/read capabilities, and bounded output outside session history. Include the lifecycle/delivery facts required by the existing interfaces at meaningful boundaries, not every chunk. Core remains consumer-neutral. No Pi singleton, raw JSONL edits, execution/result sidecars, aggregate quota, completion reservations, helper processes, journals or new services.
 
-Only bounded output artifacts and bounded format bookkeeping live under the selected Pi agent/user-state jobs root. There are no per-job execution-record/result sidecars, root policy/quota files, completion-space reservations, quota-driven admission/eviction, root-global accounting locks or one-shot locked helper per storage operation. This replaces the earlier external-record/shared-quota implementation direction; do not import that machinery merely because the paused storage branch contains it.
+Normal successful history restores metadata/results by stable job/result/producer identity. It does not restore execution/control. Model delivery, receipts, gates and concrete process/session lifecycle integration remain separate.
 
 ## Ordering and loss
 
-Give each live job one in-process owner for captured output and its bookkeeping, with a single ordering rule covering accepted writes and any read/update that can affect that state. Read-only observations must not overwrite newer output/admissions/outcomes with older snapshots. Do not maintain independently authoritative disk/helper-reply and memory caches, prune all jobs from an older snapshot, or create a new general queue/service. Use bounded memory for capture and failure fallback, not an independently durable registry. Existing serialized executor output appends can feed this boundary.
+Assume trusted callers and serialized mutations for each job. The integration owns that simple calling discipline; do not add a general queue, shared locks or arbitrary recursive/concurrent-mutation support. Reads of a live job use its current owner, not a disk snapshot that can become a second authority. Different jobs/producers/sessions remain independent.
 
-Capture up to 10,000,000 combined bytes, then retain the beginning and a rolling tail with exact loss/completeness accounting. Keep draining after overflow/write failure. Define the concrete bounded byte/offset format, representation/temporary-write overhead, append/read ordering, compact custom-entry schema and failure handling before changing behavior. No full-log session entries or unbounded chunk history are permitted. Establish required tracking/output setup before spawn, respecting accepted append and in-memory Pi semantics without a session-file/fsync gate.
+Retain at most 10,000,000 combined bytes in a beginning-plus-rolling-tail buffer. Report normal retained/omitted bytes and completeness. No per-stream byte tags/loss ledger, checksum/corruption-repair layer or exact allocator/temporary-file accounting is required. Use a simple bounded representation and attempt an output snapshot on completion or an explicit read. Do not continuously hash/rewrite the full configured capacity for each chunk. On ordinary write failure retain bounded live capture where possible, keep draining and report loss without changing the actual execution result.
+
+Strict persistence retries, exactly-once append acknowledgements, exact live/replay equivalence after failed writes, duplicated acknowledgement/revision state machines and exhaustive interleaving guarantees are not required. A partial/failed operation is diagnostic, not proof of durable success; no recovery promise is inferred from it. If reentrant mutation occurs outside the supported calling discipline, do not promise that every nested update is accepted or repaired.
 
 ## Lifecycle, replay and retention
 
-The same active session, ordinary idle and foreground handoff permit continued execution. Reloading that session requires a fresh public-capability handoff. Genuine deactivation requests bounded best-effort cancellation and records known outcome/uncertainty where the old capability remains valid; continued monitoring, late completion persistence/delivery and crash/forced-kill recovery are not obligations. Never use stale callbacks or append late data into a replacement session. Saved running state is historical; known terminal results remain terminal and are not undone by stale samples. Unknown cleanup is not success, a receipt or automatic gate clearance.
+Required initial tracking/startup append and basic output setup precede successful admission, without a session-file or fsync gate. Save compact final metadata and an output reference through ordinary public operations. Successfully reopened historical records remain distinguishable from live execution; missing logs remain distinguishable from known final outcomes. Never rerun a command to recreate output.
 
-Expire eligible delivered-terminal output after configurable seven-day retention; keep tracked running/unknown/pending output protected. Compact metadata/results remain in Pi history; missing/expired output is reported separately and is never regenerated by rerunning work. No-session operation uses memory plus temporary output and best-effort orderly cleanup.
+No guaranteed automatic seven-day retention or cleanup service is selected. Persistent logs may remain until explicit cleanup. Any explicit cleanup is limited to owned eligible artifacts and protects tracked running/unknown/pending output. No-session operation uses memory/temporary output and attempts orderly cleanup; no crash/forced-kill recovery or guaranteed inactive-session capture exists. Existing origin invalidation and genuine-deactivation best-effort cancellation boundaries stay intact.
 
 ## Checkpoint and implementation state
 
-The committed JobStore/ResultSink envelopes predate this simplification. Reconcile their reservation-shaped ports with this design before implementing storage; a port name is not an aggregate-quota requirement. Follow the public contract-version/release policy for any incompatible API change. This documentation increment changes no runtime exports, package versions, dependencies or JOBS_CONTRACT_VERSION. Concrete host lifecycle/delivery composition belongs to its existing separate work item. This is accepted design guidance, not implemented storage or passing verification.
+Keep the existing JobStore/ResultSink envelopes as reference and reconcile their optional concrete use before implementation; reservation-shaped names do not require reserved space or an atomic filesystem transaction. Keep the previously approved 65,536-byte UTF-8 JSON entry limit as a simple compact-summary boundary: reject oversized submissions without truncating final content or building a near-limit-result retry protocol. Keep the existing optional FinalResult.output text-snapshot meaning intact; the compact session sink may reject it explicitly and provide captured output separately. Define only the entry fields, output representation, ordinary ordering and basic failure replies needed by this profile; the stronger unaccepted store format/APIs are not an implicit specification.
+
+This scope approval changes no compiled exports, dependencies, package versions or JOBS_CONTRACT_VERSION. Any later incompatible public-contract choice still follows the version/release policy and requires agreement rather than silently retaining an old marker. This is accepted minimal guidance, not implemented behavior or passing verification. Neither previous storage implementation is accepted by this decision.
 :::
 
 :::mara decision ADR-JOBS-SESSION-BOUNDED-STORAGE
 :mid: 01M46H9CVCDD3ARYHA4HC30FYD
-:title: Simplify storage by tying managed tracking to the active session
+:title: Choose minimal best-effort storage for personal tooling
 :status: accepted
 :justifies: DES-JOBS-SESSION-STORE
 :justifies: REQ-JOBS-PI-STATE
@@ -180,11 +201,13 @@ The committed JobStore/ResultSink envelopes predate this simplification. Reconci
 :justifies: REQ-JOBS-SESSION-CONTINUITY
 :justifies: REQ-JOBS-EXIT-CLEANUP
 
-The user selected compact job records/results in Pi session custom entries, only bounded output artifacts external, a 10 MB (10,000,000-byte) per-job ceiling with the existing beginning-plus-rolling-tail policy, and removal of the shared ceiling. [[REQ-JOBS-STORAGE-QUOTA]] is retired and preserved as historical knowledge, not an active obligation. Remove completion-capacity reservations, aggregate admission/eviction and the duplicate external execution/result authority instead of layering further repairs onto the old quota-store mechanism.
+The user selected the smallest storage profile that preserves normal jobs functionality, accepting ordinary persistence/cleanup failure as a diagnostic to investigate and fix rather than demanding production-grade recovery upfront. This narrows the earlier session-backed direction in [[DES-JOBS-SESSION-STORE]] rather than starting another general storage framework.
 
-The user also selected bounded best-effort cancellation when a managed job's originating session genuinely deactivates, rather than maintaining a detached tracked execution. Idle and background handoff do not deactivate the session. Unconfirmed cancellation stays honest; session replacement is not blocked indefinitely and does not fabricate successful termination or clear unresolved obligations. The explicitly selected persistent Herdr terminal lifetime remains separate. Continued inactive-session monitoring/completion capture/delivery is no longer guaranteed; Pi crash/forced-kill cleanup and survivor recovery are outside scope. Saved running metadata is never proof of liveness.
+Keep one live owner per job, compact public Pi startup/final metadata, ordinary successful historical replay, the 10,000,000-byte combined beginning-plus-tail output bound, live memory reads, best-effort completion/explicit-read snapshots and honest failure/missing-output reporting. Initial required tracking/output setup still gates admission; post-launch logging failure does not stop execution.
 
-Reuse Pi's existing resumability rather than strengthening append calls into filesystem-durability promises. Retention removes eligible output artifacts, not compact entries already appended to session history. Aggregate disk use is deliberately not bounded; per-job capture bounds and time-based eligible cleanup remain. Output expiry never causes execution replay. Delivery receipts, ownership protections, generic gate reconciliation/user abandonment, independent producers and the Pi 0.99.1 baseline are unchanged.
+Drop strict persistence retries and exact failed-write replay equivalence, arbitrary reentrant/concurrent same-job mutation support, per-stream byte accounting, checksums, continuous full-buffer disk writes, exact allocator/temporary-write accounting and guaranteed automatic seven-day retention. Trusted serialized callers, best-effort persistence and no crash recovery are explicit assumptions. Persistent output can accumulate until explicitly removed; no aggregate bound is promised. [[REQ-JOBS-STORAGE-QUOTA]] remains retired; do not restore quota/reservation/pressure-eviction or a duplicate execution/result authority.
 
-[[DES-JOBS-SESSION-STORE]] is the current implementation direction. The paused branch's `DES-JOBS-BOUNDED-STORE` and external-record/quota/reservation machinery are superseded as future implementation guidance, but its branch, item identity and historical evidence are retained rather than rewritten or integrated. Current source/checkpoint verification is not evidence that this revised storage/lifetime contract is implemented.
+Existing process ownership, managed cancellation on genuine deactivation, original-session routing, known versus unknown outcomes, stable result delivery/receipt identity and gate protections remain unchanged. Persistent Herdr lifetime is separate. Compact entries are not immediate fsync durability; use native Pi 0.99.1 buffering without raw JSONL edits or another session system. Missing logs do not erase saved outcomes or trigger execution replay.
+
+Neither earlier storage implementation is accepted or integrated by this choice. Preserve historical source/evidence; only applicable regressions remain relevant to future minimal-profile acceptance. This documentation-only approval does not implement storage or alter contract/package stamps.
 :::

@@ -166,7 +166,12 @@ inactive-session tracking/completion capture/delivery. Crash/forced-kill cleanup
 and survivor recovery are outside scope; saved running metadata is not liveness.
 Reload of the same active session still needs fresh public callbacks and preserved
 execution. See [[REQ-JOBS-SESSION-CONTINUITY]] and [[DES-JOBS-SESSION-STORE]]. Do not
-add another session/gate journal or raw JSONL edits.
+add another session/gate journal or raw JSONL edits. The minimal storage profile
+uses trusted serialized same-job calls, live memory output and best-effort
+completion/explicit-read snapshots. It does not promise strict persistence
+retries, exact replay after write failures, continuous disk-log freshness or
+automatic seven-day retention. This narrows storage only; native gate, receipt
+and process-control obligations remain unchanged.
 
 ## Package impact and retained scope
 
