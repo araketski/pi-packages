@@ -121,6 +121,52 @@ it('rejects malformed, foreign-owner and mismatched snapshots without replacing 
   observer.close();
 });
 
+it('rejects inbound boxed scalars instead of coercing them into success', () => {
+  const host = bus();
+  const owner = core.createJobsParticipant(host, identity);
+  owner.start();
+  owner.publish('session-A', [job]);
+  const before = owner.view().snapshots;
+  const boxedExitCode = Object(0) as unknown as number;
+  const malformed: core.JobObservation = {
+    ...job,
+    execution: { state: 'terminal', outcome: { kind: 'exit', exitCode: boxedExitCode } },
+  };
+  expect(() => owner.publish('session-A', [malformed])).toThrow('Invalid owner jobs snapshot');
+  host.events.emit(core.JOBS_PARTICIPANT_CHANNEL, {
+    kind: 'snapshot',
+    participant: owner.metadata(),
+    sessionId: 'session-A',
+    jobs: [malformed],
+  });
+  expect(owner.view().snapshots).toEqual(before);
+  expect(owner.view().diagnostics.at(-1)?.code).toBe('malformed');
+  owner.close();
+});
+
+it('preserves diagnostic text independently of bounded identities', () => {
+  const host = bus();
+  const owner = core.createJobsParticipant(host, identity);
+  const observer = core.createJobsParticipant(host, {
+    ...identity,
+    participantId: 'observer',
+    role: 'observer',
+  });
+  owner.start();
+  observer.start();
+  const reason = '  backend unavailable\n' + 'stack trace detail '.repeat(30) + '\n  ';
+  for (const execution of [
+    { state: 'unknown', reason } as const,
+    { state: 'terminal', outcome: { kind: 'launch-failed', reason } } as const,
+  ]) {
+    const observation = { ...job, execution };
+    owner.publish('session-A', [observation]);
+    expect(observer.view().snapshots[0]?.jobs).toEqual([observation]);
+  }
+  owner.close();
+  observer.close();
+});
+
 it('preserves distinct execution outcomes and recorded-result assertions independently of delivery mode', () => {
   const host = bus();
   const owner = core.createJobsParticipant(host, identity);

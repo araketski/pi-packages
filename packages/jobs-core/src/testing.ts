@@ -13,7 +13,10 @@ export function createJobsTestBus(): JobsEventBus & { listenerCount(): number } 
       const handlers = channels.get(channel) ?? new Set();
       channels.set(channel, handlers);
       handlers.add(handler);
+      let subscribed = true;
       return () => {
+        if (!subscribed) return;
+        subscribed = false;
         handlers.delete(handler);
         if (!handlers.size) channels.delete(channel);
       };

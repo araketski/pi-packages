@@ -2,6 +2,21 @@ import { expect, it } from 'vitest';
 import { createJobsParticipant } from './index.js';
 import * as fixtures from './testing.js';
 
+it('keeps replacement subscriptions alive when previous cleanup repeats', () => {
+  const events = fixtures.createJobsTestBus();
+  const received: unknown[] = [];
+  const unsubscribe = events.on('test', () => undefined);
+  unsubscribe();
+  const replacementCleanup = events.on('test', (data) => received.push(data));
+  unsubscribe();
+  events.emit('test', 'replacement');
+  expect(events.listenerCount()).toBe(1);
+  expect(received).toEqual(['replacement']);
+  replacementCleanup();
+  replacementCleanup();
+  expect(events.listenerCount()).toBe(0);
+});
+
 it('supplies isolated explicit buses and honest unknown jobs for consumer contract tests', () => {
   const first = fixtures.createJobsTestBus();
   const second = fixtures.createJobsTestBus();

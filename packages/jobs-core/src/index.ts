@@ -257,6 +257,9 @@ function id(value: unknown): value is string {
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
+function diagnosticText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
 function participantIdentity(value: unknown): value is JobsParticipantIdentity {
   return (
     record(value) &&
@@ -276,7 +279,7 @@ function outcome(value: unknown): value is ExecutionOutcome {
     record(value) &&
     ((value.kind === 'exit' && Number.isSafeInteger(value.exitCode)) ||
       (value.kind === 'terminated' && id(value.signal)) ||
-      (value.kind === 'launch-failed' && id(value.reason)))
+      (value.kind === 'launch-failed' && diagnosticText(value.reason)))
   );
 }
 function execution(value: unknown): value is ExecutionState {
@@ -285,7 +288,7 @@ function execution(value: unknown): value is ExecutionState {
     !('exitCode' in value) &&
     !('resultId' in value) &&
     ((value.state === 'running' && !('outcome' in value)) ||
-      (value.state === 'unknown' && id(value.reason) && !('outcome' in value)) ||
+      (value.state === 'unknown' && diagnosticText(value.reason) && !('outcome' in value)) ||
       (value.state === 'terminal' && outcome(value.outcome)))
   );
 }
@@ -395,7 +398,8 @@ export function createJobsParticipant(
     // Treat event-bus payloads as untrusted data, including uncloneable/getter-bearing records.
     let raw: unknown;
     try {
-      raw = clone(data);
+      // Preserve scalar types until validation: JSON cloning would turn boxed values into primitives.
+      raw = structuredClone(data);
     } catch {
       return;
     }
