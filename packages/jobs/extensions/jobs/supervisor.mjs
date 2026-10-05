@@ -1,6 +1,6 @@
 // This process is the pinned Linux session/group leader. Only it sends group signals.
 import { spawn } from 'node:child_process';
-import { alive, bootId, processes, readProcess } from './linux-evidence.mjs';
+import { alive, bootId, processes, readProcess, verifyGroupQuiescence } from './linux-evidence.mjs';
 
 const own = process.pid;
 let child,
@@ -11,6 +11,9 @@ let child,
   stopping = false,
   ended = false;
 let evidenceError;
+let escalationWait;
+let forcing = false;
+let quiescenceUnconfirmedSince;
 const known = new Map();
 process.on('SIGTERM', () => {}); // Keep the group leader alive throughout graceful stop.
 const send = (message) => {
@@ -52,6 +55,7 @@ function finish(state) {
   ended = true;
   clearInterval(timer);
   clearTimeout(escalation);
+  clearTimeout(escalationWait);
   const message = { kind: 'finished', execution: state };
   if (process.connected)
     process.send(message, () => {
@@ -64,7 +68,26 @@ function poll() {
   try {
     const s = sample();
     send({ kind: 'sample', escaped: s.escaped, remainingLiveGroup: s.group, evidenceError });
-    if (outcome && s.group.length === 0)
+    if (outcome && s.group.length === 0) {
+      const confirmation = verifyGroupQuiescence(own, own);
+      if (confirmation.state !== 'quiescent') {
+        for (const p of confirmation.members) {
+          if (known.size < 1024 || known.has(p.pid)) known.set(p.pid, p.startTicks);
+          else evidenceError = 'descendant evidence limit exceeded';
+        }
+        send({ kind: 'sample', remainingLiveGroup: confirmation.members });
+        if (confirmation.state === 'occupied') {
+          quiescenceUnconfirmedSince = undefined;
+          return;
+        }
+        quiescenceUnconfirmedSince ??= Date.now();
+        if (Date.now() - quiescenceUnconfirmedSince >= 1000)
+          send({
+            kind: 'uncertain',
+            reason: confirmation.reason ?? 'Owned group is not yet confirmed quiescent',
+          });
+        return; // Retain the pinned supervisor and its owned-group stop path.
+      }
       finish(
         s.escaped.length || evidenceError
           ? {
@@ -75,12 +98,56 @@ function poll() {
             }
           : { state: 'terminal', outcome },
       );
+    } else quiescenceUnconfirmedSince = undefined;
   } catch (error) {
     evidenceError = String(error);
     send({ kind: 'sample', evidenceError });
-    // Do not declare terminal from missing procfs evidence.
-    if (outcome) finish({ state: 'unknown', reason: evidenceError });
+    // Missing evidence neither proves death nor permits releasing the pinned stop authority.
+    send({ kind: 'uncertain', reason: evidenceError });
   }
+}
+function forceGroup() {
+  if (ended || forcing) return;
+  forcing = true;
+  clearTimeout(escalationWait);
+  const kill = () => {
+    if (ended) return;
+    try {
+      process.kill(-own, 'SIGKILL');
+    } catch (error) {
+      finish({ state: 'unknown', reason: 'group escalation failed: ' + String(error) });
+    }
+  };
+  const flush = () => {
+    if (ended) return;
+    if (!process.connected) {
+      kill();
+      return;
+    }
+    const observed = outcome;
+    process.send({ kind: 'escalating', outcome: observed }, (error) => {
+      if (error) {
+        kill();
+        return;
+      }
+      // An exit arriving while this frame was buffered must be flushed before killing its observer.
+      if (outcome !== observed) flush();
+      else kill();
+    });
+  };
+  flush();
+}
+function escalate() {
+  poll();
+  if (ended) return;
+  if (outcome || !child) {
+    forceGroup();
+    return;
+  }
+  // Exclusive Node child reaping pins this directly owned child's PID until its exit callback.
+  child.once('exit', forceGroup);
+  escalationWait = setTimeout(forceGroup, 100);
+  child.kill('SIGKILL');
 }
 function stop(ms) {
   if (stopping || ended) return;
@@ -91,10 +158,7 @@ function stop(ms) {
   try {
     // No check-then-kill: this live caller is itself the group leader.
     process.kill(-own, 'SIGTERM');
-    escalation = setTimeout(() => {
-      poll();
-      if (!ended) process.kill(-own, 'SIGKILL');
-    }, grace);
+    escalation = setTimeout(escalate, grace);
   } catch (error) {
     finish({ state: 'unknown', reason: 'group stop failed: ' + String(error) });
   }
@@ -121,8 +185,13 @@ process.on('message', (message) => {
       stdio: ['ignore', 'inherit', 'inherit'],
     });
     child.on('error', (error) => {
-      outcome = { kind: 'launch-failed', reason: String(error) };
-      poll();
+      if (!child.pid) {
+        outcome = { kind: 'launch-failed', reason: String(error) };
+        poll();
+      } else {
+        evidenceError = String(error);
+        send({ kind: 'uncertain', reason: evidenceError, evidenceError });
+      }
     });
     child.on('spawn', () => {
       send({ kind: 'command', commandPid: child.pid, command: readProcess(child.pid) });

@@ -32,6 +32,32 @@ export function processes() {
 export function alive(row) {
   return row.state !== 'Z' && row.state !== 'X';
 }
+export function verifyGroupQuiescence(
+  group,
+  session,
+  probe = { processes, counter: () => readFileSync('/proc/sys/kernel/ns_last_pid', 'utf8').trim() },
+) {
+  try {
+    const before = probe.counter();
+    if (!/^\d+$/.test(before)) throw Error('Invalid Linux PID allocation counter');
+    const membersOf = (rows) =>
+      rows.filter((p) => p.pid !== group && p.group === group && p.session === session && alive(p));
+    const first = membersOf(probe.processes());
+    if (first.length) return { state: 'occupied', members: first };
+    const second = membersOf(probe.processes());
+    const after = probe.counter();
+    if (second.length) return { state: 'occupied', members: second };
+    if (before !== after)
+      return {
+        state: 'unknown',
+        members: [],
+        reason: 'PID allocation changed during group-quiescence verification',
+      };
+    return { state: 'quiescent', members: [] };
+  } catch (error) {
+    return { state: 'unknown', members: [], reason: String(error) };
+  }
+}
 export function bootId() {
   return readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
 }

@@ -9,7 +9,12 @@ import type {
   JobReply,
 } from '@araketski/pi-jobs-core';
 import { createForegroundHandoff, type ForegroundResult } from './foreground.ts';
-import { alive, processes, type ProcessEvidence } from './linux-evidence.mjs';
+import {
+  alive,
+  readProcess,
+  verifyGroupQuiescence,
+  type ProcessEvidence,
+} from './linux-evidence.mjs';
 
 declare const localHandle: unique symbol;
 /** Opaque adapter-owned handle. A snapshot, PID or object copy does not recreate it. */
@@ -194,20 +199,69 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
       let report: ExecutionState | undefined;
       let commandOutcome: ExecutionOutcome | undefined;
       let exitSignal: NodeJS.Signals | null | undefined;
+      let ownedEscalation = false;
+      let verificationTimer: ReturnType<typeof setTimeout> | undefined;
+      let verificationDeadline: number | undefined;
+      let finalResolve!: (state: ExecutionState) => void;
+      const finalObservation = new Promise<ExecutionState>((r) => {
+        finalResolve = r;
+      });
+      const acceptFinal = (state: ExecutionState) => {
+        if (record.state.state === 'terminal' && state.state !== 'terminal') return;
+        report = clone(state);
+        clearTimeout(record.stopTimer);
+        clearTimeout(record.hardTimer);
+        clearTimeout(verificationTimer);
+        record.state = clone(state);
+        record.foreground.finish(clone(state));
+        finalResolve(clone(state));
+        // Unknown must not hide behind inherited output pipes. Terminal results wait for draining.
+        if (state.state === 'unknown') update(record, state);
+      };
       const surfaceSupervisorLoss = () => {
-        // Wait for IPC EOF, not stdout/stderr EOF, so a queued final report still wins.
-        if (
-          record.closed &&
-          !record.child?.connected &&
-          !report &&
-          !(record.stopped && exitSignal === 'SIGKILL')
-        ) {
-          update(record, {
-            state: 'unknown',
-            reason:
-              'Supervisor exited without a final report; command/descendant termination is unverified.',
-          });
+        // IPC EOF allows queued final reports to win, but does not wait for output EOF.
+        if (!record.closed || record.child?.connected || report) return;
+        if (ownedEscalation && exitSignal === 'SIGKILL' && record.evidence.supervisor) {
+          const leader = record.evidence.supervisor;
+          const confirmation = verifyGroupQuiescence(leader.group, leader.session);
+          record.evidence.remainingLiveGroup = confirmation.members;
+          try {
+            const escaped = record.evidence.escaped.filter((p) => {
+              const current = readProcess(p.pid);
+              return current && current.startTicks === p.startTicks && alive(current);
+            });
+            if (
+              confirmation.state === 'quiescent' &&
+              !escaped.length &&
+              !record.evidence.evidenceError
+            ) {
+              acceptFinal(
+                commandOutcome
+                  ? { state: 'terminal', outcome: commandOutcome }
+                  : {
+                      state: 'unknown',
+                      reason:
+                        'Owned group is quiescent after escalation, but the command outcome was not observed.',
+                    },
+              );
+              return;
+            }
+          } catch (error) {
+            record.evidence.evidenceError = String(error);
+          }
+          verificationDeadline ??= Date.now() + 1000;
+          if (Date.now() < verificationDeadline) {
+            clearTimeout(verificationTimer);
+            verificationTimer = setTimeout(surfaceSupervisorLoss, 25);
+            return;
+          }
         }
+        acceptFinal({
+          state: 'unknown',
+          reason:
+            record.evidence.evidenceError ??
+            'Supervisor exited without verified command/descendant termination.',
+        });
       };
       const drains: Promise<void>[] = [];
       // At most one awaited chunk per stream. The sink never needs a concurrent-write contract.
@@ -248,17 +302,17 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
             kind: string;
             execution?: ExecutionState;
             outcome?: ExecutionOutcome;
+            reason?: string;
           } & Partial<LocalEvidence>;
-          if (message.kind === 'finished') {
-            report = message.execution;
-            if (report) {
-              clearTimeout(record.stopTimer);
-              clearTimeout(record.hardTimer);
-              record.state = clone(report);
-              record.foreground.finish(clone(report));
-              // Unknown must not hide behind pipes held open by an escaped descendant.
-              if (report.state === 'unknown') update(record, report);
-            }
+          if (message.kind === 'finished' && message.execution) acceptFinal(message.execution);
+          if (message.kind === 'uncertain')
+            update(record, {
+              state: 'unknown',
+              reason: message.reason ?? 'Group quiescence is unverified.',
+            });
+          if (message.kind === 'escalating') {
+            ownedEscalation = true;
+            if (message.outcome) commandOutcome = message.outcome;
           }
           if (message.kind === 'outcome') commandOutcome = message.outcome;
           for (const key of [
@@ -277,10 +331,10 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
         child.on('error', (error) => {
           record.diagnostics.push(`Supervisor error: ${String(error)}`);
           if (!child.pid)
-            report = {
+            acceptFinal({
               state: 'terminal',
               outcome: { kind: 'launch-failed', reason: String(error) },
-            };
+            });
         });
         child.on('exit', (_code, signalName) => {
           record.closed = true;
@@ -290,52 +344,11 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
         child.on('disconnect', surfaceSupervisorLoss);
         child.on('close', (_code, signalName) => {
           record.closed = true;
-          clearTimeout(record.hardTimer);
-          clearTimeout(record.stopTimer);
-          void Promise.all(drains).then(() => {
-            let state = report;
-            if (
-              !state &&
-              record.evidence.supervisor &&
-              record.stopped &&
-              signalName === 'SIGKILL'
-            ) {
-              try {
-                const leader = record.evidence.supervisor;
-                record.evidence.remainingLiveGroup = processes().filter(
-                  (p) => p.group === leader.group && p.session === leader.session && alive(p),
-                );
-                const escaped = record.evidence.escaped.filter((p) =>
-                  processes().some(
-                    (current) =>
-                      current.pid === p.pid &&
-                      current.startTicks === p.startTicks &&
-                      alive(current),
-                  ),
-                );
-                if (
-                  !record.evidence.remainingLiveGroup.length &&
-                  !escaped.length &&
-                  !record.evidence.evidenceError
-                )
-                  state = {
-                    state: 'terminal',
-                    outcome: commandOutcome ?? { kind: 'terminated', signal: signalName },
-                  };
-              } catch (error) {
-                record.evidence.evidenceError = String(error);
-              }
-            }
-            update(
-              record,
-              state ?? {
-                state: 'unknown',
-                reason:
-                  record.evidence.evidenceError ??
-                  'Supervisor ended without verified command/group termination; retain tracking.',
-              },
-            );
-          });
+          exitSignal ??= signalName;
+          surfaceSupervisorLoss();
+          void Promise.all([Promise.all(drains), finalObservation]).then(([, state]) =>
+            update(record, state),
+          );
         });
         child.send(
           {

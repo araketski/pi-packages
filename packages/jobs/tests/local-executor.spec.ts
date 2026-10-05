@@ -4,7 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { ControlAuthority, LaunchRequest, OutputSink } from '@araketski/pi-jobs-core';
 import { expect, it, vi } from 'vitest';
 import { createLocalExecutor, type LocalHandle } from '../extensions/jobs/local-executor.ts';
-import { readProcess, alive } from '../extensions/jobs/linux-evidence.mjs';
+import { readProcess, alive, processes } from '../extensions/jobs/linux-evidence.mjs';
 
 const { supervisors } = vi.hoisted(() => ({ supervisors: new Map<number, ChildProcess>() }));
 vi.mock('node:child_process', async (original) => {
@@ -401,6 +401,124 @@ it('surfaces unexpected supervisor loss even while an observed escaped child hol
           const p = readProcess(escaped.pid);
           return !p || p.startTicks !== escaped.startTicks || !alive(p);
         });
+      }
+    },
+    { background: true },
+  );
+});
+
+it('verifies forced group death before waiting for a blocked output sink', async () => {
+  const e = createLocalExecutor({ authority: () => authority });
+  let started = false;
+  let release!: () => void;
+  const barrier = new Promise<void>((r) => {
+    release = r;
+  });
+  const r = await e.launch(
+    request(),
+    {
+      command: 'trap "" TERM; printf ready; head -c 4000000 /dev/zero; while :; do sleep .1; done',
+      cwd: process.cwd(),
+    },
+    {
+      append: async () => {
+        started = true;
+        await barrier;
+      },
+    },
+  );
+  if (r.status !== 'ok') throw Error(r.reason);
+  try {
+    await until(() => started);
+    await sleep(50);
+    const leader = e.evidence(r.value).supervisor!;
+    await e.stop(r.value, authority, 50);
+    await until(() => supervisors.get(leader.pid)?.signalCode === 'SIGKILL');
+    await sleep(1100);
+    expect(
+      processes().filter(
+        (p) => p.group === leader.group && p.session === leader.session && alive(p),
+      ),
+    ).toEqual([]);
+    expect(await e.observe(r.value)).toEqual({
+      state: 'terminal',
+      outcome: { kind: 'terminated', signal: 'SIGKILL' },
+    });
+    let settled = false;
+    void e.completion(r.value).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    release();
+    expect(await e.foreground(r.value)).toMatchObject({
+      kind: 'completed',
+      execution: { state: 'terminal', outcome: { kind: 'terminated', signal: 'SIGKILL' } },
+    });
+    expect(await e.completion(r.value)).toEqual({
+      state: 'terminal',
+      outcome: { kind: 'terminated', signal: 'SIGKILL' },
+    });
+  } finally {
+    release();
+    await e.stop(r.value, authority, 0);
+    await e.completion(r.value);
+  }
+});
+
+it('never reports completion while a repeatedly forked confined child is still alive', async () => {
+  for (let i = 0; i < 16; i++)
+    await fixture(
+      `/bin/bash -c 'sleep .050; sleep .2 >/dev/null 2>&1 &' & exit 0`,
+      async (h, e) => {
+        const leader = await (async () => {
+          await until(() => !!e.evidence(h).supervisor);
+          return e.evidence(h).supervisor!;
+        })();
+        try {
+          expect(await e.completion(h)).toEqual({
+            state: 'terminal',
+            outcome: { kind: 'exit', exitCode: 0 },
+          });
+          await sleep(20);
+          expect(
+            processes().filter(
+              (p) => p.group === leader.group && p.session === leader.session && alive(p),
+            ),
+          ).toEqual([]);
+        } finally {
+          // Every test child is bounded; verify actual group cleanup even if the assertion fails.
+          await until(
+            () =>
+              !processes().some(
+                (p) => p.group === leader.group && p.session === leader.session && alive(p),
+              ),
+          );
+        }
+      },
+      { background: true },
+    );
+}, 15000);
+
+it('does not treat a stop request as proof that an unexpected supervisor death killed the command', async () => {
+  await fixture(
+    'trap "" TERM; printf ready; sleep .5; exit 7',
+    async (h, e, output) => {
+      await until(() => output().includes('ready'));
+      const leader = e.evidence(h).supervisor!;
+      const supervisor = supervisors.get(leader.pid)!;
+      try {
+        expect(await e.stop(h, authority, 5000)).toMatchObject({ status: 'ok' });
+        expect(readProcess(leader.pid)?.startTicks).toBe(leader.startTicks);
+        expect(supervisor.kill('SIGKILL')).toBe(true);
+        expect(await e.completion(h)).toMatchObject({ state: 'unknown' });
+      } finally {
+        await until(
+          () =>
+            !processes().some(
+              (p) => p.group === leader.group && p.session === leader.session && alive(p),
+            ),
+        );
       }
     },
     { background: true },
