@@ -1,7 +1,7 @@
 # Jobs persistence and bounded output
 
-These are accepted minimal, best-effort storage policies, not an implemented
-store or passing verification of that profile. They support [session continuity](./lifecycle.mara.md) and
+These are accepted minimal, best-effort storage policies. The optional store
+mechanism is defined below; acceptance and actual check evidence are tracked in Work. They support [session continuity](./lifecycle.mara.md) and
 [delivery receipts](./delivery.mara.md), without creating another Pi session system.
 
 ## Reuse Pi state facilities
@@ -187,7 +187,7 @@ No guaranteed automatic seven-day retention or cleanup service is selected. Pers
 
 Keep the existing JobStore/ResultSink envelopes as reference and reconcile their optional concrete use before implementation; reservation-shaped names do not require reserved space or an atomic filesystem transaction. Keep the previously approved 65,536-byte UTF-8 JSON entry limit as a simple compact-summary boundary: reject oversized submissions without truncating final content or building a near-limit-result retry protocol. Keep the existing optional FinalResult.output text-snapshot meaning intact; the compact session sink may reject it explicitly and provide captured output separately. Define only the entry fields, output representation, ordinary ordering and basic failure replies needed by this profile; the stronger unaccepted store format/APIs are not an implicit specification.
 
-This scope approval changes no compiled exports, dependencies, package versions or JOBS_CONTRACT_VERSION. Any later incompatible public-contract choice still follows the version/release policy and requires agreement rather than silently retaining an old marker. This is accepted minimal guidance, not implemented behavior or passing verification. Neither previous storage implementation is accepted by this decision.
+The minimal implementation adds optional compiled exports without changing checkpoint types, dependencies, package versions or JOBS_CONTRACT_VERSION. Any later incompatible public-contract choice still follows the version/release policy and requires agreement rather than silently retaining an old marker. The mechanism below is implemented in storage.ts and storage-files.ts; accepted guidance is not by itself passing verification. Neither previous storage implementation is accepted by this decision.
 
 ## Minimal implementation format and ports
 
@@ -201,7 +201,7 @@ Combined capture defaults to 10,000,000 bytes: retain the first 65,536 bytes and
 
 The optional Node file artifact port uses randomly named jobs-owned .output files beneath an explicitly supplied root. Each snapshot is a four-byte big-endian header length, bounded UTF-8 JSON header {formatVersion:1,totalBytes,headBytes,finished}, then raw retained beginning followed by chronological tail. Only output lives here. Initial creation is empty; snapshots replace it only on completion or explicit read, with no fsync/atomic-recovery promise. Live reads always use owner memory even when the snapshot fails. Historical reads use the referenced snapshot and report missing/unreadable output as unavailable independently of saved final results. No continuous disk freshness is promised.
 
-Historical replay reads matching successful custom entries for the fixed session, restoring stable identities/results without execution. Saved running observations become unknown historical execution with no control capabilities. Origin invalidation prevents subsequent public session callbacks, including after artifact awaits; no replacement-session retargeting is supported. Same-session reload must preserve the owner and provide valid origin-bound capability routing through its integration; concrete callback rebinding/events remain downstream. Orderly dispose invalidates callbacks and attempts removal of only this instance's no-session artifacts after supported operations settle. Persistent cleanup is not provided; persistent artifacts remain until explicit external cleanup under REQ-JOBS-RETENTION. This mechanism decision is not passing execution evidence.
+Historical replay reads matching successful custom entries for the fixed session, restoring stable identities/results without execution. Saved running observations become unknown historical execution with no control capabilities. Origin invalidation prevents subsequent public session callbacks, including after artifact awaits; no replacement-session retargeting is supported. Same-session reload must preserve the owner and provide valid origin-bound capability routing through its integration; concrete callback rebinding/events remain downstream. Orderly dispose invalidates callbacks and attempts removal of only this instance's no-session artifacts after supported operations settle. Persistent cleanup is not provided; persistent artifacts remain until explicit external cleanup under REQ-JOBS-RETENTION. Focused behavioral tests cover capture, ordinary failures and data-only replay; native/installed fixtures exercise actual Pi 0.99.1 and command draining. Their execution identities and check results belong in Work, not this mechanism decision.
 :::
 
 :::mara decision ADR-JOBS-SESSION-BOUNDED-STORAGE

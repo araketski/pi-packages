@@ -15,17 +15,15 @@ it('proves Pi 0.99.1 atomic native registrations and conservative nested-result 
       typebox: createRequire(sdk).resolve('@sinclair/typebox'),
     };
     writeFileSync(join(root, 'imports.json'), JSON.stringify(imports));
-    for (const name of ['pi-harness.mjs', 'pi-native.mjs'])
+    for (const name of ['pi-harness.mjs', 'pi-native.mjs', 'storage-smoke.mjs'])
       writeFileSync(join(root, name), readFileSync(new URL(`../tests/${name}`, import.meta.url)));
     for (const name of ['core-a', 'core-b'])
       writeFileSync(
         join(root, `${name}.mjs`),
         readFileSync(new URL('../dist/index.js', import.meta.url)),
       );
-    writeFileSync(
-      join(root, 'lifecycle.js'),
-      readFileSync(new URL('../dist/lifecycle.js', import.meta.url)),
-    );
+    for (const name of ['lifecycle.js', 'storage.js', 'storage-files.js'])
+      writeFileSync(join(root, name), readFileSync(new URL(`../dist/${name}`, import.meta.url)));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     mkdirSync(join(root, 'home'));
     mkdirSync(join(root, 'tmp'));
@@ -67,7 +65,7 @@ it('proves Pi 0.99.1 atomic native registrations and conservative nested-result 
       name: string;
       status: string;
     }[];
-    expect(records).toHaveLength(6);
+    expect(records).toHaveLength(7);
     expect(records.every((r) => r.status === 'observed')).toBe(true);
   } finally {
     rmSync(root, { recursive: true, force: true });

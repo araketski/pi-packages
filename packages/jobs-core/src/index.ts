@@ -18,6 +18,21 @@ export type {
   StopStatus,
 } from './lifecycle.js';
 
+export {
+  createSessionJobStore,
+  JOBS_STORAGE_ENTRY_TYPE,
+  JOBS_STORAGE_ENTRY_BYTES,
+  JOBS_OUTPUT_BYTES,
+} from './storage.js';
+export { createJobsFileOutput } from './storage-files.js';
+export type {
+  JobsSessionPort,
+  JobsOutputSnapshot,
+  JobsOutputArtifacts,
+  JobsCapturedOutput,
+  SessionJobStore,
+} from './storage.js';
+
 /** First contract shipping stamp, selected explicitly; not the current package version. */
 export const JOBS_CONTRACT_VERSION = '0.1.0';
 /** Stable discovery channel, deliberately not partitioned by contract version. */
@@ -149,7 +164,7 @@ export interface StorageReservation {
   job: JobIdentity;
   reservationId: string;
 }
-/** Admission, atomic persistence, quota and retention implementation belong to the store slice. */
+/** Optional admission/save seam; concrete storage defines its best-effort semantics. */
 export interface JobStore {
   reserve(request: LaunchRequest): Promise<JobReply<StorageReservation>>;
   save(reservation: StorageReservation, observation: JobObservation): Promise<JobReply<void>>;

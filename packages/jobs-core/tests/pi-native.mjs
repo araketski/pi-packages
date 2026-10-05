@@ -1,4 +1,15 @@
-import { ai, Type, assert, probe, setup, tool, result } from './pi-harness.mjs';
+import { ai, Type, assert, probe, setup, tool, result, sdk, root } from './pi-harness.mjs';
+import { exerciseStorage } from './storage-smoke.mjs';
+import { join } from 'node:path';
+
+await probe('minimal session storage uses public Pi buffering and ordinary reopen', async () =>
+  exerciseStorage(
+    await import('./core-a.mjs'),
+    sdk,
+    join(root, 'storage'),
+    await import('./core-b.mjs'),
+  ),
+);
 
 const namespaces = ['jobs', 'goal', 'herdr'];
 const coreA = await import('./core-a.mjs');
