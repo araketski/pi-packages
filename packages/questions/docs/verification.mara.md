@@ -16,6 +16,11 @@ The accepted [optional Herdr attention integration](./herdr-integration.mara.md)
 has its own verification for balanced events and independent Goal blockers.
 Acceptance does not imply implemented integration or an observed runtime result.
 
+The isolated native PTY launcher supplies `--approve` for its generated fixture
+project so startup does not stop at an interactive trust prompt. This is
+process-local fixture approval, not inherited production trust or authorization
+to answer questionnaire choices automatically.
+
 ## Observable acceptance examples
 
 | Case                        | Action                                                    | Expected outcome                                                                                          |

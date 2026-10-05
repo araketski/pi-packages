@@ -26,7 +26,8 @@ async function run(config, behavior = 'normal', mode = 'tui', withHerdr = true) 
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line));
-  const socketPath = join(dir, 'metadata.sock');
+  const ipcDir = await mkdtemp(join(process.env.PI_TEST_IPC_DIR ?? tmpdir(), 'activity-ipc-'));
+  const socketPath = join(ipcDir, 'metadata.sock');
   const rpc = [];
   const requests = [];
   const sockets = new Set();
@@ -375,6 +376,7 @@ async function run(config, behavior = 'normal', mode = 'tui', withHerdr = true) 
     await new Promise((done) => metadata.close(done));
     provider.closeAllConnections();
     await new Promise((done) => provider.close(done));
+    await rm(ipcDir, { recursive: true, force: true });
     await rm(dir, { recursive: true, force: true });
   }
 }

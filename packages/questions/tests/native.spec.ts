@@ -77,6 +77,7 @@ async function native(
   const args = [
     process.execPath,
     cli,
+    '--approve',
     '--offline',
     '--no-extensions',
     '--no-skills',

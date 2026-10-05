@@ -21,7 +21,7 @@ type Request = {
   params: { pane_id: string; source: string; seq: number; tokens: { activity: string | null } };
 };
 async function harness(reply: (req: Request, socket: Socket) => void, timeoutMs = 50) {
-  const dir = mkdtempSync(join(tmpdir(), 'activity-socket-'));
+  const dir = mkdtempSync(join(process.env.PI_TEST_IPC_DIR ?? tmpdir(), 'activity-socket-'));
   const path = join(dir, 'herdr.sock');
   const requests: Request[] = [];
   const sockets = new Set<Socket>();

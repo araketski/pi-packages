@@ -8,10 +8,11 @@ import { HerdrPublisher } from '../extensions/session-activity/publisher.ts';
 // @mara implements VER-SESSION-ACTIVITY-PUBLISHER
 it('publishes and deletes activity on an isolated actual Herdr server without touching lifecycle metadata', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'activity-herdr-real-'));
+  const ipcDir = mkdtempSync(join(process.env.PI_TEST_IPC_DIR ?? tmpdir(), 'activity-herdr-ipc-'));
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: dir,
-    XDG_CONFIG_HOME: join(dir, '.config'),
+    XDG_CONFIG_HOME: ipcDir,
     XDG_DATA_HOME: join(dir, '.local/share'),
     XDG_STATE_HOME: join(dir, '.local/state'),
     XDG_CACHE_HOME: join(dir, '.cache'),
@@ -19,9 +20,9 @@ it('publishes and deletes activity on an isolated actual Herdr server without to
     SHELL: '/bin/sh',
   };
   for (const key of Object.keys(env)) if (key.startsWith('HERDR_')) delete env[key];
-  mkdirSync(join(dir, '.config/herdr'), { recursive: true });
+  mkdirSync(join(ipcDir, 'herdr'), { recursive: true });
   writeFileSync(
-    join(dir, '.config/herdr/config.toml'),
+    join(ipcDir, 'herdr/config.toml'),
     'onboarding = false\n[terminal]\ndefault_shell = "/bin/sh"\n',
   );
   const name = 'activity-contract-test';
@@ -69,7 +70,10 @@ it('publishes and deletes activity on an isolated actual Herdr server without to
     const status = cli('status');
     const socket = status.stdout.match(/socket:\s*(.+)/u)?.[1]?.trim();
     expect(socket, status.stdout + output).toBeDefined();
-    expect(socket?.startsWith(dir), 'RPC must target only the private fixture server').toBe(true);
+    expect(
+      socket?.startsWith(`${ipcDir}/`),
+      'RPC must target only the private fixture server',
+    ).toBe(true);
     expect(
       cli(
         'pane',
@@ -143,6 +147,7 @@ it('publishes and deletes activity on an isolated actual Herdr server without to
         setTimeout(() => child.kill('SIGKILL'), 1000).unref();
       }
     });
+    rmSync(ipcDir, { recursive: true, force: true });
     rmSync(dir, { recursive: true, force: true });
   }
 }, 20000);

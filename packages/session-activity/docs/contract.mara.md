@@ -411,6 +411,8 @@ Use a disposable socket server to capture newline-framed pane.report_metadata re
 Gate an active publication, queue many updates and a clear, and prove retained writes are at most one active/one latest pending. Superseded queued updates resolve false. Cancellation/reset and a newer clear must prevent stale activity restoration; adapter replacement preserves sequence order within the process. Verify no TTL/heartbeat fields or renewal writes exist.
 
 In an isolated actual Herdr 0.9.1/protocol-22 pane/session, verify string publication and null deletion, preserve unrelated metadata/title/lifecycle state, and reject a lower-sequence publication after clearing. Source/schema inspection alone does not pass this check. Never modify the installed managed integration, live user server or another agent's pane.
+
+Use PI_TEST_IPC_DIR to select a private short directory for disposable Unix sockets and the isolated Herdr configuration/socket tree. Keep Pi profiles, saved sessions, archive consumers and build caches in separate disk-backed fixture storage. Herdr's socket follows the fixture's XDG_CONFIG_HOME, not merely HERDR_CONFIG_PATH; assert it stays inside the private IPC tree. Close each fixture server and remove its socket/configuration directory after the check.
 :::
 
 :::mara requirement REQ-SESSION-ACTIVITY-STATUSLINE
