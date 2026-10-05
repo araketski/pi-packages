@@ -43,6 +43,14 @@ async function regular(path: string): Promise<number> {
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Unexpected storage file: ${path}`);
   return stat.size;
 }
+async function syncDirectory(path: string): Promise<void> {
+  const directory = await open(path, 'r');
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
+}
 async function atomic(path: string, bytes: string | Buffer): Promise<void> {
   const temp = `${path}.tmp-${randomUUID()}`;
   const file = await open(temp, 'wx', 0o600);
@@ -53,12 +61,7 @@ async function atomic(path: string, bytes: string | Buffer): Promise<void> {
     await file.close();
   }
   await rename(temp, path);
-  const directory = await open(join(path, '..'), 'r');
-  try {
-    await directory.sync();
-  } finally {
-    await directory.close();
-  }
+  await syncDirectory(join(path, '..'));
 }
 async function json(path: string, bound: number): Promise<unknown> {
   if ((await regular(path)) > bound) throw new Error('Stored JSON exceeds its budget.');
@@ -97,6 +100,16 @@ async function transaction(request: Request): Promise<unknown> {
     const path = join(root, name),
       stat = await lstat(path);
     if (stat.isSymbolicLink()) throw new Error('Symlinks are not storage records.');
+    if (
+      /^\.deleted-[a-f0-9]{64}-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u.test(
+        name,
+      ) &&
+      stat.isDirectory()
+    ) {
+      await rm(path, { recursive: true });
+      await syncDirectory(root);
+      continue;
+    }
     if (name.startsWith('policy.json.tmp-') && stat.isFile()) {
       extra += stat.size;
       continue;
@@ -156,7 +169,11 @@ async function transaction(request: Request): Promise<unknown> {
   let removed = 0;
   const removedKeys: string[] = [];
   const remove = async (job: (typeof jobs)[number]) => {
-    await rm(job.path, { recursive: true });
+    const tombstone = join(root, `.deleted-${key(job.data.request.identity)}-${randomUUID()}`);
+    await rename(job.path, tombstone);
+    await syncDirectory(root);
+    await rm(tombstone, { recursive: true });
+    await syncDirectory(root);
     jobs.splice(jobs.indexOf(job), 1);
     removed++;
     removedKeys.push(key(job.data.request.identity));
@@ -250,7 +267,7 @@ async function transaction(request: Request): Promise<unknown> {
   if (!job)
     return request.operation === 'delete'
       ? ok()
-      : unavailable('Job/result expired, evicted or unavailable.');
+      : { ...unavailable('Job/result expired, evicted or unavailable.'), removed: true };
   const { data, path } = job;
   if (request.operation === 'read')
     return ok(
@@ -373,6 +390,7 @@ async function transaction(request: Request): Promise<unknown> {
 
 // Private one-shot helper; storage.ts is the supported API, not this executable module.
 let input = '';
+process.stdin.setEncoding('utf8');
 try {
   for await (const chunk of process.stdin) {
     input += String(chunk);

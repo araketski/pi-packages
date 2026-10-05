@@ -66,6 +66,7 @@ export interface JobStorage {
   close(): Promise<JobReply<void>>;
 }
 interface MemoryJob {
+  createdHere: boolean;
   reservation: StorageReservation;
   observation?: JobObservation;
   unavailableOutput?: string;
@@ -123,6 +124,8 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         ],
         { stdio: ['pipe', 'pipe', 'pipe'] },
       );
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
       let output = '',
         errorText = '',
         settled = false;
@@ -186,6 +189,11 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
   const memory = new Map<string, MemoryJob>();
   const warnings = new Map<string, StorageDiagnostic>();
   let closed = false;
+  let cleanupComplete = false;
+  const confirmedRemoved = (
+    reply: JobReply<unknown>,
+  ): reply is { status: 'unavailable'; reason: string; removed: true } =>
+    reply.status === 'unavailable' && 'removed' in reply && reply.removed === true;
   const warn = (job: JobIdentity, reason: string) => {
     const k = key(job);
     const local = memory.get(k);
@@ -229,6 +237,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     if (reply.status !== 'ok') return reply;
     for (const k of memory.keys()) if (!reply.value.presentKeys.includes(k)) forget(k);
     memory.set(key(request.identity), {
+      createdHere: true,
       reservation: clone(reply.value.reservation),
       policy: reply.value.policy,
       queue: Promise.resolve(),
@@ -258,8 +267,13 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         reservation,
         observation,
       });
+      if (confirmedRemoved(reply)) {
+        forget(key(reservation.job));
+        return failure(reply.reason);
+      }
       if (!local && reply.status === 'ok') {
         local = {
+          createdHere: false,
           reservation: clone(reservation),
           policy: reply.value,
           queue: Promise.resolve(),
@@ -313,7 +327,11 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       if (!validJob(job)) return invalid('Invalid job identity.');
       const local = memory.get(key(job));
       const reply = await invoke<JobObservation>('read', { job });
-      if (reply.status === 'unavailable' && local && !local.degraded) forget(key(job));
+      if (confirmedRemoved(reply)) {
+        forget(key(job));
+        return failure(reply.reason);
+      }
+      if (reply.status === 'unavailable' && local) warn(job, reply.reason);
       if (local?.observation && (reply.status === 'ok' || local.degraded))
         return { status: 'ok', value: clone(local.observation) };
       return reply;
@@ -332,6 +350,10 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       if (local?.result && !isDeepStrictEqual(local.result, result))
         return invalid('Saved result is immutable.');
       const reply = await invoke<null>('result-save', { job, result });
+      if (confirmedRemoved(reply)) {
+        forget(key(job));
+        return failure(reply.reason);
+      }
       if (local && (reply.status === 'ok' || reply.status === 'unavailable'))
         local.result = clone(result);
       if (reply.status !== 'ok') warn(job, reply.reason);
@@ -344,6 +366,11 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         job: identity.job,
         resultId: identity.resultId,
       });
+      if (confirmedRemoved(reply)) {
+        forget(key(identity.job));
+        return failure(reply.reason);
+      }
+      if (reply.status === 'unavailable' && local) warn(identity.job, reply.reason);
       if (
         reply.status !== 'ok' &&
         local?.degraded &&
@@ -384,8 +411,13 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
                         }
                       : {}),
                   });
+              if (confirmedRemoved(reply)) {
+                forget(key(reservation.job));
+                return;
+              }
               if (reply.status === 'ok') {
                 local.outputDegraded = false;
+                delete local.unavailableOutput;
                 local.window = {
                   bytes: Buffer.from(reply.value.bytes, 'base64'),
                   seen: reply.value.seen,
@@ -420,6 +452,19 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       const reply = await invoke<{ bytes: string; seen: number; head: number }>('output-read', {
         job,
       });
+      if (confirmedRemoved(reply)) {
+        forget(key(job));
+        return failure(reply.reason);
+      }
+      if (reply.status === 'ok' && local?.unavailableOutput) {
+        delete local.unavailableOutput;
+        local.window = {
+          bytes: Buffer.from(reply.value.bytes, 'base64'),
+          seen: reply.value.seen,
+          head: reply.value.head,
+        };
+      }
+      if (reply.status === 'unavailable' && local) warn(job, reply.reason);
       let w: ByteWindow;
       if (local?.unavailableOutput) return failure(local.unavailableOutput);
       if (local?.degraded) w = local.window;
@@ -463,18 +508,21 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       return reply;
     },
     async close() {
-      if (closed) return { status: 'ok', value: undefined };
+      if (cleanupComplete) return { status: 'ok', value: undefined };
       closed = true;
       await Promise.allSettled([...memory.values()].map((local) => local.queue));
       if (options.ephemeral)
         for (const local of memory.values()) {
+          if (!local.createdHere) continue;
           const reply = await invoke<null>('delete', {
             job: local.reservation.job,
             reservation: local.reservation,
           });
           if (reply.status !== 'ok') return reply;
+          local.createdHere = false;
         }
       memory.clear();
+      cleanupComplete = true;
       return { status: 'ok', value: undefined };
     },
   };
