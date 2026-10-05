@@ -227,7 +227,16 @@ export function createJobLifecycle<Handle>(options: {
   startedAtMs: number;
   settings?: JobsLifecycleSettingsInput;
 }): JobLifecycle {
-  const clock = options.clock ?? systemJobsClock;
+  const clockInput = options.clock ?? systemJobsClock;
+  const clock: JobsClock = {
+    now: clockInput.now.bind(clockInput),
+    schedule: clockInput.schedule.bind(clockInput),
+  };
+  const handle = options.handle;
+  const adapter = options.adapter;
+  const observe = adapter.observe.bind(adapter);
+  const requestStop = adapter.stop.bind(adapter);
+  const authorize = options.authorize.bind(options);
   const request = options.request;
   if (
     !validIdentity(request.identity) ||
@@ -293,7 +302,7 @@ export function createJobLifecycle<Handle>(options: {
     )
       return { status: 'denied', reason: 'Control identity does not match this owner/job.' };
     try {
-      if (options.authorize(value) === true) return disposed ? unavailable() : undefined;
+      if (authorize(value) === true) return disposed ? unavailable() : undefined;
     } catch {
       /* Failure to establish authority is denial, not permission. */
     }
@@ -308,7 +317,7 @@ export function createJobLifecycle<Handle>(options: {
     observing = (async () => {
       let next: ExecutionState;
       try {
-        const raw = await options.adapter.observe(options.handle);
+        const raw = await observe(handle);
         next = execution(raw)
           ? copy(raw)
           : { state: 'unknown', reason: 'Malformed execution observation.' };
@@ -368,7 +377,7 @@ export function createJobLifecycle<Handle>(options: {
       job: copy(value.job),
       authority: value.authority,
     };
-    if (stopping) return stopping;
+    if (stopping) return copy(await stopping);
     pendingIntent = {
       requestId: captured.requestId,
       reason: stopReason,
@@ -393,11 +402,7 @@ export function createJobLifecycle<Handle>(options: {
         reply: { status: 'unknown', reason: 'Stop admission is pending.' },
       };
       try {
-        const result = await options.adapter.stop(
-          options.handle,
-          copy(captured.authority),
-          settings.graceMs,
-        );
+        const result = await requestStop(handle, copy(captured.authority), settings.graceMs);
         if (result.status === 'ok' && result.value?.requested === true)
           reply = { status: 'ok', value: { state: 'requested' } };
         else if (
@@ -421,7 +426,7 @@ export function createJobLifecycle<Handle>(options: {
       stopping = undefined;
       pendingIntent = undefined;
     });
-    return stopping;
+    return copy(await stopping);
   }
   const lifecycle: JobLifecycle = {
     async inspect(value) {
@@ -500,12 +505,13 @@ export function createJobsLifecycleRouter(
       return { status: 'unknown', reason: `Owner route failed: ${reason(error)}` };
     }
   }
+  const waitOptions = { ...options };
   const inspect = (job: JobIdentity) => route(job, (owner) => owner.inspect(copy(job)));
   return {
     inspect,
     stop: (request, stopReason) => route(request.job, (owner) => owner.stop(request, stopReason)),
     setAwaiting: (request) => route(request.job, (owner) => owner.setAwaiting(request)),
-    wait: (request) => waitForJobs(request, inspect, options),
+    wait: (request) => waitForJobs(request, inspect, waitOptions),
   };
 }
 

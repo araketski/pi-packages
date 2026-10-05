@@ -359,6 +359,56 @@ describe('execution and owner control', () => {
 });
 
 describe('review race regressions', () => {
+  it('constructor options cannot redirect the selected adapter/handle or replace authorization', async () => {
+    const fake = createJobsTestAdapter(clock);
+    fake.setExecution(terminal);
+    const replacement = createJobsTestAdapter(clock);
+    replacement.setExecution({ state: 'running' });
+    const options = {
+      request,
+      handle: fake.handle,
+      adapter: fake.adapter,
+      clock,
+      startedAtMs: 0,
+      authorize: (r: ControlRequest) => r.authority === authority,
+    };
+    const lifecycle = core.createJobLifecycle(options);
+    options.handle = replacement.handle;
+    options.adapter = replacement.adapter;
+    options.authorize = () => true;
+    expect(await lifecycle.inspect(identity)).toMatchObject({ value: { execution: terminal } });
+    expect(await lifecycle.stop({ ...control, authority: { ...authority } })).toMatchObject({
+      status: 'denied',
+    });
+    expect(await lifecycle.stop(control)).toMatchObject({
+      value: { state: 'already-terminal', execution: terminal },
+    });
+    expect(replacement.stopCalls).toHaveLength(0);
+    lifecycle.dispose();
+    fake.dispose();
+    replacement.dispose();
+  });
+  it('coalesced terminal stop requests return independent outcome copies', async () => {
+    const { lifecycle, fake } = setup();
+    fake.setExecution(terminal);
+    const [a, b] = await Promise.all([
+      lifecycle.stop(control),
+      lifecycle.stop({ ...control, requestId: 'other' }),
+    ]);
+    if (
+      a.status !== 'ok' ||
+      b.status !== 'ok' ||
+      a.value.state !== 'already-terminal' ||
+      b.value.state !== 'already-terminal' ||
+      a.value.execution.outcome.kind !== 'exit'
+    )
+      throw new Error('Expected actual exit outcomes.');
+    a.value.execution.outcome.exitCode = 0;
+    expect(b.value.execution).toEqual(terminal);
+    expect(await lifecycle.inspect(identity)).toMatchObject({ value: { execution: terminal } });
+    expect(fake.stopCalls).toHaveLength(0);
+    lifecycle.dispose();
+  });
   it.each(['explicit', 'hard-timeout'] as const)(
     'hung observation cannot prevent %s stop admission',
     async (mode) => {
