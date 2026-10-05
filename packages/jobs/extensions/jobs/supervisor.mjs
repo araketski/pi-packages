@@ -24,9 +24,16 @@ const send = (message) => {
 };
 function sample() {
   const all = processes();
+  const byPid = new Map(all.map((p) => [p.pid, p]));
+  for (const [pid, startTicks] of known) {
+    const current = byPid.get(pid) ?? readProcess(pid);
+    if (!current || current.startTicks !== startTicks || !alive(current)) known.delete(pid);
+    else if (!byPid.has(pid)) all.push(current); // Preserve directly verified live escaped identities.
+  }
   const inGroup = all.filter((p) => p.group === own && p.session === own && p.pid !== own);
   const descendants = new Set([
     own,
+    ...inGroup.filter(alive).map((p) => p.pid),
     ...all.filter((p) => known.get(p.pid) === p.startTicks).map((p) => p.pid),
   ]);
   // Establish ancestry without treating process names as ownership.
@@ -40,7 +47,7 @@ function sample() {
       }
   }
   for (const p of all)
-    if (descendants.has(p.pid) && p.pid !== own) {
+    if (descendants.has(p.pid) && p.pid !== own && alive(p)) {
       if (known.size >= 1024 && !known.has(p.pid))
         evidenceError = 'descendant evidence limit exceeded';
       else known.set(p.pid, p.startTicks);

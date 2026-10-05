@@ -525,6 +525,25 @@ it('does not treat a stop request as proof that an unexpected supervisor death k
   );
 });
 
+it('reports actual completion after more than 1024 observed short-lived children', async () => {
+  await fixture(
+    'for batch in {1..20}; do for i in {1..64}; do sleep .15 & done; wait; done; printf done',
+    async (h, e, output) => {
+      expect(await e.foreground(h)).toMatchObject({
+        kind: 'completed',
+        execution: { state: 'terminal', outcome: { kind: 'exit', exitCode: 0 } },
+      });
+      expect(await e.completion(h)).toEqual({
+        state: 'terminal',
+        outcome: { kind: 'exit', exitCode: 0 },
+      });
+      expect(output()).toBe('done');
+      expect(e.evidence(h)).toMatchObject({ remainingLiveGroup: [], escaped: [] });
+    },
+    { foregroundBudgetMs: 20000 },
+  );
+}, 25000);
+
 it('serializes stdout/stderr sink appends with bounded stream backpressure', async () => {
   const e = createLocalExecutor({ authority: () => authority });
   let inFlight = 0;
