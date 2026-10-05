@@ -135,7 +135,8 @@ async function transaction(request: Request): Promise<unknown> {
       !validObservation(raw.observation) ||
       !sameJob(raw.request.identity, raw.observation.identity) ||
       key(raw.request.identity) !== name ||
-      !validPolicy(raw.policy)
+      !validPolicy(raw.policy) ||
+      (raw.outputExpected !== undefined && typeof raw.outputExpected !== 'boolean')
     )
       throw new Error('Corrupt/unresolved job record.');
     const data = raw as unknown as StoredJob;
@@ -241,6 +242,7 @@ async function transaction(request: Request): Promise<unknown> {
       reservationId: randomUUID(),
       request: launch,
       policy: storedPolicy,
+      outputExpected: false,
       observation: {
         identity: launch.identity,
         execution: { state: 'unknown', reason: 'Storage reserved; execution not observed.' },
@@ -364,7 +366,16 @@ async function transaction(request: Request): Promise<unknown> {
     if (job.outputPresent) {
       if (job.outputSize > data.policy.outputBytes + 24) throw new Error('Corrupt output size.');
       window = decodeWindow(await readFile(join(path, 'output.bin')));
+      if (data.outputExpected === true && window.seen === 0)
+        throw new Error('Expected captured output has an empty/reset history.');
     }
+    if (!job.outputPresent && data.outputExpected !== false && !request.resumeWindow)
+      return {
+        ...unavailable(
+          'Expected or legacy output history is missing; no empty history can be certified.',
+        ),
+        historyMissing: true,
+      };
     const digest = (w: ByteWindow) => createHash('sha256').update(encodeWindow(w)).digest('hex');
     const diskDigest = job.outputPresent ? digest(window) : 'missing';
     if (request.operation === 'output-read')
@@ -382,7 +393,9 @@ async function transaction(request: Request): Promise<unknown> {
       };
       if (
         typeof request.baselineDigest !== 'string' ||
-        (diskDigest !== request.baselineDigest && diskDigest !== digest(restored))
+        (job.outputPresent &&
+          diskDigest !== request.baselineDigest &&
+          diskDigest !== digest(restored))
       )
         return {
           ...unavailable('Output history conflicts with the verified recovery baseline.'),
@@ -401,7 +414,16 @@ async function transaction(request: Request): Promise<unknown> {
       window = restored;
     }
     const chunk = Buffer.from(request.bytes ?? '', 'base64');
-    if (chunk.length > 64 * 1024) return invalid('Append exceeds transport bound.');
+    if (chunk.length === 0 || chunk.length > 64 * 1024)
+      return invalid('Append is empty or exceeds transport bound.');
+    if (data.outputExpected !== true) {
+      const updated = { ...data, outputExpected: true };
+      const bytes = JSON.stringify(updated);
+      if (Buffer.byteLength(bytes) > data.policy.trackingBytes)
+        return unavailable('Capture intent exceeds tracking capacity.');
+      await atomic(join(path, 'record.json'), bytes);
+      job.data = updated;
+    }
     const allowance = Math.max(
       0,
       Math.min(

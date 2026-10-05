@@ -64,6 +64,60 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review five regression: lost output cannot reset a known history', async () => {
+  const { storage, reservation, dir, options } = await setup();
+  const output = storage.output(reservation);
+  await output.append({ stream: 'combined', bytes: Buffer.from('before') });
+  await rm(join(dir, 'output.bin'));
+  await output.append({ stream: 'combined', bytes: Buffer.from('after') });
+  const reopened = await createJobStorage(options);
+  expect(await reopened.readOutput(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { text: 'beforeafter', complete: true, omittedBytes: 0 },
+  });
+  expect(storage.diagnostics()).toContainEqual(
+    expect.objectContaining({ kind: 'persistence-loss', reducedRecoverability: true }),
+  );
+});
+it('cold recovery rejects a zeroed empty header after capture was attempted', async () => {
+  const { storage, reservation, dir, options } = await setup();
+  await storage.output(reservation).append({ stream: 'combined', bytes: Buffer.from('before') });
+  await writeFile(join(dir, 'output.bin'), Buffer.alloc(24));
+  const reopened = await createJobStorage(options);
+  expect((await reopened.readOutput(reservation.job)).status).toBe('unavailable');
+});
+it('cold recovery does not call disappeared output empty complete history', async () => {
+  const { storage, reservation, dir, options } = await setup();
+  await storage.output(reservation).append({ stream: 'combined', bytes: Buffer.from('before') });
+  await rm(join(dir, 'output.bin'));
+  const reopened = await createJobStorage(options);
+  expect((await reopened.readOutput(reservation.job)).status).toBe('unavailable');
+});
+it('review five regression: verified reads refresh fallback and repair does not return stale cache', async () => {
+  const { storage, reservation, options } = await setup();
+  const writer = await createJobStorage(options);
+  expect((await writer.jobs.save(reservation, running)).status).toBe('ok');
+  await writer.output(reservation).append({ stream: 'combined', bytes: Buffer.from('borrowed') });
+  expect(await storage.readOutput(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { text: 'borrowed' },
+  });
+  const policy = join(storage.root, 'policy.json');
+  await chmod(policy, 0);
+  try {
+    expect(await storage.readOutput(reservation.job)).toMatchObject({
+      status: 'ok',
+      value: { text: 'borrowed' },
+    });
+  } finally {
+    await chmod(policy, 0o600);
+  }
+  await writer.output(reservation).append({ stream: 'combined', bytes: Buffer.from('-new') });
+  expect(await storage.readOutput(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { text: 'borrowed-new', complete: true },
+  });
+});
 it('review four regression: truncated zero-byte output is corrupt, not empty complete history', async () => {
   const { storage, reservation, options, dir } = await setup();
   await storage.output(reservation).append({ stream: 'combined', bytes: Buffer.from('lost') });

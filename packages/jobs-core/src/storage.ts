@@ -344,6 +344,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
             seen: output.value.seen,
             head: output.value.head,
           };
+          local.outputLimit = Math.max(local.outputLimit, local.window.bytes.length);
         } else {
           local.unavailableOutput = output.reason;
           warn(reservation.job, output.reason);
@@ -459,7 +460,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           const next = local.queue.then(async () => {
             for (let offset = 0; offset < chunk.bytes.length; offset += 64 * 1024) {
               const bytes = Buffer.from(chunk.bytes.subarray(offset, offset + 64 * 1024));
-              const reply =
+              let reply =
                 closed || (local.unavailableOutput && local.outputDegraded)
                   ? failure<{ bytes: string; seen: number; head: number; digest: string }>(
                       closed
@@ -472,9 +473,9 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
                         job: reservation.job,
                         reservation,
                         bytes: bytes.toString('base64'),
+                        baselineDigest: local.durableDigest,
                         ...(local.outputDegraded
                           ? {
-                              baselineDigest: local.durableDigest,
                               resumeWindow: {
                                 bytes: local.window.bytes.toString('base64'),
                                 seen: local.window.seen,
@@ -484,6 +485,35 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
                           : {}),
                       },
                     );
+              if (
+                reply.status === 'unavailable' &&
+                'historyMissing' in reply &&
+                reply.historyMissing === true
+              ) {
+                warn(reservation.job, reply.reason);
+                if (
+                  !local.unavailableOutput &&
+                  local.durableDigest &&
+                  local.durableDigest !== 'missing'
+                )
+                  reply = await invoke<{
+                    bytes: string;
+                    seen: number;
+                    head: number;
+                    digest: string;
+                  }>('append', {
+                    job: reservation.job,
+                    reservation,
+                    bytes: bytes.toString('base64'),
+                    baselineDigest: local.durableDigest,
+                    resumeWindow: {
+                      bytes: local.window.bytes.toString('base64'),
+                      seen: local.window.seen,
+                      head: local.window.head,
+                    },
+                  });
+                else local.unavailableOutput = reply.reason;
+              }
               if (confirmedRemoved(reply)) {
                 forget(key(reservation.job));
                 return;
@@ -535,7 +565,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         forget(key(job));
         return failure(reply.reason);
       }
-      if (reply.status === 'ok' && local?.unavailableOutput && !local.outputDegraded) {
+      if (reply.status === 'ok' && local && !local.outputDegraded) {
         delete local.unavailableOutput;
         local.durableDigest = reply.value.digest;
         local.window = {
@@ -543,18 +573,19 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           seen: reply.value.seen,
           head: reply.value.head,
         };
+        local.outputLimit = Math.max(local.outputLimit, local.window.bytes.length);
       }
       if (reply.status === 'unavailable' && local) warn(job, reply.reason);
       let w: ByteWindow;
       if (local?.unavailableOutput) return failure(local.unavailableOutput);
-      if (local?.degraded) w = local.window;
+      if (local) w = local.window;
       else if (reply.status === 'ok')
         w = {
           bytes: Buffer.from(reply.value.bytes, 'base64'),
           seen: reply.value.seen,
           head: reply.value.head,
         };
-      else return reply;
+      else return reply.status === 'unavailable' ? failure(reply.reason) : reply;
       return {
         status: 'ok',
         value: {

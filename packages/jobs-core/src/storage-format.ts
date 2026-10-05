@@ -10,6 +10,7 @@ export interface StoredJob {
   observation: JobObservation;
   policy: StoragePolicy;
   eligibleAt?: number;
+  outputExpected?: boolean;
 }
 export interface ByteWindow {
   bytes: Buffer;

@@ -196,4 +196,12 @@ An existing output file is distinct from no output file: even a zero-length file
 If a known cached final result's file disappears while its tracking record remains, not-saved absence is persistence loss rather than ordinary first-time polling. Expose reduced recoverability and return that bounded known completion from memory without treating it as durable or as a delivery receipt. Whole-record confirmed retention removal still invalidates caches.
 
 Observation validation matches the unchanged participant cross-field contract: delivered requires terminal execution and a mode other than display-only, with a matching structured receipt. Pending/unknown delivery states cannot carry receipts. Refuse incompatible observations before storage mutation; do not infer delivery or execution from files.
+
+New tracking records reserve an outputExpected:false field at admission. Before first capture, persist true within the tracking allowance. False means no durably recorded earlier capture intent (not proof that a command emitted nothing during an unrecordable failure); true requires an output file, and absent legacy metadata cannot certify an empty history. Missing expected output is unavailable, never a new zero-byte seen count. This flag says nothing about execution/liveness and does not change the public checkpoint or binary format.
+
+A live instance with a verified bounded window and held reservation may reconcile a disappeared file by retrying the append with that prior window and its durable baseline, recording persistence loss even if restoration succeeds. Unknown-prefix windows cannot restore it. A missing file contains no conflicting bytes; an existing different history remains fail-closed under the digest guard. This is known single-writer storage recovery, not native/session writer coordination.
+
+Every successful verified read refreshes the bounded fallback window and baseline unless unpersisted local output requires reconciliation. Read repair prefers verified disk data in that case even when unrelated persistence diagnostics remain latched. Preserve the size allowance of already verified retained bytes; hydration does not acquire deletion ownership.
+
+Capture attempts from the public sink contain nonempty chunks. A new record marked outputExpected:true therefore cannot have a valid zero-seen output header: treat a zeroed header as unavailable, not clean empty output. Actual emitted-but-unpersistable bytes still cannot be reconstructed after owner loss; reduced recoverability is not a power-loss guarantee.
 :::
