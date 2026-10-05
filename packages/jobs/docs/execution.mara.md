@@ -7,7 +7,7 @@ Use the [shared lifecycle](../../jobs-core/docs/lifecycle.mara.md) for terminati
 reconciliation, and session continuity, and the
 [shared delivery contract](../../jobs-core/docs/delivery.mara.md) for completion messages.
 The local adapter implements the foreground/background behavior below; Herdr
-execution remains owned by the [Herdr plan](../../../docs/planned/herdr/scope.mara.md). The
+execution remains owned by the [Herdr plan](../../herdr/docs/scope.mara.md). The
 [control-surface plan](./controls.mara.md) defines the jobs tool, `/jobs`, native
 user-bash boundary, and initial runtime support.
 

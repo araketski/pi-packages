@@ -18,7 +18,7 @@ lifecycle, storage and delivery runtime remain unimplemented.
   management, and explicitly visible or interactive command/agent execution.
   Visible execution need not block the model's tool call. Herdr can use the core
   without requiring the jobs UI extension to be enabled. See the
-  [Herdr scope](../../../docs/planned/herdr/scope.mara.md).
+  [Herdr scope](../../herdr/docs/scope.mara.md).
 - `@araketski/pi-jobs-core`: shared library for lifecycle/tracking, reconciliation
   policy, waiting, output/result bookkeeping, completion delivery, and integration
   with [gates](../../gates-protocol/docs/contract.mara.md). Local and
@@ -77,7 +77,7 @@ in each owning plan: [pi-jobs execution](../../jobs/docs/execution.mara.md) and
 [controls](../../jobs/docs/controls.mara.md),
 [goal continuation](../../../docs/planned/goal/jobs-integration.mara.md),
 [caffeinate sleep inhibition](../../../docs/planned/caffeinate/jobs-integration.mara.md), and
-[Herdr integration](../../../docs/planned/herdr/scope.mara.md). The [interface checkpoint](./interface.mara.md) defines the minimum envelopes,
+[Herdr integration](../../herdr/docs/scope.mara.md). The [interface checkpoint](./interface.mara.md) defines the minimum envelopes,
 participant diagnostics and explicit coordination ports. Storage mechanisms,
 upgrade handling, consumer warning presentation and lifecycle/delivery race
 implementations still need their respective designs and tests.

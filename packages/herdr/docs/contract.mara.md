@@ -1,10 +1,10 @@
 # Planned Herdr execution and transport
 
-This refines the [Herdr scope](./scope.mara.md). It is an accepted plan, not a
-working extension, a verified transport, or a migration of legacy behavior.
-Keep it under `docs/planned/herdr/` until the Herdr package is scaffolded.
+This refines the [Herdr scope](./scope.mara.md). It is an accepted runtime plan, not a
+working integration, a verified transport, or a migration of legacy behavior.
+The package is now a typed no-op [scaffold](./scaffold.mara.md).
 
-Use [jobs-core](../../../packages/jobs-core/docs/contract.mara.md) for shared lifecycle, result delivery,
+Use [jobs-core](../../jobs-core/docs/contract.mara.md) for shared lifecycle, result delivery,
 reconciliation, storage bounds, and producer identity. The agent/caller explicitly
 selects execution mode, awaiting, and delivery; the extension does not infer these
 from command names or text. Worktree and layout management remain Herdr features,

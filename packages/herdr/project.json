@@ -1,0 +1,15 @@
+{
+  "name": "@araketski/pi-herdr",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/herdr/extensions",
+  "targets": {
+    "test": { "cache": false },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/herdr",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    }
+  }
+}
