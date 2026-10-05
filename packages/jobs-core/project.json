@@ -1,0 +1,14 @@
+{
+  "name": "@araketski/pi-jobs-core",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/jobs-core/src",
+  "projectType": "library",
+  "tags": ["nx-pi:library"],
+  "// targets": "to see all targets run: nx show project @araketski/pi-jobs-core --web",
+  "targets": {
+    "test": {
+      "cache": false,
+      "dependsOn": ["build", "^build"]
+    }
+  }
+}

@@ -1,8 +1,7 @@
 # Agreed jobs lifecycle policy
 
 These are intended behaviors for the [jobs packages](./contract.mara.md), not an
-implemented runner or passing runtime evidence. Keep this staged document with
-jobs-core until scaffolding. Local and Herdr adapters must supply real execution
+implemented runner or passing runtime evidence. The project is scaffolded; its runtime remains unimplemented. Local and Herdr adapters must supply real execution
 and ownership evidence; shared policy must not infer success from missing state.
 
 ## Lifetime is not waiting
@@ -21,9 +20,9 @@ user returns; it does not require managed commands to keep running after Pi exit
 ## Implementation and verification boundary
 
 The [delivery policy](./delivery.mara.md) defines shared modes and receipt/retry
-semantics. Consumer decisions live in the [goal plan](../goal/jobs-integration.mara.md)
-and [caffeinate plan](../caffeinate/jobs-integration.mara.md); replacement-bash
-behavior lives in the [pi-jobs plan](../jobs/execution.mara.md). Crash cleanup is
+semantics. Consumer decisions live in the [goal plan](../../../docs/planned/goal/jobs-integration.mara.md)
+and [caffeinate plan](../../../docs/planned/caffeinate/jobs-integration.mara.md); replacement-bash
+behavior lives in the [pi-jobs plan](../../../docs/planned/jobs/execution.mara.md). Crash cleanup is
 best-effort; it does not promise that shutdown handlers run after forced exit.
 
 Before implementing each slice, define and test its Pi lifecycle mapping, reload

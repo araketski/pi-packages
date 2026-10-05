@@ -1,9 +1,9 @@
-# Planned jobs core: package boundary and compatibility
+# Jobs core: package boundary and compatibility
 
 This records the agreed package split and compatibility promise. It is not an
 implemented library, a complete wire/API specification, or evidence of runtime
 verification. The initial consumers are developed in this repository and released
-together. Keep this staged knowledge here until the jobs-core project is scaffolded.
+together. The project is scaffolded; jobs runtime and the public owner/observer API remain unimplemented.
 
 ## Concrete consumers
 
@@ -16,10 +16,10 @@ together. Keep this staged knowledge here until the jobs-core project is scaffol
   management, and explicitly visible or interactive command/agent execution.
   Visible execution need not block the model's tool call. Herdr can use the core
   without requiring the jobs UI extension to be enabled. See the
-  [Herdr scope](../herdr/scope.mara.md).
+  [Herdr scope](../../../docs/planned/herdr/scope.mara.md).
 - `@araketski/pi-jobs-core`: shared library for lifecycle/tracking, reconciliation
   policy, waiting, output/result bookkeeping, completion delivery, and integration
-  with [gates](../../../packages/gates-protocol/docs/contract.mara.md). Local and
+  with [gates](../../gates-protocol/docs/contract.mara.md). Local and
   Herdr adapters supply backend execution and ownership/liveness evidence.
 
 The core also exports the explicit owner/observer contract needed for the unified
@@ -32,7 +32,7 @@ agent-to-agent messaging service. No fourth `pi-jobs-protocol` package is requir
 Two distinct versions have different purposes:
 
 - **Package release:** repository consumers follow the
-  [fixed-version release policy](../../release.mara.md). The end-to-end integration
+  [fixed-version release policy](../../../docs/release.mara.md). The end-to-end integration
   guarantee covers our extensions released together, not every third-party or
   mixed-release combination.
 - **Jobs contract version:** a hardcoded release stamp supplied and reported by
@@ -48,7 +48,7 @@ version is not itself proof of a tested end-to-end integration.
 
 Cross-release compatibility remains best-effort. No automatic downgrade,
 negotiation framework, or compatibility shim is required. This does not expand the
-separately specified [Pi runtime support policy](../../pi-compatibility.mara.md).
+separately specified [Pi runtime support policy](../../../docs/pi-compatibility.mara.md).
 
 ### Release-stamped revision example
 
@@ -71,11 +71,11 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 Shared contracts cover [lifecycle and recovery](./lifecycle.mara.md),
 [delivery modes and receipts](./delivery.mara.md), and
 [persistence and bounded output](./storage.mara.md). Consumer-specific knowledge lives
-in each owning plan: [pi-jobs execution](../jobs/execution.mara.md) and
-[controls](../jobs/controls.mara.md),
-[goal continuation](../goal/jobs-integration.mara.md),
-[caffeinate sleep inhibition](../caffeinate/jobs-integration.mara.md), and
-[Herdr integration](../herdr/scope.mara.md). Exact APIs and wire envelopes, storage
+in each owning plan: [pi-jobs execution](../../../docs/planned/jobs/execution.mara.md) and
+[controls](../../../docs/planned/jobs/controls.mara.md),
+[goal continuation](../../../docs/planned/goal/jobs-integration.mara.md),
+[caffeinate sleep inhibition](../../../docs/planned/caffeinate/jobs-integration.mara.md), and
+[Herdr integration](../../../docs/planned/herdr/scope.mara.md). Exact APIs and wire envelopes, storage
 mechanisms and upgrade handling, warning presentation, and lifecycle event/race
 mechanisms still need designs and tests before implementation.
 Persistent interactive agents remain executions rather than inferred delegated

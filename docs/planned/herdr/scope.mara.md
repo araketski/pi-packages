@@ -14,18 +14,18 @@ agent messaging or delegation service.
 
 The separate jobs module is now planned as `pi-jobs-core`, shared by the local
 `pi-jobs` bash execution path and `pi-herdr`. The
-[jobs-core contract](../jobs-core/contract.mara.md) owns the three-package boundary
+[jobs-core contract](../../../packages/jobs-core/docs/contract.mara.md) owns the three-package boundary
 and distinguishes package releases from the library-reported contract version.
 The [Herdr execution and transport contract](./contract.mara.md) owns dedicated-pane
 behavior, explicit managed/persistent modes, and the current-local-session public
 JSON RPC adapter.
 
-| Herdr integration | Shared jobs module |
-| --- | --- |
-| Worktrees, workspaces, tabs, and panes | Managed execution identity and lifecycle |
-| Launching, inspecting, and controlling backend processes | Reconciliation of running, completed, and unknown state |
-| Terminal screen reads, input, and navigation/attach | Output records, bounded results, and queued/coalesced completion delivery |
-| Backend-specific ownership and liveness evidence | Timeout, explicit-wait, and gate-integration policy |
+| Herdr integration                                        | Shared jobs module                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Worktrees, workspaces, tabs, and panes                   | Managed execution identity and lifecycle                                  |
+| Launching, inspecting, and controlling backend processes | Reconciliation of running, completed, and unknown state                   |
+| Terminal screen reads, input, and navigation/attach      | Output records, bounded results, and queued/coalesced completion delivery |
+| Backend-specific ownership and liveness evidence         | Timeout, explicit-wait, and gate-integration policy                       |
 
 The jobs module tracks executions, not inferred agent assignments. A finite
 command can have a verified exit result. A server or interactive Pi process can
@@ -39,10 +39,10 @@ delivery and recovery ([[REQ-GATES-SIGNAL-ONLY]]); unreconciled work must not be
 confirmed empty merely because an owner cannot inspect it
 ([[REQ-GATES-RECONCILIATION]]). The intended workflow avoids idle-driven `goal`
 nudges while required work or its result delivery is pending. The agreed
-[lifecycle policy](../jobs-core/lifecycle.mara.md) distinguishes normal-exit
+[lifecycle policy](../../../packages/jobs-core/docs/lifecycle.mara.md) distinguishes normal-exit
 cancellation of owned managed commands from explicitly persistent Herdr terminals,
 which remain running. Job cleanup must not close parent workspaces or delete
-worktrees. Shared [delivery behavior](../jobs-core/delivery.mara.md) is specified
+worktrees. Shared [delivery behavior](../../../packages/jobs-core/docs/delivery.mara.md) is specified
 separately from consumer-owned [goal](../goal/jobs-integration.mara.md) and
 [caffeinate](../caffeinate/jobs-integration.mara.md) policies. The originating-session
 completion inbox ([[REQ-JOBS-COMPLETION-INBOX]]) belongs to shared jobs delivery:
