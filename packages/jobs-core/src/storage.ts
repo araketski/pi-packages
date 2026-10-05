@@ -395,22 +395,27 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           const next = local.queue.then(async () => {
             for (let offset = 0; offset < chunk.bytes.length; offset += 64 * 1024) {
               const bytes = Buffer.from(chunk.bytes.subarray(offset, offset + 64 * 1024));
-              const reply = closed
-                ? failure<{ bytes: string; seen: number; head: number }>('Storage closed.')
-                : await invoke<{ bytes: string; seen: number; head: number }>('append', {
-                    job: reservation.job,
-                    reservation,
-                    bytes: bytes.toString('base64'),
-                    ...(local.outputDegraded
-                      ? {
-                          resumeWindow: {
-                            bytes: local.window.bytes.toString('base64'),
-                            seen: local.window.seen,
-                            head: local.window.head,
-                          },
-                        }
-                      : {}),
-                  });
+              const reply =
+                closed || (local.unavailableOutput && local.outputDegraded)
+                  ? failure<{ bytes: string; seen: number; head: number }>(
+                      closed
+                        ? 'Storage closed.'
+                        : 'Earlier output history is unknown; bounded capture is not recoverable on this instance.',
+                    )
+                  : await invoke<{ bytes: string; seen: number; head: number }>('append', {
+                      job: reservation.job,
+                      reservation,
+                      bytes: bytes.toString('base64'),
+                      ...(local.outputDegraded
+                        ? {
+                            resumeWindow: {
+                              bytes: local.window.bytes.toString('base64'),
+                              seen: local.window.seen,
+                              head: local.window.head,
+                            },
+                          }
+                        : {}),
+                    });
               if (confirmedRemoved(reply)) {
                 forget(key(reservation.job));
                 return;
@@ -456,7 +461,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         forget(key(job));
         return failure(reply.reason);
       }
-      if (reply.status === 'ok' && local?.unavailableOutput) {
+      if (reply.status === 'ok' && local?.unavailableOutput && !local.outputDegraded) {
         delete local.unavailableOutput;
         local.window = {
           bytes: Buffer.from(reply.value.bytes, 'base64'),

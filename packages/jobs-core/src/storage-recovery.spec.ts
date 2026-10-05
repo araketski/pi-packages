@@ -121,6 +121,24 @@ it('review regression: successful output recovery clears an earlier read error',
     value: { text: 'beforeafter', complete: true },
   });
 });
+it('does not promote an adopted unknown-prefix fallback into complete output', async () => {
+  const { storage, options, reservation, dir } = await setup();
+  await storage.output(reservation).append({ stream: 'combined', bytes: Buffer.from('before') });
+  const copy = await createJobStorage(options);
+  await chmod(join(dir, 'output.bin'), 0);
+  try {
+    expect((await copy.jobs.save(reservation, running)).status).toBe('ok');
+    await copy.output(reservation).append({ stream: 'combined', bytes: Buffer.from('failed') });
+  } finally {
+    await chmod(join(dir, 'output.bin'), 0o600);
+  }
+  await copy.output(reservation).append({ stream: 'combined', bytes: Buffer.from('after') });
+  expect((await copy.readOutput(reservation.job)).status).toBe('unavailable');
+  expect((await copy.jobs.read(reservation.job)).status).toBe('ok');
+  expect(copy.diagnostics()).toContainEqual(
+    expect.objectContaining({ kind: 'persistence-loss', reducedRecoverability: true }),
+  );
+});
 it('review regression: failed ephemeral cleanup remains retryable and preserves records', async () => {
   const { storage, options, reservation, dir } = await setup(true);
   await chmod(storage.root, 0o500);
