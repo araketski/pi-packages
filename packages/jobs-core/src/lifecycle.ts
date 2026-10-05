@@ -133,7 +133,12 @@ function copy<T>(value: T): T {
   return structuredClone(value);
 }
 function reason(error: unknown): string {
-  return error instanceof Error ? error.message || error.name : String(error);
+  try {
+    const text = error instanceof Error ? error.message || error.name : String(error);
+    return typeof text === 'string' && text.trim() ? text : 'Unprintable rejection value.';
+  } catch {
+    return 'Unprintable rejection value.';
+  }
 }
 
 /** Explicit objects only; no configuration files, quota overrides or command classification. */

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from './index.js';
 import { createJobsTestAdapter, createUnknownJobFixture } from './testing.js';
@@ -57,6 +58,98 @@ function setup(overrides: Partial<LaunchRequest> = {}) {
     },
   };
 }
+
+describe('non-throwing diagnostics for rejected ports', () => {
+  it.each([
+    { name: 'null-prototype rejection', reject: (): unknown => Object.create(null) },
+    {
+      name: 'throwing coercion',
+      reject: (): unknown => ({
+        [Symbol.toPrimitive]() {
+          throw new Error('coercion is unavailable');
+        },
+      }),
+    },
+    {
+      name: 'non-string Error message',
+      reject: (): unknown => Object.assign(new Error(), { message: Object.create(null) }),
+    },
+  ])('preserves unknown outcomes for $name', async ({ reject }) => {
+    const rejected = reject();
+    const lifecycle = core.createJobLifecycle({
+      request,
+      handle: undefined,
+      adapter: {
+        observe: () => Promise.reject(rejected),
+        stop: () => Promise.reject(rejected),
+      },
+      clock,
+      startedAtMs: 0,
+      authorize: (value) => value.authority === authority,
+    });
+    expect(await lifecycle.inspect(identity)).toMatchObject({
+      status: 'ok',
+      value: {
+        execution: { state: 'unknown', reason: expect.stringMatching(/^Observation failed: /) },
+      },
+    });
+    expect(await lifecycle.stop(control)).toMatchObject({
+      status: 'unknown',
+      reason: expect.stringMatching(/^Stop admission failed: /),
+    });
+    expect(lifecycle.stopIntent()).toMatchObject({ state: 'unconfirmed' });
+    const router = core.createJobsLifecycleRouter(
+      () => {
+        throw rejected;
+      },
+      { clock },
+    );
+    expect(await router.inspect(identity)).toMatchObject({
+      status: 'unknown',
+      reason: expect.stringMatching(/^Owner route failed: /),
+    });
+    const waited = core.waitForJobs(
+      { requestId: 'rejected-wait', selection: { mode: 'one', jobs: [identity] }, timeoutMs: 10 },
+      () => Promise.reject(rejected),
+      { clock },
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await waited).toMatchObject({
+      status: 'ok',
+      value: {
+        state: 'timed-out',
+        jobs: [
+          { reply: { status: 'unknown', reason: expect.stringMatching(/^Inspection failed: /) } },
+        ],
+      },
+    });
+    lifecycle.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not terminate a Node consumer when an inspection rejects an unprintable value', () => {
+    const script = `
+      import assert from 'node:assert/strict';
+      import { waitForJobs } from ${JSON.stringify(new URL('./lifecycle.ts', import.meta.url).href)};
+      const identity = ${JSON.stringify(identity)};
+      const result = await waitForJobs(
+        {requestId:'node-rejection',selection:{mode:'one',jobs:[identity]},timeoutMs:10},
+        () => Promise.reject(Object.create(null))
+      );
+      assert.equal(result.status, 'ok');
+      assert.equal(result.value.state, 'timed-out');
+      assert.equal(result.value.jobs[0].reply.status, 'unknown');
+      assert.match(result.value.jobs[0].reply.reason, /^Inspection failed: /);
+      console.log('unknown outcome retained without an unhandled rejection');
+    `;
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    expect({ status: child.status, stderr: child.stderr }).toMatchObject({ status: 0 });
+    expect(child.stdout).toContain('unknown outcome retained without an unhandled rejection');
+  });
+});
 
 describe('explicit settings', () => {
   it('resolves defaults and user/project/job precedence without a default deadline', () => {
