@@ -368,6 +368,9 @@ interface Owner {
   outputFailed: boolean;
   expired: boolean;
   metadataAccepted: boolean;
+  resultAccepted: boolean;
+  outputStatusAccepted: boolean;
+  admissionFailed: boolean;
   metadataError?: string;
   outputError?: string;
   counterError?: string;
@@ -535,17 +538,25 @@ export function createSessionJobStorage(options: {
       ...(m.result ? { result: detached(m.result) } : {}),
       ...(m.intent ? { intent: detached(m.intent) } : {}),
       diagnostics: diagnostics(owner),
-      resumability: persistent && owner.metadataAccepted ? 'pi-session' : 'memory-only',
+      resumability:
+        persistent && owner.metadataAccepted && owner.outputStatusAccepted
+          ? 'pi-session'
+          : 'memory-only',
     };
   };
   const appendMetadata = (owner: Owner): JobReply<void> => {
-    const reply = !fits(owner.metadata)
+    const asserted = owner.metadata;
+    const reply = !fits(asserted)
       ? fail<void>('invalid', 'Compact entry exceeds 65,536 UTF-8 JSON bytes.')
       : session
-        ? session.append(owner.metadata)
+        ? session.append(asserted)
         : ok(undefined);
-    owner.metadataAccepted = reply.status === 'ok';
-    owner.metadataError = reply.status === 'ok' ? undefined : reply.reason;
+    if (reply.status === 'ok') owner.resultAccepted ||= asserted.result !== undefined;
+    if (owner.metadata === asserted) {
+      owner.metadataAccepted = reply.status === 'ok';
+      if (reply.status === 'ok') owner.outputStatusAccepted = true;
+      owner.metadataError = reply.status === 'ok' ? undefined : reply.reason;
+    }
     return reply;
   };
   const tokenOwner = (token: StorageReservation): Owner | undefined => {
@@ -554,19 +565,27 @@ export function createSessionJobStorage(options: {
       ? owner
       : undefined;
   };
-  const publishOutputStatus = (owner: Owner): void => {
-    if (!owner.ready || disposed) return;
-    const unavailable = owner.outputFailed ? owner.outputError : owner.counterError;
-    if (unavailable && owner.metadata.outputUnavailable === unavailable) return;
+  const publishOutputStatus = (owner: Owner): JobReply<void> => {
+    if (!owner.ready || disposed) return ok(undefined);
+    const unavailable =
+      owner.metadata.outputUnavailable ??
+      (owner.outputFailed ? owner.outputError : owner.counterError);
+    if (
+      unavailable &&
+      owner.metadata.outputUnavailable === unavailable &&
+      owner.outputStatusAccepted
+    )
+      return ok(undefined);
     if (
       !unavailable &&
-      (!owner.metadata.outputPending || owner.captureRevision !== owner.persistedRevision)
+      ((!owner.metadata.outputPending && owner.outputStatusAccepted) ||
+        owner.captureRevision !== owner.persistedRevision)
     )
-      return;
+      return ok(undefined);
     const revision = owner.metadata.revision + 1;
     if (!Number.isSafeInteger(revision)) {
       owner.metadataError = 'Metadata revision exhausted.';
-      return;
+      return fail('unavailable', owner.metadataError);
     }
     const delta: OutputStatus = {
       formatVersion: 1,
@@ -580,38 +599,46 @@ export function createSessionJobStorage(options: {
     };
     if (!fits(delta)) {
       owner.metadataError = 'Output status exceeds compact entry limit.';
-      return;
+      return fail('invalid', owner.metadataError);
     }
     owner.metadata = { ...owner.metadata, revision };
     delete owner.metadata.outputPending;
     if (unavailable) owner.metadata.outputUnavailable = unavailable;
     const reply = session ? session.append(delta) : ok(undefined);
-    if (reply.status !== 'ok') {
-      owner.metadataAccepted = false;
-      owner.metadataError = reply.reason;
+    if (owner.metadata.revision === revision) {
+      owner.outputStatusAccepted = reply.status === 'ok';
+      if (reply.status !== 'ok') owner.metadataError = reply.reason;
+      else if (owner.metadataAccepted) owner.metadataError = undefined;
     }
+    return reply;
   };
   const flush = (owner: Owner): Promise<void> => {
     if (owner.writer) return owner.writer;
     if (owner.outputFailed || owner.expired || !owner.capture) return Promise.resolve();
     // Publish the promise before invoking injected I/O, including synchronous reentrancy.
     const writer = Promise.resolve().then(async () => {
-      while (
+      do {
+        while (
+          !owner.outputFailed &&
+          !owner.expired &&
+          owner.persistedRevision < owner.captureRevision
+        ) {
+          const revision = owner.captureRevision;
+          try {
+            const image = owner.capture!.image(owner.metadata.outputReference);
+            await io.write(owner.metadata.outputReference, image);
+            owner.persistedRevision = revision;
+          } catch (error) {
+            owner.outputFailed = true;
+            owner.outputError = `Output persistence lost: ${reason(error)}`.slice(0, 1024);
+          }
+        }
+        publishOutputStatus(owner);
+      } while (
         !owner.outputFailed &&
         !owner.expired &&
         owner.persistedRevision < owner.captureRevision
-      ) {
-        const revision = owner.captureRevision;
-        try {
-          const image = owner.capture!.image(owner.metadata.outputReference);
-          await io.write(owner.metadata.outputReference, image);
-          owner.persistedRevision = revision;
-        } catch (error) {
-          owner.outputFailed = true;
-          owner.outputError = `Output persistence lost: ${reason(error)}`.slice(0, 1024);
-        }
-      }
-      publishOutputStatus(owner);
+      );
     });
     owner.writer = writer;
     void writer.finally(() => {
@@ -662,10 +689,19 @@ export function createSessionJobStorage(options: {
     else next.eligibleAtMs = owner.metadata.eligibleAtMs ?? time();
     if (!fits(next)) return fail('invalid', 'Compact entry exceeds 65,536 UTF-8 JSON bytes.');
     const comparable = (m: Metadata) => ({ ...m, kind: undefined, revision: undefined });
-    if (same(comparable(owner.metadata), comparable(next)))
-      return owner.metadataAccepted ? ok(undefined) : appendMetadata(owner);
+    if (
+      same(comparable(owner.metadata), comparable(next)) &&
+      owner.metadataAccepted &&
+      owner.outputStatusAccepted
+    )
+      return ok(undefined);
     if (!Number.isSafeInteger(next.revision))
       return fail('unavailable', 'Metadata revision exhausted.');
+    if (
+      owner.metadata.outputPending !== next.outputPending ||
+      owner.metadata.outputUnavailable !== next.outputUnavailable
+    )
+      owner.outputStatusAccepted = false;
     owner.metadata = next;
     return appendMetadata(owner);
   };
@@ -743,8 +779,12 @@ export function createSessionJobStorage(options: {
         if (!launchRequest(request, sessionId))
           return fail('invalid', 'Invalid originating launch request.');
         if (disposed) return fail('unavailable', 'Storage disposed during input validation.');
-        if (owners.has(key(request.identity)))
+        const previous = owners.get(key(request.identity));
+        if (previous && !previous.admissionFailed)
           return fail('denied', 'Job already admitted or historical; never replay execution.');
+        const revision = (previous?.metadata.revision ?? 0) + 1;
+        if (!Number.isSafeInteger(revision))
+          return fail('unavailable', 'Admission revision exhausted.');
         if (session && !session.valid())
           return fail('unavailable', 'Origin session capability is invalid.');
         const token = { job: request.identity, reservationId: randomUUID() };
@@ -752,9 +792,9 @@ export function createSessionJobStorage(options: {
           formatVersion: 1,
           contractVersion: JOBS_CONTRACT_VERSION,
           kind: 'admitted',
-          revision: 1,
+          revision,
           identity: request.identity,
-          outputReference: `${randomUUID()}.output`,
+          outputReference: previous?.metadata.outputReference ?? `${randomUUID()}.output`,
           observation: {
             identity: request.identity,
             execution: {
@@ -776,7 +816,7 @@ export function createSessionJobStorage(options: {
             },
           },
         };
-        const owner: Owner = {
+        const owner: Owner = previous ?? {
           metadata: m,
           historical: false,
           ready: false,
@@ -787,7 +827,17 @@ export function createSessionJobStorage(options: {
           outputFailed: false,
           expired: false,
           metadataAccepted: false,
+          resultAccepted: false,
+          outputStatusAccepted: true,
+          admissionFailed: false,
         };
+        if (previous) {
+          owner.metadata = m;
+          owner.token = token;
+          owner.capture = new OutputCapture(max, prefix);
+          owner.admissionFailed = false;
+          owner.outputError = undefined;
+        }
         owners.set(key(request.identity), owner);
         // Track the whole admission, including failed-setup cleanup, before injected I/O.
         const admission = Promise.resolve().then(
@@ -807,7 +857,8 @@ export function createSessionJobStorage(options: {
               } catch (cleanup) {
                 message += `; setup cleanup failed: ${reason(cleanup)}`;
               }
-              owners.delete(key(request.identity));
+              owner.capture = undefined;
+              owner.admissionFailed = true;
               return fail('unavailable', message);
             }
           },
@@ -879,9 +930,10 @@ export function createSessionJobStorage(options: {
           return fail('denied', 'No live admitted storage owner.');
         if (owner.metadata.result && !same(owner.metadata.result, value))
           return fail('invalid', 'Final result identity/content is immutable.');
-        if (owner.metadata.result && owner.metadataAccepted) {
+        if (owner.resultAccepted) {
+          const reply = publishOutputStatus(owner);
           await expire(owner);
-          return ok(undefined);
+          return reply;
         }
         if (
           owner.metadata.observation.execution.state === 'terminal' &&
@@ -1072,6 +1124,9 @@ export function createSessionJobStorage(options: {
               outputFailed: false,
               expired: false,
               metadataAccepted: true,
+              resultAccepted: m.result !== undefined,
+              outputStatusAccepted: true,
+              admissionFailed: false,
             });
         } catch {
           /* Ignore invalid assertions without erasing accepted evidence. */

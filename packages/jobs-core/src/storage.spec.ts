@@ -611,6 +611,322 @@ it('rejects stale/malformed/forked replay and preserves saved terminal and deliv
   expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
 });
 
+it('never acknowledges a newer failed result from an older reentrant append receipt', async () => {
+  const manager = SessionManager.inMemory(),
+    sessionId = manager.getSessionId(),
+    identity = job('J', sessionId),
+    outputRoot = await root();
+  let store!: core.SessionJobStorage,
+    nested: Promise<JobReply<void>> | undefined,
+    entered = false,
+    broken = true;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: false,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        const entry = data as { kind: string };
+        if (entry.kind === 'observation' && !entered) {
+          entered = true;
+          nested = store.resultSink.save(result(identity));
+        }
+        if (entry.kind === 'result' && broken) throw new Error('newer result append failed');
+        manager.appendCustomEntry(kind, data);
+      },
+      readEntries: () => manager.getEntries(),
+    });
+  store = core.createSessionJobStorage({
+    sessionId,
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  const token = ok(await store.jobStore.reserve(launch(identity)));
+  ok(
+    await store.jobStore.save(token, {
+      ...createUnknownJobFixture(identity),
+      execution: { state: 'running' },
+    }),
+  );
+  expect((await nested!).status).toBe('unavailable');
+  expect(ok(await store.inspect(identity)).result).toEqual(result(identity));
+  expect(ok(await store.inspect(identity)).resumability).toBe('memory-only');
+  broken = false;
+  ok(await store.resultSink.save(result(identity)));
+  const historical = core.createSessionJobStorage({ sessionId, outputRoot, session: capability() });
+  ok(await historical.replay());
+  expect(ok(await historical.resultSink.read(result(identity).identity))).toEqual(result(identity));
+});
+
+it('persists intake reentered during coverage publication before settling its coalesced writer', async () => {
+  const manager = SessionManager.inMemory(),
+    sessionId = manager.getSessionId(),
+    identity = job('J', sessionId),
+    outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let store!: core.SessionJobStorage,
+    sink!: core.OutputSink,
+    token!: core.StorageReservation,
+    writes = 0,
+    release!: () => void,
+    entered!: () => void,
+    reentered = false,
+    nested: Promise<JobReply<void>> | undefined;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: false,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        manager.appendCustomEntry(kind, data);
+        const entry = data as { kind: string; outputState?: string };
+        if (entry.kind === 'output-status' && entry.outputState === 'ready' && !reentered) {
+          reentered = true;
+          void sink.append({ stream: 'stderr', bytes: bytes('DEF') });
+          nested = store.jobStore.save(token, terminal(identity));
+        }
+      },
+      readEntries: () => manager.getEntries(),
+    });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  store = core.createSessionJobStorage({
+    sessionId,
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+    io: {
+      ...io,
+      write: async (...args) => {
+        if (++writes === 2) {
+          entered();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        await io.write(...args);
+      },
+    },
+  });
+  token = ok(await store.jobStore.reserve(launch(identity)));
+  sink = ok(store.output(token));
+  const updating = sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  await started;
+  try {
+    ok(await store.resultSink.save(result(identity)));
+    release();
+    await updating;
+    ok(await nested!);
+    const historical = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: capability(),
+    });
+    ok(await historical.replay());
+    expect(ok(await historical.readCapturedOutput(identity)).totalBytes).toBe(6);
+  } finally {
+    release();
+    await updating;
+  }
+});
+
+it('uses a fresh full-assertion revision when retrying a failed result after a ready delta', async () => {
+  const manager = SessionManager.inMemory(),
+    sessionId = manager.getSessionId(),
+    outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let writes = 0,
+    release!: () => void,
+    entered!: () => void;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: false,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        manager.appendCustomEntry(kind, data);
+      },
+      readEntries: () => manager.getEntries(),
+    });
+  const first = capability(),
+    identity = job('J', sessionId),
+    started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+  const store = core.createSessionJobStorage({
+    sessionId,
+    outputRoot,
+    session: first,
+    maxBytes: 10,
+    prefixBytes: 3,
+    io: {
+      ...io,
+      write: async (...args) => {
+        if (++writes === 2) {
+          entered();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        await io.write(...args);
+      },
+    },
+  });
+  const token = ok(await store.jobStore.reserve(launch(identity))),
+    updating = ok(store.output(token)).append({ stream: 'stdout', bytes: bytes('abc') });
+  await started;
+  try {
+    first.invalidate();
+    expect((await store.resultSink.save(result(identity))).status).toBe('unavailable');
+    ok(store.replaceSessionCapability(capability()));
+    release();
+    await updating;
+    ok(await store.resultSink.save(result(identity)));
+    const historical = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: capability(),
+    });
+    ok(await historical.replay());
+    expect(ok(await historical.resultSink.read(result(identity).identity))).toEqual(
+      result(identity),
+    );
+    const revisions = manager
+      .getEntries()
+      .filter((entry) => entry.type === 'custom')
+      .map((entry) => (entry.data as { revision: number }).revision);
+    expect(new Set(revisions).size).toBe(revisions.length);
+  } finally {
+    release();
+    await updating;
+  }
+});
+
+it('preserves admission reference and monotonic revisions across native Pi partial-append failure and explicit retry', async () => {
+  const base = await root(),
+    manager = SessionManager.create(base, join(base, 'sessions'));
+  manager.appendMessage({ role: 'user', content: 'start', timestamp: Date.now() });
+  const sessionId = manager.getSessionId(),
+    identity = job('J', sessionId),
+    outputRoot = join(base, 'output'),
+    sessionFile = manager.getSessionFile()!,
+    mode = (await stat(sessionFile)).mode & 0o777;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: true,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        manager.appendCustomEntry(kind, data);
+      },
+      readEntries: () => manager.getEntries(),
+    });
+  const store = core.createSessionJobStorage({
+    sessionId,
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  await chmod(sessionFile, 0o400);
+  try {
+    expect((await store.jobStore.reserve(launch(identity))).status).toBe('unavailable');
+  } finally {
+    await chmod(sessionFile, mode);
+  }
+  const token = ok(await store.jobStore.reserve(launch(identity)));
+  await ok(store.output(token)).append({ stream: 'stdout', bytes: bytes('abcdef') });
+  ok(await store.resultSink.save(result(identity)));
+  const historical = core.createSessionJobStorage({ sessionId, outputRoot, session: capability() });
+  ok(await historical.replay());
+  expect(ok(await historical.resultSink.read(result(identity).identity))).toEqual(result(identity));
+  expect(ok(await historical.readCapturedOutput(identity)).totalBytes).toBe(6);
+  const opened = SessionManager.open(sessionFile),
+    fresh = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: core.createJobsSessionCapability({
+        sessionId,
+        persistent: true,
+        isCurrent: () => true,
+        appendEntry: (kind, data) => {
+          opened.appendCustomEntry(kind, data);
+        },
+        readEntries: () => opened.getEntries(),
+      }),
+    });
+  ok(await fresh.replay());
+  expect(ok(await fresh.resultSink.read(result(identity).identity))).toEqual(result(identity));
+  const references = manager
+    .getEntries()
+    .filter((entry) => entry.type === 'custom')
+    .map((entry) => (entry.data as { outputReference: string }).outputReference);
+  expect(new Set(references).size).toBe(1);
+});
+
+it('retries a failed loss-status delta without rejecting an already-accepted near-limit result', async () => {
+  const manager = SessionManager.inMemory(),
+    sessionId = manager.getSessionId(),
+    identity = job('J', sessionId),
+    outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let writes = 0;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: false,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        manager.appendCustomEntry(kind, data);
+      },
+      readEntries: () => manager.getEntries(),
+    });
+  const first = capability(),
+    store = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: first,
+      maxBytes: 10,
+      prefixBytes: 3,
+      io: {
+        ...io,
+        write: async (...args) => {
+          if (++writes > 2) throw new Error('X'.repeat(1024));
+          await io.write(...args);
+        },
+      },
+    });
+  const token = ok(await store.jobStore.reserve(launch(identity))),
+    sink = ok(store.output(token));
+  await sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  const final = { ...result(identity), content: 'S'.repeat(64000) };
+  ok(await store.resultSink.save(final));
+  first.invalidate();
+  await sink.append({ stream: 'stderr', bytes: bytes('DEF') });
+  ok(store.replaceSessionCapability(capability()));
+  ok(await store.resultSink.save(final));
+  const historical = core.createSessionJobStorage({ sessionId, outputRoot, session: capability() });
+  ok(await historical.replay());
+  expect(ok(await historical.resultSink.read(final.identity))).toEqual(final);
+  expect(ok(await historical.readCapturedOutput(identity)).availability).toBe('corrupt');
+});
+
+it('checks due expiry even on an unchanged accepted intent retry', async () => {
+  let now = 0;
+  const { store, token, outputRoot } = await setup({ now: () => now, retentionMs: 1 });
+  ok(await store.resultSink.save(result()));
+  ok(await store.jobStore.save(token, terminal()));
+  const intent = { kind: 'stop-unconfirmed' as const, reason: 'Unchanged' };
+  ok(await store.recordIntent(token, intent));
+  now = 10;
+  ok(await store.recordIntent(token, intent));
+  expect(await readdir(outputRoot)).toEqual([]);
+});
+
 it('replays known output write loss without describing an older artifact as complete', async () => {
   const base = await root(),
     manager = SessionManager.create(base, join(base, 'sessions')),

@@ -199,8 +199,21 @@ coverage/loss transition without repeating a potentially near-limit final result
 It shares the same owner's increasing revision, never changes execution/results,
 and applies only to an already-known matching job/reference. Unavailable is
 absorbing for that execution; a ready delta only clears an earlier pending flag.
-Actual public all-entry order supplies the preceding admission assertion. One increasing safe-integer
-revision per live owner orders accepted events. The complete JobIdentity
+Actual public all-entry order supplies the preceding admission assertion. Every attempted full assertion or output-status delta uses a fresh increasing
+safe-integer revision, including unchanged retries after intervening status
+updates. One owner holds separate bounded acknowledgement flags for full
+metadata, immutable final result and output status. Status success never implies
+that an earlier failed result append was accepted. An already-accepted result
+retry republishes only a failed bounded status delta when needed, not an
+oversized composed assertion. These are acceptance bookkeeping, not durability
+claims or a separate execution/result cache.
+
+A failed admission retains its identity/reference/revision on the same owner,
+but releases unlaunched capture buffers after cleanup settles. An explicit
+retry uses that same reference with a fresh revision; concurrent attempts remain
+rejected. Pi may have buffered an append before throwing, so replacing the
+reference is unsafe. No admission retry launches execution, reconstructs live
+control or runs automatically. The complete JobIdentity
 (runtime/owner/native-session/job/producer) plus the random outputReference
 identifies an execution; replay rejects origin mismatches, changed references,
 malformed data, unsupported format/contract and non-increasing revisions.
@@ -269,7 +282,11 @@ as a caller-supplied function; it keeps presentationTruncated separate from
 capturedComplete/capturedOmittedBytes and always carries the output reference.
 No storage method sends a model message or verifies a receipt. One coalesced writer per owner serializes immutable output
 snapshots; writes accepted during an in-flight snapshot update only the owner
-ring and require a newer snapshot afterward. Disk replies carry that snapshot's
+ring and require a newer snapshot afterward. A synchronous append receipt acknowledges its captured assertion/result and
+current-revision flags only; reentrant newer transitions cannot be overwritten
+by an older receipt. The coalesced writer rechecks intake after publishing
+coverage so reentrant bytes cannot be stranded behind a completed writer.
+Disk replies carry that snapshot's
 revision and never assign old capture, metadata or terminal state back to the
 owner. All append callers share the flush promise and do not retain input chunks.
 A write failure disables further disk writes, keeps the bounded owner ring,
