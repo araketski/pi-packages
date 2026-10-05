@@ -287,6 +287,13 @@ async function transaction(request: Request): Promise<unknown> {
       ? ok()
       : { ...unavailable('Job/result expired, evicted or unavailable.'), removed: true };
   const { data, path } = job;
+  if (
+    (request.reservation || ['save', 'append', 'delete'].includes(request.operation)) &&
+    (!request.reservation ||
+      request.reservation.reservationId !== data.reservationId ||
+      !sameJob(request.reservation.job, data.request.identity))
+  )
+    return { ...invalid('Reservation does not match.'), reservationRejected: true };
   if (request.operation === 'read')
     return ok(
       data.observation.execution.state === 'running'
@@ -300,22 +307,8 @@ async function transaction(request: Request): Promise<unknown> {
         : data.observation,
     );
   if (request.operation === 'delete') {
-    if (
-      !request.reservation ||
-      request.reservation.reservationId !== data.reservationId ||
-      !sameJob(request.reservation.job, data.request.identity)
-    )
-      return invalid('Reservation does not match.');
     await remove(job);
     return ok();
-  }
-  if (request.operation === 'save' || request.operation === 'append') {
-    if (
-      !request.reservation ||
-      request.reservation.reservationId !== data.reservationId ||
-      !sameJob(request.reservation.job, data.request.identity)
-    )
-      return invalid('Reservation does not match.');
   }
   if (request.operation === 'save') {
     const observation = request.observation;

@@ -64,6 +64,111 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+async function retiredReservation(ephemeral = false) {
+  const original = await setup(ephemeral);
+  const { storage, reservation, options } = original;
+  expect((await storage.setUserPolicy({ ...options.policy, retentionMs: 1 })).status).toBe('ok');
+  expect(
+    (
+      await storage.jobs.save(reservation, {
+        ...running,
+        execution: { state: 'terminal', outcome: { kind: 'exit', exitCode: 0 } },
+        delivery: { mode: 'display-only', state: 'not-required' },
+      })
+    ).status,
+  ).toBe('ok');
+  const other = await createJobStorage({ ...options, ephemeral: false, policy: undefined });
+  const next = await other.jobs.reserve(launch);
+  if (next.status !== 'ok') throw new Error(next.reason);
+  return { ...original, other, next: next.value };
+}
+it('review six regression: rejected obsolete reservations cannot publish cached observations', async () => {
+  const { storage, reservation } = await retiredReservation();
+  expect((await storage.jobs.save(reservation, running)).status).toBe('invalid');
+  expect(await storage.jobs.read(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { execution: { state: 'unknown' } },
+  });
+  expect(storage.diagnostics()).toEqual([]);
+});
+it('reads invalidate obsolete reservation caches without a rejected write', async () => {
+  const { storage, reservation } = await retiredReservation();
+  expect(await storage.jobs.read(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { execution: { state: 'unknown' } },
+  });
+});
+it('ephemeral close does not retain or delete a replacement reservation', async () => {
+  const { storage, other, next } = await retiredReservation(true);
+  expect((await storage.close()).status).toBe('ok');
+  expect((await other.jobs.read(next.job)).status).toBe('ok');
+});
+it('review six regression: concurrent failed saves cannot replace immutable fallback results', async () => {
+  const { storage, reservation } = await setup();
+  const result = {
+    identity: { job: reservation.job, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'first',
+  };
+  const path = join(storage.root, 'policy.json'),
+    original = await readFile(path);
+  await writeFile(path, 'broken');
+  try {
+    const replies = await Promise.all([
+      storage.results.save(result),
+      storage.results.save({ ...result, content: 'contradictory' }),
+    ]);
+    expect(replies.map((r) => r.status)).toEqual(['unavailable', 'invalid']);
+    expect(await storage.results.read(result.identity)).toMatchObject({
+      status: 'ok',
+      value: result,
+    });
+  } finally {
+    await writeFile(path, original);
+  }
+  expect((await storage.results.save(result)).status).toBe('ok');
+});
+it('review six regression: a verified read retains a known result for subsequent file loss', async () => {
+  const { storage, reservation, options, dir } = await setup();
+  const result = {
+    identity: { job: reservation.job, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'verified',
+  };
+  expect((await storage.results.save(result)).status).toBe('ok');
+  const reader = await createJobStorage(options);
+  expect((await reader.jobs.save(reservation, running)).status).toBe('ok');
+  expect(await reader.results.read(result.identity)).toMatchObject({ status: 'ok', value: result });
+  await rm(join(dir, 'result.json'));
+  expect(await reader.results.read(result.identity)).toMatchObject({ status: 'ok', value: result });
+  expect(reader.diagnostics()).toContainEqual(
+    expect.objectContaining({ kind: 'persistence-loss', reducedRecoverability: true }),
+  );
+});
+it('review six regression: wrong-ID polling still diagnoses known whole-result file loss', async () => {
+  const { storage, reservation, dir } = await setup();
+  const result = {
+    identity: { job: reservation.job, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'verified',
+  };
+  expect((await storage.results.save(result)).status).toBe('ok');
+  await rm(join(dir, 'result.json'));
+  expect((await storage.results.read({ job: reservation.job, resultId: 'wrong' })).status).toBe(
+    'unavailable',
+  );
+  expect(storage.diagnostics()).toContainEqual(
+    expect.objectContaining({ kind: 'persistence-loss', reducedRecoverability: true }),
+  );
+  expect(
+    (
+      await storage.jobs.reserve({
+        ...launch,
+        identity: { ...launch.identity, jobId: 'after-loss' },
+      })
+    ).status,
+  ).toBe('unavailable');
+});
 it('review five regression: lost output cannot reset a known history', async () => {
   const { storage, reservation, dir, options } = await setup();
   const output = storage.output(reservation);

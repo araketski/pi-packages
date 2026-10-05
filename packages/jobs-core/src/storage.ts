@@ -77,6 +77,7 @@ interface MemoryJob {
   outputLimit: number;
   policy: StoragePolicy;
   queue: Promise<void>;
+  resultQueue: Promise<void>;
   outputDegraded: boolean;
   degraded: boolean;
 }
@@ -242,6 +243,20 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     warnings.delete(k + ':persistence');
     warnings.delete(k + ':output');
   };
+  const reservationRejected = (
+    reply: JobReply<unknown>,
+  ): reply is { status: 'invalid'; reason: string; reservationRejected: true } =>
+    reply.status === 'invalid' &&
+    'reservationRejected' in reply &&
+    reply.reservationRejected === true;
+  const forgetLocal = (job: JobIdentity, local: MemoryJob | undefined) => {
+    if (memory.get(key(job)) === local) forget(key(job));
+  };
+  const obsolete = (job: JobIdentity, local: MemoryJob | undefined, reply: JobReply<unknown>) => {
+    if (!reservationRejected(reply)) return false;
+    forgetLocal(job, local);
+    return true;
+  };
   const localFor = (reservation: StorageReservation) => {
     const local = memory.get(key(reservation.job));
     return local &&
@@ -274,6 +289,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       reservation: clone(reply.value.reservation),
       policy: reply.value.policy,
       queue: Promise.resolve(),
+      resultQueue: Promise.resolve(),
       window: empty(),
       outputLimit: Math.min(reply.value.policy.outputBytes, 64 * 1024),
       outputDegraded: false,
@@ -314,10 +330,13 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         reservation,
         observation,
       });
+      if (obsolete(reservation.job, local, reply))
+        return invalid(reply.status === 'invalid' ? reply.reason : 'Obsolete reservation.');
       if (confirmedRemoved(reply)) {
-        forget(key(reservation.job));
+        forgetLocal(reservation.job, local);
         return failure(reply.reason);
       }
+      if (reply.status !== 'ok' && reply.status !== 'unavailable') return reply;
       if (!local && reply.status === 'ok') {
         local = {
           createdHere: false,
@@ -325,6 +344,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           reservation: clone(reservation),
           policy: reply.value,
           queue: Promise.resolve(),
+          resultQueue: Promise.resolve(),
           window: empty(),
           outputLimit: Math.min(reply.value.outputBytes, 64 * 1024),
           outputDegraded: false,
@@ -335,6 +355,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           'output-read',
           {
             job: reservation.job,
+            reservation,
           },
         );
         if (output.status === 'ok') {
@@ -378,10 +399,14 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     },
     async read(job) {
       if (!validJob(job)) return invalid('Invalid job identity.');
-      const local = memory.get(key(job));
-      const reply = await invoke<JobObservation>('read', { job });
+      let local = memory.get(key(job));
+      let reply = await invoke<JobObservation>('read', { job, reservation: local?.reservation });
+      if (obsolete(job, local, reply)) {
+        local = undefined;
+        reply = await invoke<JobObservation>('read', { job });
+      }
       if (confirmedRemoved(reply)) {
-        forget(key(job));
+        forgetLocal(job, local);
         return failure(reply.reason);
       }
       if (reply.status === 'unavailable' && local) warn(job, reply.reason);
@@ -396,31 +421,64 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       if (!validResult(result)) return invalid('Invalid final result.');
       const job = result.identity.job,
         local = memory.get(key(job));
-      if (local && Buffer.byteLength(JSON.stringify(result)) > local.policy.resultBytes) {
-        warn(job, 'Final result exceeds reserved completion capacity.');
-        return failure('Final result exceeds reserved completion capacity.');
-      }
-      if (local?.result && !isDeepStrictEqual(local.result, result))
-        return invalid('Saved result is immutable.');
-      const reply = await invoke<null>('result-save', { job, result });
-      if (confirmedRemoved(reply)) {
-        forget(key(job));
-        return failure(reply.reason);
-      }
-      if (local && (reply.status === 'ok' || reply.status === 'unavailable'))
-        local.result = clone(result);
-      if (reply.status === 'unavailable') warn(job, reply.reason);
-      return reply.status === 'ok' ? { status: 'ok', value: undefined } : reply;
+      const fits = !local || Buffer.byteLength(JSON.stringify(result)) <= local.policy.resultBytes;
+      const snapshot = fits && local ? clone(result) : result;
+      const commit = async (): Promise<JobReply<void>> => {
+        if (closed) return failure('Storage instance closed.');
+        if (local && memory.get(key(job)) !== local)
+          return invalid('Reservation cache is obsolete.');
+        if (!fits) {
+          warn(job, 'Final result exceeds reserved completion capacity.');
+          return failure('Final result exceeds reserved completion capacity.');
+        }
+        if (local?.result && !isDeepStrictEqual(local.result, snapshot))
+          return invalid('Saved result is immutable.');
+        const reply = await invoke<null>('result-save', {
+          job,
+          result: snapshot,
+          reservation: local?.reservation,
+        });
+        if (obsolete(job, local, reply))
+          return invalid(reply.status === 'invalid' ? reply.reason : 'Obsolete reservation.');
+        if (confirmedRemoved(reply)) {
+          forgetLocal(job, local);
+          return failure(reply.reason);
+        }
+        if (local && (reply.status === 'ok' || reply.status === 'unavailable')) {
+          if (local.result && !isDeepStrictEqual(local.result, snapshot))
+            return invalid('Saved result is immutable.');
+          if (memory.get(key(job)) === local) local.result = snapshot;
+        }
+        if (reply.status === 'unavailable') warn(job, reply.reason);
+        return reply.status === 'ok' ? { status: 'ok', value: undefined } : reply;
+      };
+      if (!local) return commit();
+      const pending = local.resultQueue.then(commit);
+      local.resultQueue = pending.then(
+        () => undefined,
+        () => undefined,
+      );
+      return pending;
     },
     async read(identity: ResultIdentity) {
       if (!validJob(identity?.job)) return invalid('Invalid result identity.');
-      const local = memory.get(key(identity.job));
-      const reply = await invoke<FinalResult>('result-read', {
+      let local = memory.get(key(identity.job));
+      let reply = await invoke<FinalResult>('result-read', {
         job: identity.job,
         resultId: identity.resultId,
+        reservation: local?.reservation,
       });
+      if (obsolete(identity.job, local, reply)) {
+        local = undefined;
+        reply = await invoke<FinalResult>('result-read', {
+          job: identity.job,
+          resultId: identity.resultId,
+        });
+      }
+      if (reply.status === 'ok' && local && memory.get(key(identity.job)) === local)
+        local.result = clone(reply.value);
       if (confirmedRemoved(reply)) {
-        forget(key(identity.job));
+        forgetLocal(identity.job, local);
         return failure(reply.reason);
       }
       if (
@@ -432,8 +490,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       if (
         reply.status === 'unavailable' &&
         local &&
-        (!('absence' in reply) ||
-          (reply.absence === 'not-saved' && local.result?.identity.resultId === identity.resultId))
+        (!('absence' in reply) || (reply.absence === 'not-saved' && local.result !== undefined))
       )
         warn(identity.job, reply.reason);
       if (
@@ -514,8 +571,9 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
                   });
                 else local.unavailableOutput = reply.reason;
               }
+              if (obsolete(reservation.job, local, reply)) return;
               if (confirmedRemoved(reply)) {
-                forget(key(reservation.job));
+                forgetLocal(reservation.job, local);
                 return;
               }
               if (reply.status === 'ok') {
@@ -554,15 +612,23 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     },
     async readOutput(job) {
       if (!validJob(job)) return invalid('Invalid job identity.');
-      const local = memory.get(key(job));
-      const reply = await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
+      let local = memory.get(key(job));
+      let reply = await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
         'output-read',
         {
           job,
+          reservation: local?.reservation,
         },
       );
+      if (obsolete(job, local, reply)) {
+        local = undefined;
+        reply = await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
+          'output-read',
+          { job },
+        );
+      }
       if (confirmedRemoved(reply)) {
-        forget(key(job));
+        forgetLocal(job, local);
         return failure(reply.reason);
       }
       if (reply.status === 'ok' && local && !local.outputDegraded) {
@@ -622,13 +688,16 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       if (cleanupComplete) return { status: 'ok', value: undefined };
       closed = true;
       await Promise.allSettled(admissions);
-      await Promise.allSettled([...memory.values()].map((local) => local.queue));
+      await Promise.allSettled(
+        [...memory.values()].flatMap((local) => [local.queue, local.resultQueue]),
+      );
       for (const local of memory.values()) {
         if (!local.createdHere || (!options.ephemeral && !local.cancelledAdmission)) continue;
         const reply = await invoke<null>('delete', {
           job: local.reservation.job,
           reservation: local.reservation,
         });
+        if (obsolete(local.reservation.job, local, reply)) continue;
         if (reply.status !== 'ok') return reply;
         local.createdHere = false;
       }
