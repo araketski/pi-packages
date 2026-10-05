@@ -64,6 +64,102 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review three regression: fitting terminal observations survive a failed rewrite', async () => {
+  const { storage, reservation, dir } = await setup();
+  const terminal: JobObservation = {
+    ...running,
+    execution: { state: 'terminal', outcome: { kind: 'launch-failed', reason: 'x'.repeat(2500) } },
+  };
+  expect((await storage.jobs.save(reservation, terminal)).status).toBe('ok');
+  await chmod(dir, 0o500);
+  try {
+    expect((await storage.jobs.save(reservation, terminal)).status).toBe('unavailable');
+  } finally {
+    await chmod(dir, 0o700);
+  }
+  expect(await storage.jobs.read(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { execution: terminal.execution },
+  });
+});
+it('review three regression: immutable rejection does not poison hydrated admission', async () => {
+  const { storage, reservation, options } = await setup();
+  const result = {
+    identity: { job: reservation.job, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'durable',
+  };
+  expect((await storage.results.save(result)).status).toBe('ok');
+  const hydrated = await createJobStorage(options);
+  expect((await hydrated.jobs.save(reservation, running)).status).toBe('ok');
+  expect((await hydrated.results.save({ ...result, content: 'contradictory' })).status).toBe(
+    'invalid',
+  );
+  expect(hydrated.diagnostics()).toEqual([]);
+  expect(
+    (
+      await hydrated.jobs.reserve({
+        ...launch,
+        identity: { ...launch.identity, jobId: 'after-rejection' },
+      })
+    ).status,
+  ).toBe('ok');
+  expect(await hydrated.results.read(result.identity)).toMatchObject({
+    status: 'ok',
+    value: result,
+  });
+});
+it('review three regression: existing readers follow authoritative transport after policy changes', async () => {
+  const { storage, options } = await setup();
+  const reader = await createJobStorage(options);
+  expect(
+    (
+      await storage.setUserPolicy({
+        ...options.policy,
+        totalBytes: 3_000_000,
+        outputBytes: 1_000_000,
+      })
+    ).status,
+  ).toBe('ok');
+  const admitted = await storage.jobs.reserve({
+    ...launch,
+    identity: { ...launch.identity, jobId: 'large-output' },
+  });
+  if (admitted.status !== 'ok') throw new Error(admitted.reason);
+  await storage
+    .output(admitted.value)
+    .append({ stream: 'combined', bytes: Buffer.alloc(900_000, 97) });
+  const read = await reader.readOutput(admitted.value.job);
+  expect(read.status).toBe('ok');
+  if (read.status !== 'ok') throw new Error(read.reason);
+  expect(read.value.text).toHaveLength(900_000);
+  expect(read.value.complete).toBe(true);
+});
+it('review three regression: expired temporary bytes are reclaimed in the same admission', async () => {
+  const { storage, options, reservation, dir } = await setup();
+  expect(
+    (await storage.setUserPolicy({ ...options.policy, totalBytes: 20_000, retentionMs: 1 })).status,
+  ).toBe('ok');
+  expect(
+    (
+      await storage.jobs.save(reservation, {
+        ...running,
+        execution: { state: 'terminal', outcome: { kind: 'exit', exitCode: 0 } },
+        delivery: { mode: 'display-only', state: 'not-required' },
+      })
+    ).status,
+  ).toBe('ok');
+  await writeFile(join(dir, 'record.json.tmp-interrupted'), Buffer.alloc(4096));
+  expect(
+    (
+      await storage.jobs.reserve({
+        ...launch,
+        identity: { ...launch.identity, jobId: 'after-expiry' },
+      })
+    ).status,
+  ).toBe('ok');
+  expect((await readdir(storage.root)).filter((n) => /^[a-f0-9]{64}$/.test(n))).toHaveLength(1);
+});
 it('review two regression: normal result absence does not degrade healthy admission', async () => {
   const { storage, reservation } = await setup();
   expect((await storage.results.read({ job: reservation.job, resultId: 'not-yet' })).status).toBe(

@@ -128,6 +128,9 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       );
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
+      let prelude = '',
+        responseLimit: number | undefined,
+        received = 0;
       let output = '',
         errorText = '',
         settled = false;
@@ -141,12 +144,37 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         child.kill('SIGKILL');
         finish(failure('Storage transaction timed out; persistence is unconfirmed.'));
       }, timeout + 30_000);
-      child.stdout.on('data', (bytes: Buffer) => {
-        output += bytes.toString();
-        if (output.length > 2 * policy.totalBytes + 1024 * 1024) {
+      child.stdout.on('data', (piece: string) => {
+        if (settled) return;
+        if (responseLimit === undefined) {
+          prelude += piece;
+          const newline = prelude.indexOf('\n');
+          if (Buffer.byteLength(newline < 0 ? prelude : prelude.slice(0, newline)) > 1024) {
+            child.kill('SIGKILL');
+            finish(failure('Invalid bounded storage response header.'));
+            return;
+          }
+          if (newline < 0) return;
+          try {
+            const header = JSON.parse(prelude.slice(0, newline));
+            if (header?.format !== 1 || !Number.isSafeInteger(header.limit) || header.limit <= 0)
+              throw new Error('Invalid header.');
+            responseLimit = header.limit;
+            piece = prelude.slice(newline + 1);
+            prelude = '';
+          } catch {
+            child.kill('SIGKILL');
+            finish(failure('Invalid bounded storage response header.'));
+            return;
+          }
+        }
+        received += Buffer.byteLength(piece);
+        if (received > responseLimit!) {
           child.kill('SIGKILL');
           finish(failure('Storage response exceeds bounded transport.'));
+          return;
         }
+        output += piece;
       });
       child.stderr.on('data', (bytes: Buffer) => {
         errorText = (errorText + bytes.toString()).slice(-8192);
@@ -280,7 +308,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       let local = localFor(reservation);
       const fits =
         Buffer.byteLength(JSON.stringify(observation)) <=
-        (local?.policy.trackingBytes ?? policy.trackingBytes) / 2;
+        (local?.policy.trackingBytes ?? policy.trackingBytes);
       const reply = await invoke<StoragePolicy>('save', {
         job: reservation.job,
         reservation,
@@ -380,7 +408,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       }
       if (local && (reply.status === 'ok' || reply.status === 'unavailable'))
         local.result = clone(result);
-      if (reply.status !== 'ok') warn(job, reply.reason);
+      if (reply.status === 'unavailable') warn(job, reply.reason);
       return reply.status === 'ok' ? { status: 'ok', value: undefined } : reply;
     },
     async read(identity: ResultIdentity) {

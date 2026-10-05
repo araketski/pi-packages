@@ -68,6 +68,7 @@ async function json(path: string, bound: number): Promise<unknown> {
   if ((await regular(path)) > bound) throw new Error('Stored JSON exceeds its budget.');
   return JSON.parse(await readFile(path, 'utf8')) as unknown;
 }
+let responseLimit = 1024 * 1024;
 async function transaction(request: Request): Promise<unknown> {
   const { root } = request;
   const policyPath = join(root, 'policy.json');
@@ -92,9 +93,10 @@ async function transaction(request: Request): Promise<unknown> {
   if (!object(envelope) || envelope.format !== 1 || !validPolicy(envelope.policy))
     throw new Error('Corrupt root policy.');
   const policy = envelope.policy;
+  responseLimit = Math.min(Number.MAX_SAFE_INTEGER, 2 * policy.totalBytes + 1024 * 1024);
   if (request.operation === 'init' && request.policy && !isDeepStrictEqual(request.policy, policy))
     return invalid('Conflicting root policy. Use the explicit user-policy operation.');
-  const jobs: { path: string; data: StoredJob; outputSize: number }[] = [];
+  const jobs: { path: string; data: StoredJob; outputSize: number; temporaryBytes: number }[] = [];
   let extra = 2 * (await regular(policyPath)) + (await regular(join(root, 'quota.lock')));
   for (const name of await readdir(root)) {
     if (name === 'policy.json' || name === 'quota.lock') continue;
@@ -138,7 +140,8 @@ async function transaction(request: Request): Promise<unknown> {
       (!Number.isSafeInteger(data.eligibleAt) || !eligible(data.observation))
     )
       throw new Error('Corrupt retention timestamp.');
-    let outputSize = 0;
+    let outputSize = 0,
+      temporaryBytes = 0;
     for (const member of await readdir(path)) {
       const size = await regular(join(path, member));
       if (member === 'record.json') continue;
@@ -152,11 +155,12 @@ async function transaction(request: Request): Promise<unknown> {
       }
       if (/^(record.json|result.json|output.bin)\.tmp-/u.test(member)) {
         extra += size;
+        temporaryBytes += size;
         continue;
       }
       throw new Error('Unknown job storage entry.');
     }
-    jobs.push({ path, data, outputSize });
+    jobs.push({ path, data, outputSize, temporaryBytes });
   }
   const charge = () =>
     extra +
@@ -175,6 +179,7 @@ async function transaction(request: Request): Promise<unknown> {
     await syncDirectory(root);
     await rm(tombstone, { recursive: true });
     await syncDirectory(root);
+    extra -= job.temporaryBytes;
     jobs.splice(jobs.indexOf(job), 1);
     removed++;
     removedKeys.push(key(job.data.request.identity));
@@ -196,8 +201,10 @@ async function transaction(request: Request): Promise<unknown> {
   for (const j of jobs)
     for (const name of await readdir(j.path))
       if (/^(record.json|result.json|output.bin)\.tmp-/u.test(name)) {
-        extra -= await regular(join(j.path, name));
+        const size = await regular(join(j.path, name));
         await unlink(join(j.path, name));
+        extra -= size;
+        j.temporaryBytes -= size;
       }
   if (request.operation === 'init') return ok(policy);
   if (request.operation === 'cleanup')
@@ -410,6 +417,10 @@ async function transaction(request: Request): Promise<unknown> {
 }
 
 // Private one-shot helper; storage.ts is the supported API, not this executable module.
+const send = (reply: unknown) => {
+  const body = JSON.stringify(reply);
+  process.stdout.write(JSON.stringify({ format: 1, limit: responseLimit }) + '\n' + body);
+};
 let input = '';
 process.stdin.setEncoding('utf8');
 try {
@@ -420,13 +431,11 @@ try {
   }
   const request = JSON.parse(input) as Request;
   const reply = await transaction(request);
-  process.stdout.write(JSON.stringify(reply));
+  send(reply);
 } catch (error) {
-  process.stdout.write(
-    JSON.stringify(
-      unavailable(
-        `Persistence unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      ),
+  send(
+    unavailable(
+      `Persistence unavailable: ${error instanceof Error ? error.message : String(error)}`,
     ),
   );
 }
