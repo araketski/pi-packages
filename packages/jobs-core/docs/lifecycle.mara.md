@@ -22,7 +22,7 @@ user returns; it does not require managed commands to keep running after Pi exit
 The [delivery policy](./delivery.mara.md) defines shared modes and receipt/retry
 semantics. Consumer decisions live in the [goal plan](../../../docs/planned/goal/jobs-integration.mara.md)
 and [caffeinate plan](../../../docs/planned/caffeinate/jobs-integration.mara.md); replacement-bash
-behavior lives in the [pi-jobs plan](../../../docs/planned/jobs/execution.mara.md). Crash cleanup is
+behavior lives in the [pi-jobs plan](../../jobs/docs/execution.mara.md). Crash cleanup is
 best-effort; it does not promise that shutdown handlers run after forced exit.
 
 Before implementing each slice, define and test its Pi lifecycle mapping, reload

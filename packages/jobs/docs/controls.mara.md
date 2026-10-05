@@ -1,12 +1,12 @@
-# Planned pi-jobs tools and user controls
+# Pi-jobs tools and user controls
 
 The `pi-jobs` extension owns the unified model/user control surface. Producers
 continue to own their executions; an observer UI does not acquire ownership or
 independently redeliver results. Herdr remains usable without this UI extension.
 
-Use the [shared core contract](../../../packages/jobs-core/docs/contract.mara.md),
-[lifecycle](../../../packages/jobs-core/docs/lifecycle.mara.md), [delivery](../../../packages/jobs-core/docs/delivery.mara.md),
-and [storage bounds](../../../packages/jobs-core/docs/storage.mara.md). Consumer-specific goal and
+Use the [shared core contract](../../jobs-core/docs/contract.mara.md),
+[lifecycle](../../jobs-core/docs/lifecycle.mara.md), [delivery](../../jobs-core/docs/delivery.mara.md),
+and [storage bounds](../../jobs-core/docs/storage.mara.md). Consumer-specific goal and
 caffeinate decisions remain in their own planned folders.
 
 The requirements below are not implemented tools or passing Pi-mode tests. Exact
