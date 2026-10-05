@@ -291,11 +291,41 @@ it('allows independent jobs beyond the default single-job ceiling and drains a r
   }
 }, 30000);
 
+it('protects tracked running, unknown and pending-result output during no-session disposal', async () => {
+  const f = await fixture(20, 4, false);
+  try {
+    for (const id of ['running', 'unknown', 'pending']) {
+      const launch = request(id);
+      const token = ok(await f.store.jobs.reserve(launch));
+      if (id === 'unknown') {
+        const observed = ok(await f.store.jobs.read(launch.identity));
+        ok(
+          await f.store.jobs.save(token, {
+            ...observed,
+            execution: { state: 'unknown', reason: 'unconfirmed' },
+          }),
+        );
+      }
+      if (id === 'pending') ok(await f.store.results.save(result(launch)));
+    }
+    expect(await readdir(f.root)).toHaveLength(3);
+    expect(await f.store.dispose()).toHaveLength(3);
+    expect(await readdir(f.root)).toHaveLength(3);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 it('attempts no-session orderly artifact cleanup, but preserves persistent artifacts', async () => {
   const f = await fixture(20, 4, false);
   try {
-    ok(await f.store.jobs.reserve(request()));
+    const launch = { ...request(), delivery: 'display-only' as const };
+    ok(await f.store.jobs.reserve(launch));
+    ok(await f.store.results.save(result(launch)));
     await f.store.dispose();
+    expect(await readdir(f.root)).toEqual([]);
+    expect((await f.store.readOutput(launch.identity)).status).toBe('unavailable');
+    expect((await f.store.results.save(result(launch))).status).toBe('unavailable');
     expect(await readdir(f.root)).toEqual([]);
   } finally {
     await f.cleanup();

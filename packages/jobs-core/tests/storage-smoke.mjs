@@ -134,9 +134,16 @@ export async function exerciseStorage(core, sdk, root, other = core) {
       jobId: 'independent',
       producerId: 'another/opaque',
     };
-    value(await second.jobs.reserve({ ...request, identity: job2 }));
+    value(await second.jobs.reserve({ ...request, identity: job2, delivery: 'display-only' }));
     value(await second.capture(job2, { stream: 'combined', bytes: Buffer.alloc(120, 66) }));
     assert.equal(value(await second.readOutput(job2)).retainedBytes, 100);
+    value(
+      await second.results.save({
+        identity: { job: job2, resultId: 'second-final' },
+        outcome: { kind: 'exit', exitCode: 0 },
+        content: 'finished',
+      }),
+    );
     assert.equal(await second.dispose().then((x) => x.length), 0);
     // Another no-session instance owns cleanup only of its own temporary artifact.
     const cleanupJob = { ...job2, jobId: 'temporary' };
@@ -145,7 +152,16 @@ export async function exerciseStorage(core, sdk, root, other = core) {
       output,
       maxBytes: 100,
     });
-    value(await temporary.jobs.reserve({ ...request, identity: cleanupJob }));
+    value(
+      await temporary.jobs.reserve({ ...request, identity: cleanupJob, delivery: 'display-only' }),
+    );
+    value(
+      await temporary.results.save({
+        identity: { job: cleanupJob, resultId: 'temporary-final' },
+        outcome: { kind: 'exit', exitCode: 0 },
+        content: 'finished',
+      }),
+    );
     assert.equal((await readdir(outputRoot)).length, 1);
     assert.equal((await temporary.dispose()).length, 0);
     assert.equal((await readdir(outputRoot)).length, 0);

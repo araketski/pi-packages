@@ -196,6 +196,7 @@ export function createSessionJobStore(options: {
     remove: options.output.remove.bind(options.output),
   };
   let active = true;
+  let disposed = false;
   const live = new Map<string, Live>();
   const saved = new Map<string, Entry>();
   // Trusted public custom entries. Unsupported versions are unavailable, not migrated.
@@ -297,6 +298,7 @@ export function createSessionJobStore(options: {
       }
     },
     async save(reservation: StorageReservation, observation: JobObservation) {
+      if (disposed) return failure('unavailable', 'Output owner is disposed.');
       const job = live.get(key(reservation.job));
       if (!job || job.token !== reservation.reservationId)
         return failure('unknown', 'No matching live reservation.');
@@ -316,6 +318,7 @@ export function createSessionJobStore(options: {
   };
   const results: ResultSink = {
     async save(result) {
+      if (disposed) return failure('unavailable', 'Output owner is disposed.');
       if (result.output !== undefined)
         return failure(
           'unsupported',
@@ -346,6 +349,7 @@ export function createSessionJobStore(options: {
     jobs,
     results,
     async capture(identity, chunk) {
+      if (disposed) return failure('unavailable', 'Output owner is disposed.');
       const job = live.get(key(identity));
       if (!job) return failure('unknown', 'No live output owner.');
       if (job.capture.finished) return failure('invalid', 'Capture already completed.');
@@ -353,6 +357,7 @@ export function createSessionJobStore(options: {
       return ok(undefined);
     },
     async readOutput(identity) {
+      if (disposed) return failure('unavailable', 'Output owner is disposed.');
       const job = live.get(key(identity));
       if (job) {
         await snapshot(job);
@@ -385,9 +390,20 @@ export function createSessionJobStore(options: {
     },
     async dispose() {
       active = false;
+      disposed = true;
       const diagnostics: string[] = [];
       if (!persistent)
         for (const job of live.values()) {
+          const delivery = job.observation.delivery.state;
+          if (
+            job.observation.execution.state !== 'terminal' ||
+            (delivery !== 'delivered' && delivery !== 'not-required')
+          ) {
+            diagnostics.push(
+              `Temporary output protected: ${job.reference} has running/unknown execution or pending/unknown delivery.`,
+            );
+            continue;
+          }
           try {
             await output.remove(job.reference);
           } catch (error) {
