@@ -11,7 +11,7 @@ import type {
   WaitRequest,
 } from './index.js';
 
-/** Monotonic clock. Cancellation removes only the scheduled callback. */
+/** Monotonic clock with non-reentrant scheduled callbacks. Cancellation removes only the callback. */
 export interface JobsClock {
   now(): number;
   schedule(callback: () => void, delayMs: number): () => void;
@@ -293,7 +293,7 @@ export function createJobLifecycle<Handle>(options: {
     )
       return { status: 'denied', reason: 'Control identity does not match this owner/job.' };
     try {
-      if (options.authorize(value) === true) return undefined;
+      if (options.authorize(value) === true) return disposed ? unavailable() : undefined;
     } catch {
       /* Failure to establish authority is denial, not permission. */
     }
@@ -328,6 +328,8 @@ export function createJobLifecycle<Handle>(options: {
   }
   function refreshBeforeStop(): Promise<void> {
     const sample = refresh();
+    // An adapter can synchronously hand off/dispose monitoring during observation.
+    if (disposed) return Promise.resolve();
     return new Promise((resolve) => {
       let finished = false;
       let cancel: (() => void) | undefined;
@@ -608,7 +610,7 @@ export function waitForJobs(
       if (settled) return;
       // One stalled owner retains only its own in-flight slot, never the whole selection.
       jobs.forEach((identity, index) => {
-        if (inFlight.has(index)) return;
+        if (settled || inFlight.has(index)) return;
         inFlight.add(index);
         void sample(identity, index);
       });

@@ -395,6 +395,70 @@ describe('review race regressions', () => {
       expect(vi.getTimerCount()).toBe(0);
     },
   );
+  it('authority validation that synchronously disposes cannot permit an awaiting mutation', async () => {
+    const fake = createJobsTestAdapter(clock);
+    let lifecycle!: core.JobLifecycle;
+    lifecycle = core.createJobLifecycle({
+      request,
+      handle: fake.handle,
+      adapter: fake.adapter,
+      clock,
+      startedAtMs: 0,
+      authorize: () => {
+        lifecycle.dispose();
+        return true;
+      },
+    });
+    expect(await lifecycle.setAwaiting({ ...control, awaiting: false })).toMatchObject({
+      status: 'unavailable',
+    });
+    expect(fake.stopCalls).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+    fake.dispose();
+  });
+  it('dispose called synchronously by observation cannot install a new stop-bound timer', async () => {
+    const fake = createJobsTestAdapter(clock);
+    let lifecycle!: core.JobLifecycle;
+    lifecycle = core.createJobLifecycle({
+      request,
+      handle: fake.handle,
+      clock,
+      startedAtMs: 0,
+      authorize: () => true,
+      adapter: {
+        ...fake.adapter,
+        observe: async () => {
+          lifecycle.dispose();
+          return new Promise(() => undefined);
+        },
+      },
+    });
+    const admission = lifecycle.stop(control);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await admission).toMatchObject({ status: 'unavailable' });
+    expect(fake.stopCalls).toHaveLength(0);
+    fake.dispose();
+  });
+  it('synchronous abort in one inspection prevents dispatching remaining selected identities', async () => {
+    const abort = new AbortController();
+    const calls: JobIdentity[] = [];
+    const waited = core.waitForJobs(
+      {
+        requestId: 'W',
+        selection: { mode: 'any', jobs: [identity, { ...identity, jobId: 'B' }] },
+        signal: abort.signal,
+      },
+      async (job) => {
+        calls.push(job);
+        abort.abort();
+        return new Promise(() => undefined);
+      },
+      { clock },
+    );
+    expect(await waited).toMatchObject({ value: { state: 'cancelled' } });
+    expect(calls).toEqual([identity]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('dispose removes a pending pre-stop observation bound and prevents action', async () => {
     const fake = createJobsTestAdapter(clock);
     const lifecycle = core.createJobLifecycle({
