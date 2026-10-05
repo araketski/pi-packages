@@ -36,7 +36,10 @@ install it outside the checkout in independent npm and pnpm consumers with
 Pi 0.99.1. They verify actual archive members, metadata-only exports, installed
 source provenance, package-sourced resource discovery and no registrations from
 the scaffold. Fixture-local project approval allows only that isolated package
-configuration. No shared credentials, MCP server or model inference is used.
+configuration. An alternate version in a disposable source fixture checks that
+release preparation is not pinned to the initial scaffold version; repository
+versions are not changed. No shared credentials, MCP server or model inference
+is used.
 
 Run formatting, frozen installation, Nx sync and complete Mara validation after
 relocation. These checks establish scaffold/artifact loading, not native bash,

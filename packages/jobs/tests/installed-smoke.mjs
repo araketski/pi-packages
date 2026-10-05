@@ -12,7 +12,11 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const packageRoot = realpathSync(join(cwd, 'node_modules/@araketski/pi-jobs'));
 assert.ok(packageRoot.startsWith(realpathSync(join(cwd, 'node_modules')) + sep));
 assert.equal(manifest.name, '@araketski/pi-jobs');
-assert.equal(manifest.version, '0.1.0');
+assert.equal(
+  manifest.version,
+  process.argv[3],
+  'installed version differs from the selected manifest',
+);
 assert.deepEqual(manifest.exports, { './package.json': './package.json' });
 assert.deepEqual(manifest.pi.extensions, ['./extensions/jobs/index.ts']);
 assert.equal(manifest.peerDependencies['@earendil-works/pi-coding-agent'], '*');

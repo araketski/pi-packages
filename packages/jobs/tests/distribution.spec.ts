@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
@@ -8,12 +8,32 @@ import { expect, it } from 'vitest';
 const workspace = resolve(import.meta.dirname, '../../..');
 const packageRoot = resolve(import.meta.dirname, '..');
 
-for (const manager of ['npm', 'pnpm'] as const) {
-  it(`loads the fresh no-op artifact in an independent ${manager} Pi 0.99.1 consumer`, () => {
+const sourceManifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
+  version: string;
+};
+
+for (const { manager, version } of [
+  { manager: 'npm', version: sourceManifest.version },
+  { manager: 'pnpm', version: sourceManifest.version },
+  { manager: 'npm', version: '9.9.9-scaffold-verification' },
+]) {
+  it(`loads the fresh ${version} no-op artifact in an independent ${manager} Pi 0.99.1 consumer`, () => {
     const fixture = mkdtempSync(join(tmpdir(), `pi-jobs-${manager}-`));
     try {
+      let packRoot = packageRoot;
+      if (version !== sourceManifest.version) {
+        // Exercise release-version independence without changing repository manifests.
+        packRoot = join(fixture, 'versioned-source');
+        mkdirSync(packRoot);
+        cpSync(join(workspace, 'pnpm-workspace.yaml'), join(packRoot, 'pnpm-workspace.yaml'));
+        for (const path of ['extensions', 'LICENSE', 'README.md']) {
+          cpSync(join(packageRoot, path), join(packRoot, path), { recursive: true });
+        }
+        const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
+        writeFileSync(join(packRoot, 'package.json'), JSON.stringify({ ...manifest, version }));
+      }
       const pack = JSON.parse(
-        execFileSync('pnpm', ['-C', packageRoot, 'pack', '--pack-destination', fixture, '--json'], {
+        execFileSync('pnpm', ['-C', packRoot, 'pack', '--pack-destination', fixture, '--json'], {
           cwd: workspace,
           encoding: 'utf8',
           timeout: 60_000,
@@ -76,7 +96,7 @@ for (const manager of ['npm', 'pnpm'] as const) {
       const digest = createHash('sha256')
         .update(readFileSync(join(packageRoot, 'extensions/jobs/index.ts')))
         .digest('hex');
-      const output = execFileSync(process.execPath, [smoke, digest], {
+      const output = execFileSync(process.execPath, [smoke, digest, version], {
         cwd: consumer,
         env,
         encoding: 'utf8',
@@ -86,6 +106,7 @@ for (const manager of ['npm', 'pnpm'] as const) {
       console.info(
         JSON.stringify({
           manager,
+          version,
           archiveSha256: createHash('sha256').update(readFileSync(pack.filename)).digest('hex'),
           ...JSON.parse(output),
         }),
