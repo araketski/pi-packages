@@ -165,6 +165,9 @@ importers:
 
   packages/jobs:
     devDependencies:
+      '@araketski/pi-jobs-core':
+        specifier: workspace:*
+        version: link:../jobs-core
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(supports-color@8.1.1)(ws@8.22.0)

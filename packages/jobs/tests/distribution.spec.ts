@@ -1,9 +1,19 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
+import { runNativeFixture } from './native-fixture.ts';
 
 const workspace = resolve(import.meta.dirname, '../../..');
 const packageRoot = resolve(import.meta.dirname, '..');
@@ -30,7 +40,21 @@ for (const { manager, version } of [
           cpSync(join(packageRoot, path), join(packRoot, path), { recursive: true });
         }
         const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
-        writeFileSync(join(packRoot, 'package.json'), JSON.stringify({ ...manifest, version }));
+        const coreManifest = JSON.parse(
+          readFileSync(join(workspace, 'packages/jobs-core/package.json'), 'utf8'),
+        );
+        // This copied fixture is not a workspace; resolve its type-only workspace declaration.
+        writeFileSync(
+          join(packRoot, 'package.json'),
+          JSON.stringify({
+            ...manifest,
+            version,
+            devDependencies: {
+              ...manifest.devDependencies,
+              '@araketski/pi-jobs-core': coreManifest.version,
+            },
+          }),
+        );
       }
       const pack = JSON.parse(
         execFileSync('pnpm', ['-C', packRoot, 'pack', '--pack-destination', fixture, '--json'], {
@@ -42,7 +66,12 @@ for (const { manager, version } of [
       expect(pack.files.map(({ path }) => path).sort()).toEqual([
         'LICENSE',
         'README.md',
+        'extensions/jobs/foreground.ts',
         'extensions/jobs/index.ts',
+        'extensions/jobs/linux-evidence.d.mts',
+        'extensions/jobs/linux-evidence.mjs',
+        'extensions/jobs/local-executor.ts',
+        'extensions/jobs/supervisor.mjs',
         'package.json',
       ]);
       execFileSync(
@@ -103,6 +132,41 @@ for (const { manager, version } of [
         timeout: 60_000,
       });
       expect(JSON.parse(output)).toMatchObject({ sdk: '0.99.1', digest, registrations: 0 });
+      const nativeRoot = join(fixture, 'native');
+      mkdirSync(nativeRoot);
+      const native = runNativeFixture(
+        nativeRoot,
+        pathToFileURL(
+          realpathSync(
+            join(consumer, 'node_modules/@earendil-works/pi-coding-agent/dist/index.js'),
+          ),
+        ).href,
+        join(consumer, 'node_modules/@araketski/pi-jobs/extensions/jobs/local-executor.ts'),
+        process.env.PI_TEST_EVIDENCE_DIR
+          ? join(process.env.PI_TEST_EVIDENCE_DIR, `native-${manager}-${version}`)
+          : undefined,
+      );
+      expect(native).toHaveLength(9);
+      if (process.env.PI_TEST_EVIDENCE_DIR) {
+        const artifactRoot = join(
+          process.env.PI_TEST_EVIDENCE_DIR,
+          `artifact-${manager}-${version}`,
+        );
+        mkdirSync(artifactRoot, { recursive: true });
+        cpSync(pack.filename, join(artifactRoot, 'pi-jobs.tgz'));
+        writeFileSync(
+          join(artifactRoot, 'archive-members.json'),
+          JSON.stringify(pack.files, null, 2),
+        );
+        writeFileSync(
+          join(artifactRoot, 'consumer.json'),
+          JSON.stringify(
+            { manager, version, ...JSON.parse(output), nativeProbes: native.length },
+            null,
+            2,
+          ),
+        );
+      }
       console.info(
         JSON.stringify({
           manager,

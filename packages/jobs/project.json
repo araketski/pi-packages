@@ -5,6 +5,7 @@
   "targets": {
     "test": { "cache": false },
     "typecheck": {
+      "dependsOn": ["^build"],
       "executor": "nx:run-commands",
       "options": {
         "cwd": "packages/jobs",
