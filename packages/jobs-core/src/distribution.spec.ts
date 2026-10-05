@@ -46,6 +46,9 @@ it.each(['npm', 'pnpm'] as const)(
         'package/dist/index.d.ts',
         'package/dist/index.d.ts.map',
         'package/dist/index.js',
+        'package/dist/testing.d.ts',
+        'package/dist/testing.d.ts.map',
+        'package/dist/testing.js',
         'package/package.json',
       ]);
       const packed = JSON.parse(run('tar', ['-xOf', tarball, 'package/package.json'], root)) as {
@@ -69,7 +72,7 @@ it.each(['npm', 'pnpm'] as const)(
       writeFileSync(
         join(consumer, 'package.json'),
         JSON.stringify({
-          name: 'jobs-core-scaffold-consumer',
+          name: 'jobs-core-interface-consumer',
           private: true,
           type: 'module',
           dependencies: { [manifest.name]: `file:${tarball}` },
@@ -90,13 +93,33 @@ it.each(['npm', 'pnpm'] as const)(
         import { realpathSync } from 'node:fs';
         import { relative, isAbsolute } from 'node:path';
         import { fileURLToPath } from 'node:url';
-        import * as scaffold from '${manifest.name}';
+        import { JOBS_CONTRACT_VERSION, createJobsParticipant } from '${manifest.name}';
+        import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
+        import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
         import metadata from '${manifest.name}/package.json' with { type: 'json' };
         const entry = realpathSync(fileURLToPath(import.meta.resolve('${manifest.name}')));
         const local = relative(realpathSync(process.cwd()), entry);
         assert(!isAbsolute(local) && !local.startsWith('../'));
         assert(entry.endsWith('/dist/index.js'));
-        assert.deepEqual(Object.keys(scaffold), []);
+        assert.equal(JOBS_CONTRACT_VERSION, '0.1.0');
+        copyFileSync(entry, './separate-copy.mjs');
+        const copy = await import('./separate-copy.mjs');
+        assert.notEqual(copy.createJobsParticipant, createJobsParticipant);
+        const events = createJobsTestBus();
+        const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
+        const observer = copy.createJobsParticipant({events}, {runtimeId:'R', participantId:'V', role:'observer'});
+        owner.start(); observer.start();
+        const job = createUnknownJobFixture({runtimeId:'R', ownerId:'O', sessionId:'S', jobId:'J', producerId:'external/opaque'});
+        owner.publish('S', [job]);
+        assert.deepEqual(observer.view().snapshots[0].jobs, [job]);
+        owner.close(); observer.close();
+        assert.equal(events.listenerCount(), 0);
+        const metadataPath = fileURLToPath(import.meta.resolve('${manifest.name}/package.json'));
+        const before = readFileSync(entry, 'utf8');
+        writeFileSync(metadataPath, JSON.stringify({...metadata, version:'0.4.11'}));
+        const afterVersionBump = await import(import.meta.resolve('${manifest.name}')+'?bump');
+        assert.equal(afterVersionBump.JOBS_CONTRACT_VERSION, '0.1.0');
+        assert.equal(readFileSync(entry, 'utf8'), before);
         assert.equal(metadata.name, '${manifest.name}');
         assert.equal(metadata.version, '${manifest.version}');
         assert(!Object.hasOwn(metadata, 'pi'));
@@ -109,9 +132,16 @@ it.each(['npm', 'pnpm'] as const)(
       writeFileSync(
         join(consumer, 'consumer.ts'),
         `
-        import * as scaffold from '${manifest.name}';
-        type EmptyAPI = keyof typeof scaffold extends never ? true : false;
-        export const emptyAPI: EmptyAPI = true;
+        import { createJobsParticipant, type CompletionCoordinator, type ExecutionAdapter,
+          type JobStore, type ResultSink, type FinalResultReceipt, type JobOwnerPort,
+          type JobsPiHost, type JobObservation } from '${manifest.name}';
+        import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
+        const events = createJobsTestBus();
+        const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
+        export const job: JobObservation = createUnknownJobFixture({runtimeId:'R', ownerId:'O', sessionId:'S', jobId:'J', producerId:'unknown'});
+        owner.publish('S', [job]);
+        export type Ports = [CompletionCoordinator, ExecutionAdapter<unknown, unknown>, JobStore,
+          ResultSink, FinalResultReceipt, JobOwnerPort, JobsPiHost];
       `,
       );
       run(

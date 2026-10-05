@@ -1,9 +1,11 @@
 # Jobs core: package boundary and compatibility
 
-This records the agreed package split and compatibility promise. It is not an
-implemented library, a complete wire/API specification, or evidence of runtime
+This records the agreed package split and compatibility promise. It is not a
+complete runtime, a complete delivery implementation, or evidence of full workflow
 verification. The initial consumers are developed in this repository and released
-together. The project is scaffolded; jobs runtime and the public owner/observer API remain unimplemented.
+together. The [shared interface checkpoint](./interface.mara.md) now supplies public
+envelopes and minimal owner/observer discovery/contract metadata. Execution,
+lifecycle, storage and delivery runtime remain unimplemented.
 
 ## Concrete consumers
 
@@ -75,9 +77,10 @@ in each owning plan: [pi-jobs execution](../../../docs/planned/jobs/execution.ma
 [controls](../../../docs/planned/jobs/controls.mara.md),
 [goal continuation](../../../docs/planned/goal/jobs-integration.mara.md),
 [caffeinate sleep inhibition](../../../docs/planned/caffeinate/jobs-integration.mara.md), and
-[Herdr integration](../../../docs/planned/herdr/scope.mara.md). Exact APIs and wire envelopes, storage
-mechanisms and upgrade handling, warning presentation, and lifecycle event/race
-mechanisms still need designs and tests before implementation.
+[Herdr integration](../../../docs/planned/herdr/scope.mara.md). The [interface checkpoint](./interface.mara.md) defines the minimum envelopes,
+participant diagnostics and explicit coordination ports. Storage mechanisms,
+upgrade handling, consumer warning presentation and lifecycle/delivery race
+implementations still need their respective designs and tests.
 Persistent interactive agents remain executions rather than inferred delegated
 tasks; agent messaging and parent-child orchestration are not prerequisites.
 
