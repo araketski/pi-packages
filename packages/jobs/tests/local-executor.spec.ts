@@ -681,6 +681,51 @@ it('uses the real five-second default grace for foreground abort escalation', as
   }
 }, 7000);
 
+it.each([
+  ['null-prototype value', 'Object.create(null)'],
+  ['throwing coercion', '{ [Symbol.toPrimitive]() { throw Error("coercion failed"); } }'],
+  ['malformed Error message', 'Object.assign(Error("original"), { message: Object.create(null) })'],
+])('contains sink rejection diagnostics in an ordinary Node process: %s', (_label, rejection) => {
+  const adapterPath = fileURLToPath(
+    new URL('../extensions/jobs/local-executor.ts', import.meta.url),
+  );
+  const script = `
+    const { createLocalExecutor } = await import(${JSON.stringify(adapterPath)});
+    const authority = Object.freeze({ runtimeId: 'R', ownerId: 'O', generation: 'G' });
+    const executor = createLocalExecutor({ authority: () => authority });
+    const launched = await executor.launch({
+      identity: { runtimeId: 'R', ownerId: 'O', sessionId: 'S', jobId: 'J', producerId: 'fixture' },
+      authority, awaiting: true, delivery: 'automatic', lifetime: 'managed',
+    }, { command: 'set -e; head -c 4000000 /dev/zero; exit 7', cwd: process.cwd() }, {
+      append: async () => { throw (${rejection}); },
+    });
+    if (launched.status !== 'ok') throw Error('Fixture launch failed');
+    const handle = launched.value;
+    try {
+      console.log(JSON.stringify({
+        foreground: await executor.foreground(handle),
+        completion: await executor.completion(handle),
+        diagnostics: executor.diagnostics(handle),
+      }));
+    } finally {
+      await executor.stop(handle, authority, 0);
+      await executor.completion(handle);
+    }
+  `;
+  const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: process.cwd(),
+    env: { ...process.env, NODE_OPTIONS: '' },
+    encoding: 'utf8',
+    timeout: 5000,
+  });
+  const observed = JSON.parse(output);
+  const terminal = { state: 'terminal', outcome: { kind: 'exit', exitCode: 7 } };
+  expect(observed.foreground).toEqual({ kind: 'completed', execution: terminal });
+  expect(observed.completion).toEqual(terminal);
+  expect(observed.diagnostics).toHaveLength(1);
+  expect(observed.diagnostics[0]).toEqual(expect.stringContaining('output sink failed'));
+});
+
 it('drains large output after sink rejection without killing the command or fabricating success', async () => {
   const e = createLocalExecutor({ authority: () => authority });
   const r = await e.launch(

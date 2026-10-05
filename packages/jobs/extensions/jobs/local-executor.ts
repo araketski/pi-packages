@@ -70,6 +70,13 @@ const identityValid = (value: string) =>
   value.length <= 256 &&
   value.trim() === value &&
   !Array.from(value).some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
+const failureText = (error: unknown): string => {
+  try {
+    return String(error);
+  } catch {
+    return 'Unprintable failure.';
+  }
+};
 const denied = (reason: string): JobReply<never> => ({ status: 'denied', reason });
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -280,12 +287,12 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
             } catch (error) {
               failed = true;
               record.diagnostics.push(
-                `${name} output sink failed; subsequent bytes drained/discarded: ${String(error)}`,
+                `${name} output sink failed; subsequent bytes drained/discarded: ${failureText(error)}`,
               );
             }
           }
         } catch (error) {
-          record.diagnostics.push(`${name} output drain failed: ${String(error)}`);
+          record.diagnostics.push(`${name} output drain failed: ${failureText(error)}`);
         }
       };
       try {
