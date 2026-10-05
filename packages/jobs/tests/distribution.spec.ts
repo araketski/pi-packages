@@ -30,7 +30,21 @@ for (const { manager, version } of [
           cpSync(join(packageRoot, path), join(packRoot, path), { recursive: true });
         }
         const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
-        writeFileSync(join(packRoot, 'package.json'), JSON.stringify({ ...manifest, version }));
+        const coreManifest = JSON.parse(
+          readFileSync(join(workspace, 'packages/jobs-core/package.json'), 'utf8'),
+        );
+        // This copied fixture is not a workspace; resolve its type-only workspace declaration.
+        writeFileSync(
+          join(packRoot, 'package.json'),
+          JSON.stringify({
+            ...manifest,
+            version,
+            devDependencies: {
+              ...manifest.devDependencies,
+              '@araketski/pi-jobs-core': coreManifest.version,
+            },
+          }),
+        );
       }
       const pack = JSON.parse(
         execFileSync('pnpm', ['-C', packRoot, 'pack', '--pack-destination', fixture, '--json'], {
@@ -42,6 +56,7 @@ for (const { manager, version } of [
       expect(pack.files.map(({ path }) => path).sort()).toEqual([
         'LICENSE',
         'README.md',
+        'extensions/jobs/foreground.ts',
         'extensions/jobs/index.ts',
         'package.json',
       ]);

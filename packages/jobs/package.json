@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "license": "MIT",
   "files": [
-    "extensions/jobs",
+    "extensions/jobs/index.ts",
+    "extensions/jobs/foreground.ts",
     "LICENSE"
   ],
   "type": "module",
@@ -11,6 +12,7 @@
     "./package.json": "./package.json"
   },
   "devDependencies": {
+    "@araketski/pi-jobs-core": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:"
   },
   "peerDependencies": {
