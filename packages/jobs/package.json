@@ -5,6 +5,10 @@
   "files": [
     "extensions/jobs/index.ts",
     "extensions/jobs/foreground.ts",
+    "extensions/jobs/local-executor.ts",
+    "extensions/jobs/linux-evidence.mjs",
+    "extensions/jobs/linux-evidence.d.mts",
+    "extensions/jobs/supervisor.mjs",
     "LICENSE"
   ],
   "type": "module",
