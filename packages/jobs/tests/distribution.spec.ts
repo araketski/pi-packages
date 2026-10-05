@@ -1,0 +1,97 @@
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { expect, it } from 'vitest';
+
+const workspace = resolve(import.meta.dirname, '../../..');
+const packageRoot = resolve(import.meta.dirname, '..');
+
+for (const manager of ['npm', 'pnpm'] as const) {
+  it(`loads the fresh no-op artifact in an independent ${manager} Pi 0.99.1 consumer`, () => {
+    const fixture = mkdtempSync(join(tmpdir(), `pi-jobs-${manager}-`));
+    try {
+      const pack = JSON.parse(
+        execFileSync('pnpm', ['-C', packageRoot, 'pack', '--pack-destination', fixture, '--json'], {
+          cwd: workspace,
+          encoding: 'utf8',
+          timeout: 60_000,
+        }),
+      ) as { filename: string; files: { path: string }[] };
+      expect(pack.files.map(({ path }) => path).sort()).toEqual([
+        'LICENSE',
+        'README.md',
+        'extensions/jobs/index.ts',
+        'package.json',
+      ]);
+      execFileSync(
+        'pnpm',
+        ['nx', 'run', '@araketski/pi-jobs:pi-check-package', `--tarball=${pack.filename}`],
+        {
+          cwd: workspace,
+          env: { ...process.env, NX_DAEMON: 'false', NX_PREFER_NODE_STRIP_TYPES: 'false' },
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      const consumer = join(fixture, 'consumer');
+      const agentDir = join(consumer, 'agent');
+      mkdirSync(agentDir, { recursive: true });
+      mkdirSync(join(fixture, 'home'));
+      mkdirSync(join(consumer, '.pi'));
+      writeFileSync(
+        join(consumer, 'package.json'),
+        JSON.stringify({
+          name: 'pi-jobs-isolated-consumer',
+          private: true,
+          type: 'module',
+          dependencies: {
+            '@araketski/pi-jobs': `file:${pack.filename}`,
+            '@earendil-works/pi-coding-agent': '0.99.1',
+          },
+        }),
+      );
+      writeFileSync(
+        join(consumer, '.pi/settings.json'),
+        JSON.stringify({ packages: ['../node_modules/@araketski/pi-jobs'] }),
+      );
+      const env = {
+        ...process.env,
+        HOME: join(fixture, 'home'),
+        PI_CODING_AGENT_DIR: agentDir,
+        PI_OFFLINE: '1',
+        npm_config_cache: join(fixture, 'npm-cache'),
+      };
+      execFileSync(
+        manager,
+        manager === 'npm'
+          ? ['install', '--ignore-scripts', '--no-audit', '--no-fund']
+          : ['install', '--ignore-scripts', `--store-dir=${join(fixture, 'pnpm-store')}`],
+        { cwd: consumer, env, encoding: 'utf8', timeout: 180_000 },
+      );
+      // Run from the installed consumer, not the checkout's dependency tree.
+      const smoke = join(consumer, 'smoke.mjs');
+      writeFileSync(smoke, readFileSync(join(import.meta.dirname, 'installed-smoke.mjs')));
+      const digest = createHash('sha256')
+        .update(readFileSync(join(packageRoot, 'extensions/jobs/index.ts')))
+        .digest('hex');
+      const output = execFileSync(process.execPath, [smoke, digest], {
+        cwd: consumer,
+        env,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      expect(JSON.parse(output)).toMatchObject({ sdk: '0.99.1', digest, registrations: 0 });
+      console.info(
+        JSON.stringify({
+          manager,
+          archiveSha256: createHash('sha256').update(readFileSync(pack.filename)).digest('hex'),
+          ...JSON.parse(output),
+        }),
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  }, 300_000);
+}

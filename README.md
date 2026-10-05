@@ -17,7 +17,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Workflow package delivery items](.work/items/836650d231e94caa851d8ca082aa32ad.md) and [Pi 0.99.1 capability reconciliation](docs/pi-0991-reconciliation.mara.md)
 - [Planned Herdr workflow](docs/planned/herdr/scope.mara.md) and [execution/RPC contract](docs/planned/herdr/contract.mara.md)
 - [Jobs-core package boundary and contract compatibility](packages/jobs-core/docs/contract.mara.md)
-- [Planned local jobs execution](docs/planned/jobs/execution.mara.md) and [controls](docs/planned/jobs/controls.mara.md)
+- [Local jobs execution](packages/jobs/docs/execution.mara.md) and [controls](packages/jobs/docs/controls.mara.md)
 - [Planned goal contract](docs/planned/goal/contract.mara.md) and [jobs integration](docs/planned/goal/jobs-integration.mara.md)
 - [Planned caffeinate contract](docs/planned/caffeinate/contract.mara.md) and [jobs integration](docs/planned/caffeinate/jobs-integration.mara.md)
 - [Planned gates inspection and visibility](docs/planned/gates/contract.mara.md)

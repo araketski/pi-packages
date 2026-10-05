@@ -1,0 +1,15 @@
+{
+  "name": "@araketski/pi-jobs",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/jobs/extensions",
+  "targets": {
+    "test": { "cache": false },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/jobs",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    }
+  }
+}
