@@ -1,7 +1,8 @@
 # Jobs persistence and bounded output
 
-These are accepted storage policies, not an implemented store or passing
-verification of the revised session-backed design. They support [session continuity](./lifecycle.mara.md) and
+These are accepted storage policies and the concrete session-store design.
+The optional core implementation does not establish downstream host integration
+or complete acceptance. They support [session continuity](./lifecycle.mara.md) and
 [delivery receipts](./delivery.mara.md), without creating another Pi session system.
 
 ## Reuse Pi state facilities
@@ -166,7 +167,7 @@ Expire eligible delivered-terminal output after configurable seven-day retention
 
 ## Checkpoint and implementation state
 
-The committed JobStore/ResultSink envelopes predate this simplification. Reconcile their reservation-shaped ports with this design before implementing storage; a port name is not an aggregate-quota requirement. Follow the public contract-version/release policy for any incompatible API change. This documentation increment changes no runtime exports, package versions, dependencies or JOBS_CONTRACT_VERSION. Concrete host lifecycle/delivery composition belongs to its existing separate work item. This is accepted design guidance; the concrete format below is committed before behavior implementation, not passing verification.
+The committed JobStore/ResultSink envelopes predate this simplification. Reconcile their reservation-shaped ports with this design before implementing storage; a port name is not an aggregate-quota requirement. Follow the public contract-version/release policy for any incompatible API change. The concrete format below was committed before behavior implementation. The optional session-storage/output APIs now implement this boundary while preserving package versions, dependencies, checkpoint types and JOBS_CONTRACT_VERSION. Concrete host lifecycle/delivery composition belongs to its separate work item. Specification agreement and source implementation are not proof of complete integration or acceptance.
 
 ## Concrete v1 format and public ports
 

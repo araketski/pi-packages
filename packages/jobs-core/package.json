@@ -9,6 +9,12 @@
     "dist/lifecycle.js",
     "dist/lifecycle.d.ts",
     "dist/lifecycle.d.ts.map",
+    "dist/session-storage.js",
+    "dist/session-storage.d.ts",
+    "dist/session-storage.d.ts.map",
+    "dist/output-artifact.js",
+    "dist/output-artifact.d.ts",
+    "dist/output-artifact.d.ts.map",
     "dist/testing.js",
     "dist/testing.d.ts",
     "dist/testing.d.ts.map"

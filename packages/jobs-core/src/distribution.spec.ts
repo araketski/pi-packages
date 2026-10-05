@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
@@ -40,6 +40,10 @@ it.each(['npm', 'pnpm'] as const)(
         run('pnpm', ['pack', '--pack-destination', root, '--json'], packageRoot),
       ) as { filename: string };
       const tarball = resolve(root, pack.filename);
+      if (process.env.PI_TEST_ARTIFACT_DIR) {
+        mkdirSync(process.env.PI_TEST_ARTIFACT_DIR, { recursive: true });
+        copyFileSync(tarball, join(process.env.PI_TEST_ARTIFACT_DIR, `${manager}-jobs-core.tgz`));
+      }
       const members = run('tar', ['-tzf', tarball], root).trim().split('\n').sort();
       expect(members).toEqual([
         'package/README.md',
@@ -49,6 +53,12 @@ it.each(['npm', 'pnpm'] as const)(
         'package/dist/lifecycle.d.ts',
         'package/dist/lifecycle.d.ts.map',
         'package/dist/lifecycle.js',
+        'package/dist/output-artifact.d.ts',
+        'package/dist/output-artifact.d.ts.map',
+        'package/dist/output-artifact.js',
+        'package/dist/session-storage.d.ts',
+        'package/dist/session-storage.d.ts.map',
+        'package/dist/session-storage.js',
         'package/dist/testing.d.ts',
         'package/dist/testing.d.ts.map',
         'package/dist/testing.js',
@@ -109,7 +119,7 @@ it.each(['npm', 'pnpm'] as const)(
         import { realpathSync } from 'node:fs';
         import { relative, isAbsolute } from 'node:path';
         import { fileURLToPath } from 'node:url';
-        import { JOBS_CONTRACT_VERSION, createJobsParticipant, createJobLifecycle, createJobsLifecycleRouter, resolveJobsLifecycleSettings, waitForJobs } from '${manifest.name}';
+        import { JOBS_CONTRACT_VERSION, createJobsParticipant, createJobLifecycle, createJobsLifecycleRouter, resolveJobsLifecycleSettings, waitForJobs, createSessionJobStorage, createJobsSessionCapability, createOutputArtifactIO, JOBS_OUTPUT_MAX_BYTES, JOBS_OUTPUT_RETENTION_MS } from '${manifest.name}';
         import { createJobsTestBus, createUnknownJobFixture, createJobsTestAdapter } from '${manifest.name}/testing';
         import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
         import { dirname } from 'node:path';
@@ -186,6 +196,33 @@ it.each(['npm', 'pnpm'] as const)(
         assert.equal(forced.value.state,'completed');
         assert.equal(deadline.stopIntent().state,'requested');assert.equal(deadlineFake.stopCalls.length,1);
         deadline.dispose();deadlineFake.dispose();assert.equal(timers.size,0);
+        // Real NEW storage I/O in independently installed consumers and loaded core copies.
+        const savedEntries=[];
+        const capability=()=>createJobsSessionCapability({sessionId:'S',persistent:true,isCurrent:()=>true,
+          appendEntry:(kind,data)=>{savedEntries.push({type:'custom',customType:kind,data});},readEntries:()=>savedEntries});
+        assert.equal(JOBS_OUTPUT_MAX_BYTES,10_000_000);assert.equal(JOBS_OUTPUT_RETENTION_MS,604_800_000);
+        const storage=createSessionJobStorage({sessionId:'S',outputRoot:'./output',session:capability(),maxBytes:10,prefixBytes:3});
+        const storageToken=await storage.jobStore.reserve({identity:job.identity,authority,awaiting:true,lifetime:'managed',delivery:'display-only'});
+        assert.equal(storageToken.status,'ok');
+        const output=storage.output(storageToken.value);assert.equal(output.status,'ok');
+        await output.value.append({stream:'stdout',bytes:new TextEncoder().encode('abcdefghijKLMNO')});
+        const captured=await storage.readCapturedOutput(job.identity);assert.equal(captured.value.omittedBytes,5);
+        assert.equal(new TextDecoder().decode(captured.value.tail.bytes),'ijKLMNO');
+        const final={identity:{job:job.identity,resultId:'final'},outcome:{kind:'exit',exitCode:9},content:'exited 9'};
+        assert.equal((await storage.resultSink.save(final)).status,'ok');
+        assert.deepEqual((await storage.resultSink.read(final.identity)).value,final);
+        const other=copy.createSessionJobStorage({sessionId:'S',outputRoot:'./output',session:capability()});
+        assert.equal((await other.replay()).value[0].historical,true);
+        assert.deepEqual((await other.resultSink.read(final.identity)).value,final);
+        assert.equal((await other.readCapturedOutput(job.identity)).value.omittedBytes,5);
+        const independent=copy.createSessionJobStorage({sessionId:'other',outputRoot:'./output',maxBytes:10,prefixBytes:3});
+        const independentJob={...job.identity,sessionId:'other'};
+        const admitted=await independent.jobStore.reserve({identity:independentJob,authority,awaiting:false,lifetime:'managed',delivery:'display-only'});
+        await independent.output(admitted.value).value.append({stream:'stderr',bytes:new Uint8Array(10).fill(88)});
+        assert.equal((await independent.readCapturedOutput(independentJob)).value.totalBytes,10);
+        // Combined retained bytes across copies/sessions exceed a per-job bound without admission quota.
+        assert.equal(captured.value.prefix.bytes.length+captured.value.tail.bytes.length+10,20);
+        await independent.dispose();await storage.dispose();await other.dispose();
         console.log('installed artifact:', local);
       `,
       );
@@ -196,7 +233,9 @@ it.each(['npm', 'pnpm'] as const)(
         import { createJobsParticipant, type CompletionCoordinator, type ExecutionAdapter,
           type JobStore, type ResultSink, type FinalResultReceipt, type JobOwnerPort,
           type JobsPiHost, type JobObservation, createJobLifecycle, resolveJobsLifecycleSettings,
-          waitForJobs, type JobsClock, type JobsWaitResult, type JobLifecycle } from '${manifest.name}';
+          waitForJobs, type JobsClock, type JobsWaitResult, type JobLifecycle,
+          createSessionJobStorage, createJobsSessionCapability, createOutputArtifactIO,
+          type SessionJobStorage, type CapturedOutput, type OutputArtifactIO } from '${manifest.name}';
         import { createJobsTestBus, createUnknownJobFixture, createJobsTestAdapter } from '${manifest.name}/testing';
         const clock: JobsClock = {now:()=>0,schedule:()=>()=>undefined};
         const fake = createJobsTestAdapter(clock);
@@ -205,6 +244,11 @@ it.each(['npm', 'pnpm'] as const)(
           authority,awaiting:true,lifetime:'managed',delivery:'automatic'},handle:fake.handle,adapter:fake.adapter,
           authorize:r=>r.authority===authority,clock,startedAtMs:0,settings:resolveJobsLifecycleSettings()});
         export const waited = waitForJobs({requestId:'W',selection:{mode:'one',jobs:[{runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'unknown'}]},timeoutMs:0},lifecycle.inspect,{clock});
+        const io:OutputArtifactIO=createOutputArtifactIO('./output');
+        const session=createJobsSessionCapability({sessionId:'S',persistent:true,isCurrent:()=>true,appendEntry:()=>undefined,readEntries:()=>[]});
+        export const storage:SessionJobStorage=createSessionJobStorage({sessionId:'S',outputRoot:'./output',session,io});
+        export type Capture=CapturedOutput;
+        export const persisted=storage.resultSink.save({identity:{job:{runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'unknown'},resultId:'final'},outcome:{kind:'exit',exitCode:0},content:'Done'});
         export type Waited = JobsWaitResult;
         const events = createJobsTestBus();
         const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});

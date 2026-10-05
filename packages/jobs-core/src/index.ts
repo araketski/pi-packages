@@ -1,4 +1,31 @@
 export {
+  createJobsSessionCapability,
+  createSessionJobStorage,
+  JOBS_SESSION_ENTRY_TYPE,
+  JOBS_SESSION_ENTRY_MAX_BYTES,
+  JOBS_OUTPUT_RETENTION_MS,
+} from './session-storage.js';
+export type {
+  JobsSessionEntry,
+  JobsSessionCapability,
+  StorageIntent,
+  StoredJob,
+  CapturedOutput,
+  SessionJobStorage,
+} from './session-storage.js';
+export {
+  createOutputArtifactIO,
+  JOBS_OUTPUT_MAX_BYTES,
+  JOBS_OUTPUT_HEADER_BYTES,
+} from './output-artifact.js';
+export type {
+  OutputArtifactIO,
+  OutputStream,
+  StreamCounts,
+  CapturedSegment,
+  CapturedBytes,
+} from './output-artifact.js';
+export {
   createJobLifecycle,
   createJobsLifecycleRouter,
   resolveJobsLifecycleSettings,
@@ -149,7 +176,7 @@ export interface StorageReservation {
   job: JobIdentity;
   reservationId: string;
 }
-/** Admission, atomic persistence, quota and retention implementation belong to the store slice. */
+/** reserve establishes tracking/output setup, not capacity; save is append acceptance, not fsync. */
 export interface JobStore {
   reserve(request: LaunchRequest): Promise<JobReply<StorageReservation>>;
   save(reservation: StorageReservation, observation: JobObservation): Promise<JobReply<void>>;
