@@ -39,9 +39,10 @@ delivery and recovery ([[REQ-GATES-SIGNAL-ONLY]]); unreconciled work must not be
 confirmed empty merely because an owner cannot inspect it
 ([[REQ-GATES-RECONCILIATION]]). The intended workflow avoids idle-driven `goal`
 nudges while required work or its result delivery is pending. The agreed
-[lifecycle policy](../../jobs-core/docs/lifecycle.mara.md) distinguishes normal-exit
-cancellation of owned managed commands from explicitly persistent Herdr terminals,
-which remain running. Job cleanup must not close parent workspaces or delete
+[lifecycle policy](../../jobs-core/docs/lifecycle.mara.md) requests bounded
+best-effort cancellation of owned managed commands on genuine session deactivation
+or orderly Pi exit, while retaining explicitly persistent Herdr terminals.
+Continued inactive-session job tracking/delivery is not guaranteed. Job cleanup must not close parent workspaces or delete
 worktrees. Shared [delivery behavior](../../jobs-core/docs/delivery.mara.md) is specified
 separately from consumer-owned [goal](../../../docs/planned/goal/jobs-integration.mara.md) and
 [caffeinate](../../../docs/planned/caffeinate/jobs-integration.mara.md) policies. The originating-session

@@ -138,8 +138,9 @@ assistant acknowledgement, a new routing service, or a producer-specific gate.
 Native bash now returns structured output to codemode, including nonzero exit
 status through an error result rather than only throwing. Structured output has
 a 1 MiB bound with retained beginning/tail; model-facing text still uses Pi's
-2000-line/50KB bound. These are presentation limits, not the jobs store's
-100 MiB/job or shared 1 GiB quota.
+2000-line/50KB bound. These are presentation limits, not the revised jobs
+output ceiling of 10 MB (10,000,000 bytes) per job. The shared quota and
+completion-space reservations are retired under [[ADR-JOBS-SESSION-BOUNDED-STORAGE]].
 
 J1/J2/J5 must exercise direct and nested invocation, nonzero exit, launch failure,
 truncation, and foreground/handoff races. Define honest structured terminal versus
@@ -158,14 +159,20 @@ not mean fsync, and missing session files are not a new admission guard.
 C3/C4 and the gates-protocol compatibility checks must cover setup-only state,
 first-user persistence, reload/reopen, branching, and in-memory sessions.
 See [[REQ-JOBS-PI-STATE]], [[VER-JOBS-PI-STORAGE]], and
-[[ADR-GATES-PI-RESUMABILITY-BOUNDARY]]. External job lifetime/recovery remains the
-owner's responsibility; do not add another session or gate journal.
+[[ADR-GATES-PI-RESUMABILITY-BOUNDARY]]. Compact jobs records/results now use Pi
+custom entries; only bounded output artifacts remain external. Genuine session
+deactivation requests bounded best-effort managed cancellation, with no guaranteed
+inactive-session tracking/completion capture/delivery. Crash/forced-kill cleanup
+and survivor recovery are outside scope; saved running metadata is not liveness.
+Reload of the same active session still needs fresh public callbacks and preserved
+execution. See [[REQ-JOBS-SESSION-CONTINUITY]] and [[DES-JOBS-SESSION-STORE]]. Do not
+add another session/gate journal or raw JSONL edits.
 
 ## Package impact and retained scope
 
 | Area                       | Reconciliation                                                                                                                                                                                                                                                        |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| jobs-core                  | C1 public tool/receipt boundary; C3 native persistence; C4 nested visibility, queues, and lifecycle; C5 real participant conformance. Shared quota/ownership still need their own design.                                                                             |
+| jobs-core                  | C1 public tool/receipt boundary; C3 native persistence; C4 nested visibility, queues, and lifecycle; C5 real participant conformance. Session-backed storage, per-job bounds and ownership/lifetime mapping need their selected design and verification.              |
 | jobs                       | Native structured tool integration and cancellation checks above; same-process foreground/background handoff remains necessary.                                                                                                                                       |
 | herdr                      | Keep the public current-local JSON adapter and explicit resources/execution split. Native MCP does not replace Herdr's transport or prove command completion. Test adapter tools through the native nested pipeline without inventing approval, retries, or fallback. |
 | goal                       | Keep fresh state and generic gates; add the agreed native-classifier supervision and ledger review with fallback. Use actionable Pi scheduling boundaries, not notification-only settlement, to schedule turns.                                                       |

@@ -20,7 +20,7 @@ user-bash boundary, and initial runtime support.
 :title: Keep asynchronous work controllable without losing session results
 :status: accepted
 
-Let ordinary bash commands continue without blocking Pi indefinitely, while keeping cancellation predictable and preserving results for the originating session. Managed work should not remain running after normal Pi exit, while explicitly persistent Herdr terminals remain available to the user. Required asynchronous work and pending result delivery must not cause premature goal continuation.
+Let ordinary bash commands continue without blocking Pi indefinitely while their owning session remains active, preserving compact results and predictable cancellation. Managed work uses best-effort ownership-safe cancellation on genuine session deactivation or orderly Pi shutdown, not automatic detachment or guaranteed cleanup. Explicitly persistent Herdr terminals retain their separately selected lifetime. Required asynchronous work and pending delivery must not cause premature goal continuation while their obligations remain effective. Saved running state is historical, not liveness; crash/forced-kill cleanup and recovery and continued inactive-session result capture/delivery are outside scope.
 :::
 
 :::mara requirement REQ-JOBS-FOREGROUND-BUDGET

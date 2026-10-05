@@ -6,7 +6,8 @@ verification. The initial consumers are developed in this repository and release
 together. The [shared interface checkpoint](./interface.mara.md) now supplies public
 envelopes and minimal owner/observer discovery/contract metadata. The shared
 [lifecycle policy](./lifecycle.mara.md) now adds generic observation/control/waits;
-native execution, storage and concrete delivery runtime remain unimplemented.
+concrete Pi lifetime mapping, session-backed storage and delivery still need
+implementation. Revised contracts are not verification of those behaviors.
 
 ## Concrete consumers
 
@@ -71,7 +72,7 @@ not. Ordinary Nx package-version bumps leave the contract stamp unchanged.
 
 ## Still to specify
 
-Shared contracts cover [lifecycle and recovery](./lifecycle.mara.md),
+Shared contracts cover [active-session lifetime and best-effort cleanup](./lifecycle.mara.md),
 [delivery modes and receipts](./delivery.mara.md), and
 [persistence and bounded output](./storage.mara.md). Consumer-specific knowledge lives
 in each owning plan: [pi-jobs execution](../../jobs/docs/execution.mara.md) and
@@ -167,21 +168,21 @@ Producer identity is opaque to consumer decisions under [[REQ-WORKFLOW-PRODUCER-
 
 :::mara requirement REQ-JOBS-CONFIGURATION
 :mid: 01M3PZWB4BT34QXDQDG9F9BCW1
-:title: Resolve explicit job settings without allowing local quota escalation
+:title: Resolve explicit execution settings without quota admission machinery
 :status: accepted
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Repository jobs consumers support user-level defaults, project-level behavioral overrides, and explicit per-job overrides for the agreed execution, awaiting, and delivery options. Let the calling agent select how to run instead of classifying command names or text. Reuse Pi facilities where applicable rather than adding competing session or turn machinery. The total storage ceiling remains user-scoped under [[REQ-JOBS-STORAGE-QUOTA]]; a project or job cannot silently raise it. Exact settings locations and schemas must be specified before implementing configuration loading.
+Repository jobs consumers support user-level defaults, project-level behavioral overrides and explicit per-job overrides for the agreed execution, awaiting and delivery options. Let the calling agent select how to run rather than classifying command names/text. Reuse Pi facilities instead of competing session or turn machinery. [[REQ-JOBS-OUTPUT-BOUNDS]] fixes retained output at 10,000,000 bytes per job with no aggregate ceiling, completion-capacity reservations, quota-driven admission or pressure eviction; configuration must not recreate retired [[REQ-JOBS-STORAGE-QUOTA]] policy. Keep lifetime separate from awaiting, foreground wait and delivery choice. Exact settings locations/schemas must be defined before configuration loading is implemented.
 :::
 
 :::mara verification VER-JOBS-CONFIGURATION
 :mid: 01M3PZWE459J4G9YQZVF6KMZ0F
-:title: Check settings precedence and storage ceiling scope
+:title: Check explicit settings precedence and absence of aggregate quota controls
 :status: accepted
 :method: test
 :level: integration
 :verifies: REQ-JOBS-CONFIGURATION
 
-For repository local and Herdr consumer fixtures, exercise user defaults, project behavioral overrides, and explicit per-job awaiting/delivery choices. Show that command text alone does not select a different execution mode, lifetime, await setting, or delivery mode. Preserve the user-scoped total quota when a project or call requests more capacity. Verify the selected settings mechanism uses relevant Pi capabilities without reimplementing sessions or turn scheduling. These are future tests, not verified runtime behavior.
+With repository local and Herdr fixtures, exercise user defaults, project behavioral overrides and explicit per-job execution/awaiting/delivery choices. Command text alone must not select mode, lifetime, awaiting or delivery. Check the 10,000,000-byte output policy and seven-day retention default without an aggregate quota, completion reservation, quota-driven launch rejection/eviction or project/job quota controls. Use supported Pi settings facilities without recreating session/turn scheduling. Awaiting/display-only/background choices must not silently bypass managed cancellation on genuine deactivation. These are future tests, not verified runtime behavior.
 :::

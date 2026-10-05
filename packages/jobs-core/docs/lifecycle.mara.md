@@ -14,22 +14,26 @@ Herdr terminals are a different lifetime choice. A server can opt out of being
 awaited without thereby gaining permission to survive normal Pi exit. Neither
 choice is inferred from a command-name whitelist.
 
-Reloading extensions, starting a new Pi session, or switching sessions is not an
-application exit. Preserve jobs and their original-session association across
-those transitions. Persisting output/results makes them recoverable when the
-user returns; it does not require managed commands to keep running after Pi exits.
+Ordinary idle, agent/script completion, background handoff, /tree navigation and
+reload of the same active session do not deactivate it. Preserve execution across
+those boundaries without rerunning commands, with fresh callbacks after reload.
+/new, replacement by another session, and a fork replacing the active session
+instead trigger bounded best-effort cancellation of owned managed jobs. This is
+not automatic detachment or a guarantee of tracking/result capture after leaving.
+Saved metadata/results may be read on return; saved running state is not liveness.
 
 ## Implementation and verification boundary
 
 The [delivery policy](./delivery.mara.md) defines shared modes and receipt/retry
 semantics. Consumer decisions live in the [goal plan](../../../docs/planned/goal/jobs-integration.mara.md)
 and [caffeinate plan](../../../docs/planned/caffeinate/jobs-integration.mara.md); replacement-bash
-behavior lives in the [pi-jobs plan](../../jobs/docs/execution.mara.md). Crash cleanup is
-best-effort; it does not promise that shutdown handlers run after forced exit.
+behavior lives in the [pi-jobs plan](../../jobs/docs/execution.mara.md). Orderly
+shutdown cancellation is best-effort. Crash/forced-kill cleanup and survivor
+recovery are outside scope; do not infer cleanup from historical state.
 
 Before implementing each slice, define and test its Pi lifecycle mapping, reload
 handoff, concrete ownership/liveness evidence, foreground cancellation races,
-startup failure handling, and durable record operations. Reuse Pi facilities where
+startup failure handling, bounded deactivation cleanup and Pi session appends. Reuse Pi facilities where
 they fit rather than inventing a parallel session or turn scheduler. A cancellation
 request is not proof of termination, and history alone is not liveness evidence.
 
@@ -45,45 +49,57 @@ necessary. A fake executor or gate observer alone does not verify those workflow
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Aborting a bash tool operation while its command is still foreground cancels that command rather than silently detaching it. Once handed off to background execution, aborting an unrelated agent turn does not cancel the job; use explicit job-stop control, subject also to the normal-exit lifetime policy. Request graceful termination of the command and its owned child processes, wait up to a configurable five-second default grace period, then force termination if necessary, without touching unrelated processes. If a command has already completed when cancellation arrives, its actual exit result wins rather than being relabelled cancelled. A requested stop is not a confirmed terminal outcome. If termination cannot be verified, retain tracking and expose uncertainty rather than claiming cancellation completed or clearing awaited work merely because a stop was requested. Detailed process ownership evidence and handoff race arbitration must be defined and tested before implementation.
+Aborting a bash tool operation while its command is still foreground cancels that command rather than silently detaching it. Once handed off to background execution, aborting an unrelated agent turn or finishing a tool/codemode call does not cancel the job. Explicit job-stop control and genuine session deactivation/orderly application shutdown remain separate stop triggers under [[REQ-JOBS-SESSION-CONTINUITY]] and [[REQ-JOBS-EXIT-CLEANUP]]. Request graceful termination of the command and its owned children, use the configurable five-second default grace period, then force termination where supported, without touching unrelated processes. Observed completion wins a racing late cancellation and keeps its actual outcome.
+
+A requested/admitted stop is not a confirmed terminal outcome. While the owning session remains active, retain tracking and expose uncertainty rather than claiming cancellation completed or clearing awaited work merely from a stop request. Genuine deactivation uses a bounded best-effort cleanup attempt, not indefinite monitoring or a requirement to prove every child stopped before switching; persist/report known outcome or uncertainty where possible. No new automatic unmanaged-detach feature is implied. Define and test concrete ownership evidence, handoff arbitration and bounded deactivation handling before implementation.
 :::
 
 :::mara requirement REQ-JOBS-SESSION-CONTINUITY
 :mid: 01M3PTT8D7V676Z0YREAXP6YZJ
-:title: Retain original-session jobs and results across reloads and session switches
+:title: Preserve jobs in an active session and cancel best-effort on genuine deactivation
 :status: accepted
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-Extension reload, /new, and session switching must not apply application-exit cancellation to managed jobs. Keep tracking the existing execution rather than launching it again. Preserve its originating-session association and enough job, output/result, and pending-delivery state to reconcile when that session is resumed. A job completing while another session is active must not inject its result or start a turn in that other session. On return to a resumable originating session, including in a later Pi process, reconcile retained records and recover saved results; already-pending completions wait for the next user message as specified by [[REQ-JOBS-DELIVERY-MODES]]. Resume monitoring with verified running evidence for work allowed to continue; managed survivors of a confirmed-dead Pi owner follow [[REQ-JOBS-EXIT-CLEANUP]]. Retain uncertainty when state cannot be established. Saved state is not proof of liveness or successful termination.
+Distinguish an active but idle session from one genuinely deactivated by replacement or orderly closure. Managed foreground/background jobs continue while their owning session is active, including ordinary idle, agent/script completion, unrelated-turn abort after handoff, and /tree navigation within that same session. Reloading extensions for the same native session preserves the existing executions and association, without rerunning commands; rebind through supported fresh public Pi capabilities, never stale captured contexts. Define the concrete reload handoff before implementation.
 
-Navigating /tree within the same session does not rewind live job state; pending results belong on the currently active branch rather than restarting or forgetting the execution. A session fork does not inherit ownership, waits, or pending delivery from original-session jobs, although copied history may retain references. Session navigation and historical visibility must not imply new control authority.
+Starting /new, switching to another session, or a fork that replaces the active session genuinely deactivates the original session. Request best-effort cancellation of its owned managed jobs through [[REQ-JOBS-CANCELLATION-BOUNDARY]], regardless of foreground/background or awaiting choice. Bound the cleanup attempt and do not block replacement indefinitely on stop, observation, output or persistence. Record known outcome and unconfirmed stop intent through the original still-valid session append boundary where possible. Failed/unconfirmed cancellation is honest uncertainty, not a cancelled/terminal result or proof of cleanup. There is no automatic unmanaged detachment and no guarantee of continued tracking, completion capture or delivery once genuinely inactive. Explicitly persistent Herdr terminals remain the separately selected lifetime exception under [[REQ-JOBS-EXIT-CLEANUP]], without a promise of inactive-session jobs delivery.
+
+Do not inject old-session results or wakes into the replacement session. On reopening, restore saved compact metadata/results under [[REQ-JOBS-PI-STATE]]; already-saved pending results wait for the next user message under [[REQ-JOBS-DELIVERY-MODES]]. Never infer current liveness/control authority from saved running state, automatically restart execution, adopt historical survivors or add crash-recovery scans. Crash and forced-kill cleanup/recovery are outside scope. Saved results remain distinguishable from missing output and uncertain execution.
+
+/tree does not rewind execution; eligible results belong on the active branch. Forked/copied history does not transfer original-session ownership, waits or pending delivery. Deactivation and loss of monitoring do not fabricate successful completion, confirmed empty gates or fulfilled delivery. Existing generic owner reconciliation and explicit user abandonment policies remain applicable; session navigation/history grants no new control authority.
 :::
 
 :::mara requirement REQ-JOBS-EXIT-CLEANUP
 :mid: 01M3PTTBBG71B92K3GHYWFFSB9
-:title: Cancel owned managed jobs on normal exit while retaining persistent Herdr terminals
+:title: Attempt ownership-safe cancellation on orderly shutdown without crash-recovery machinery
 :status: accepted
 :kind: functional
 :contributes_to: GOAL-JOBS-MANAGED-LIFETIME
 
-On normal Pi application exit, cancel outstanding managed command jobs owned by that Pi instance, including its jobs associated with sessions no longer active. Apply this lifetime policy to both local and Herdr managed commands using the graceful-stop/escalation policy. Explicitly persistent Herdr terminals, including servers or interactive agents launched with that lifetime choice, remain running; do not infer persistence solely from opting out of a wait. Never close a parent Herdr workspace or delete a worktree as part of job cleanup, or terminate work merely observed but not owned. Preserve known results and honest termination status for later reconciliation.
+On orderly Pi application shutdown, request best-effort cancellation of outstanding managed command jobs still owned by that Pi instance, using the graceful-stop/escalation policy for both local and Herdr managed commands. Genuine session deactivation already follows [[REQ-JOBS-SESSION-CONTINUITY]]; shutdown does not require reconstructing an inactive-session execution registry. Bound cleanup and do not keep Pi alive indefinitely to obtain termination, output-drain or persistence proof. Record known outcomes or cancellation uncertainty through still-valid session APIs where possible. A requested stop or expired cleanup bound never fabricates terminal state, successful cancellation, delivery or confirmed-empty awaited work.
 
-Crash and forced-kill cleanup is best-effort, not a guarantee that shutdown handlers run. Reconcile survivors or unconfirmed jobs on resume rather than reporting them stopped from history alone. When the original Pi process is confirmed gone and its managed command is verified still running, stop that survivor rather than adopting it to continue; explicitly persistent Herdr terminals remain exempt. Missing or reused process identifiers are not sufficient ownership/liveness evidence. No survival guarantee applies across a Herdr-server restart or machine reboot.
+Retain explicitly persistent Herdr terminals, including servers or interactive agents launched with that lifetime choice; non-awaiting/background/visible execution alone does not confer persistence. Do not automatically detach managed work. Never close a parent Herdr workspace, delete a worktree, stop/restart a user server or terminate work merely observed but not owned. Missing/reused numeric identifiers are not ownership or liveness proof.
+
+Pi crashes and forced kills, their cleanup and survivor recovery are outside scope. No watchdog, survivor-adoption/reaping service, post-crash scan or post-exit result-capture guarantee is required. On reopening, saved running/stop-requested state remains historical/unconfirmed unless fresh supported evidence independently establishes otherwise; history alone must not claim cleanup or execution. No survival guarantee applies across Herdr-server restart or machine reboot.
 :::
 
 :::mara verification VER-JOBS-SESSION-AND-EXIT
 :mid: 01M3PTTM109CGS3B8DXJ4BK1BZ
-:title: Exercise reload, original-session recovery, and ownership-safe exit cleanup
+:title: Exercise idle/reload continuity and bounded best-effort session-deactivation cleanup
 :status: accepted
 :method: test
 :level: integration
 :verifies: REQ-JOBS-SESSION-CONTINUITY
 :verifies: REQ-JOBS-EXIT-CLEANUP
 
-Start managed work in session A, reload extensions, and switch to session B, checking that no replacement execution starts and transitions do not cancel the job. Complete it while B is active: B receives neither its result nor a model wake. Resume A and recover the saved result, but wait for the next user message before delivering already-pending completion. Navigate /tree without rewinding execution; route pending results to the active branch. Fork A and verify that copied references do not transfer jobs, waits, ownership or delivery. Include generic gate-history replay and owner reconciliation: copied original-session entries must not leave an orphaned inherited wait in the fork. Require confirmed-empty fork eligibility once discovery/reconciliation completes without new work, while original-session gates remain intact; do not solve this by claiming the original job completed.
+Start a real managed command in session A. Verify ordinary idle, foreground-to-background handoff, agent/script completion and unrelated-turn abort after handoff do not stop it. Reload extensions for A without rerunning the command and rebind fresh public callbacks. Navigate /tree without rewinding execution or acquiring new authority; route eligible results to the active branch.
 
-With jobs from active and inactive sessions still running, exit Pi normally and verify that its owned managed jobs stop. In isolated Herdr tests, retain explicitly persistent terminals, unrelated work, and parent workspaces/worktrees. Reopen the original resumable session and reconcile outcomes. Simulate a confirmed-dead Pi owner with a verified managed survivor: request cleanup instead of continued adoption. Missing backend state, stale/reused identifiers, and unconfirmed stops must not fabricate success or cancellation; crash cleanup is best-effort. These checks require actual Pi lifecycle and real local/Herdr integration evidence; fake-adapter tests alone are insufficient. None has run.
+Independently exercise /new, switch A to B and a fork replacing A. Each genuinely deactivates A and triggers an owned best-effort graceful/forced stop attempt; both foreground/background and non-awaited managed work follow the same lifetime rule. Use cooperative and escalation-requiring commands plus stalled/unavailable observation/stop/output/append fixtures. Cleanup is bounded: unconfirmed termination does not indefinitely prevent replacement, and reported/saved status is uncertain rather than a fabricated cancellation or exit. A real completion racing cancellation retains its actual outcome. No late output/result/append/wake targets B or an invalidated A context, and no continued inactive monitoring/result-capture promise is advertised. Reopen A to read already-saved results and historical uncertainty without reruns, adopting old handles or treating saved running state as liveness; saved pending results wait for the next user message.
+
+Forked history transfers references, not controls, waits or delivery. Generic gate replay/reconciliation must not create inherited waits in the new fork or silently clear unresolved original obligations; use existing owner reconciliation/user-abandonment policies instead of inventing terminal outcomes.
+
+Exercise orderly Pi shutdown with actual Linux managed work and isolated real Herdr managed/persistent terminals. Attempt owned managed cleanup while preserving explicitly persistent terminals, unrelated processes, parent workspaces/worktrees and user servers. Inject stale/reused identifiers and missing evidence: no unsafe signals or fabricated terminal state. Crash/forced-kill cleanup, survivor adoption/reaping and recovery scans are out of scope; replaying a saved running record must still remain honest historical uncertainty. Real lifecycle/backend evidence is required; fake adapters alone and older preserve-across-switch/recovery tests do not verify this revised policy.
 :::
 
 :::mara requirement REQ-JOBS-HARD-TIMEOUT
@@ -134,7 +150,7 @@ The initial execution is unknown until observed. Observe calls are coalesced per
 
 Stop intent is separate from observation and records reason (explicit, foreground-cancel or hard-timeout), request identity and requested versus unconfirmed reply. Concurrent requests share the current stop operation, after independently checking authority; successful admission is not repeated, whereas failed/unconfirmed requests permit an explicit retry. A stop rejection/throw does not discard execution or change delivery/awaiting. Requests completing after disposal do not reactivate timers; disposal cancels policy-owned timers only and makes future operations unavailable, not terminated.
 
-An explicit hard timeout is measured from caller-supplied startedAtMs on the injected monotonic clock, not from a wait or controller reload. At expiry it uses the same stop path and owner-supplied authority from launch. Retain its denied/unconfirmed diagnostic. No deadline timer exists by default. Observed terminal clears the deadline. Disposal is not application-exit cleanup, and consumers must hand off monitoring/deadline responsibility before disposing live controllers.
+An explicit hard timeout is measured from caller-supplied startedAtMs on the injected monotonic clock, not from a wait or controller reload. At expiry it uses the same stop path and owner-supplied authority from launch. Retain its denied/unconfirmed diagnostic. No deadline timer exists by default. Observed terminal clears the deadline. Disposal is not session-deactivation or application-exit cleanup. Consumers that keep the same session active, including reload, must hand off monitoring/deadline responsibility before disposing live controllers. Genuine deactivation/orderly shutdown instead requests bounded best-effort owned cancellation under [[REQ-JOBS-SESSION-CONTINUITY]] and [[REQ-JOBS-EXIT-CLEANUP]]; it does not require indefinite monitoring after disposal or imply termination merely from disposing a controller.
 
 ## Selected waits and cleanup
 
