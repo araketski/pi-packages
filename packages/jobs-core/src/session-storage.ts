@@ -326,7 +326,7 @@ interface Owner {
   persistedRevision: number;
   admission?: Promise<JobReply<StorageReservation>>;
   writer?: Promise<void>;
-  expiration?: Promise<boolean>;
+  expiration?: Promise<'expired' | 'protected' | 'failed'>;
   historicalRead?: Promise<CapturedOutput>;
   outputFailed: boolean;
   expired: boolean;
@@ -528,28 +528,30 @@ export function createSessionJobStorage(options: {
     });
     return writer;
   };
-  const expire = (owner: Owner): Promise<boolean> => {
+  const expire = (owner: Owner): Promise<'expired' | 'protected' | 'failed'> => {
     if (owner.expiration) return owner.expiration;
-    if (owner.expired) return Promise.resolve(true);
+    if (owner.expired) return Promise.resolve('expired');
     const due = () =>
       eligible(owner.metadata) &&
       owner.metadata.eligibleAtMs !== undefined &&
       time() - owner.metadata.eligibleAtMs >= retention;
-    if (!due()) return Promise.resolve(false);
-    const expiration = Promise.resolve().then(async () => {
-      await owner.writer;
-      if (!due()) return false;
-      // Prevent later capture from resurrecting an artifact already selected for expiry.
-      owner.expired = true;
-      try {
-        await io.remove(owner.metadata.outputReference);
-        return true;
-      } catch (error) {
-        owner.expired = false;
-        owner.outputError = `Output expiry failed: ${reason(error)}`.slice(0, 1024);
-        return false;
-      }
-    });
+    if (!due()) return Promise.resolve('protected');
+    const expiration = Promise.resolve().then(
+      async (): Promise<'expired' | 'protected' | 'failed'> => {
+        await owner.writer;
+        if (!due()) return 'protected';
+        // Prevent later capture from resurrecting an artifact already selected for expiry.
+        owner.expired = true;
+        try {
+          await io.remove(owner.metadata.outputReference);
+          return 'expired';
+        } catch (error) {
+          owner.expired = false;
+          owner.outputError = `Output expiry failed: ${reason(error)}`.slice(0, 1024);
+          return 'failed';
+        }
+      },
+    );
     owner.expiration = expiration;
     void expiration.finally(() => {
       if (owner.expiration === expiration) owner.expiration = undefined;
@@ -582,7 +584,7 @@ export function createSessionJobStorage(options: {
             ? 'memory-only'
             : 'saved',
       };
-    if (owner.historicalRead) return owner.historicalRead;
+    if (owner.historicalRead) return detached(await owner.historicalRead);
     const reading = Promise.resolve().then(async (): Promise<CapturedOutput> => {
       try {
         const image = await io.read(
@@ -603,7 +605,7 @@ export function createSessionJobStorage(options: {
     void reading.finally(() => {
       if (owner.historicalRead === reading) owner.historicalRead = undefined;
     });
-    return reading;
+    return detached(await reading);
   };
   const api: SessionJobStorage = {
     jobStore: {
@@ -947,9 +949,9 @@ export function createSessionJobStorage(options: {
         failed: string[] = [];
       for (const owner of owners.values()) {
         if (!owner.ready) continue;
-        const hadError = owner.outputError;
-        if (await expire(owner)) expired.push(owner.metadata.outputReference);
-        else if (owner.outputError !== hadError) failed.push(owner.metadata.outputReference);
+        const disposition = await expire(owner);
+        if (disposition === 'expired') expired.push(owner.metadata.outputReference);
+        else if (disposition === 'failed') failed.push(owner.metadata.outputReference);
       }
       return ok({ expired, failed });
     },

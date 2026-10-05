@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SessionManager, truncateHead } from '@earendil-works/pi-coding-agent';
@@ -609,6 +609,65 @@ it('rejects stale/malformed/forked replay and preserves saved terminal and deliv
   expect(saved.result).toEqual(result());
   saved.result!.content = 'tampered';
   expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
+});
+
+it('isolates each coalesced historical byte/tag/diagnostic reply from other callers', async () => {
+  const entries: unknown[] = [],
+    outputRoot = await root();
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId: 'S',
+      persistent: true,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        entries.push({ type: 'custom', customType: kind, data });
+      },
+      readEntries: () => entries,
+    });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  const token = ok(await store.jobStore.reserve(launch()));
+  await ok(store.output(token)).append({ stream: 'stdout', bytes: bytes('abcdefghij') });
+  const historical = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+  });
+  ok(await historical.replay());
+  const [first, second] = (
+    await Promise.all([historical.readCapturedOutput(job()), historical.readCapturedOutput(job())])
+  ).map(ok);
+  first.prefix!.bytes[0] = 88;
+  first.prefix!.streams[0] = 2;
+  first.diagnostics.push('tampered');
+  expect(text(second.prefix!.bytes)).toBe('abc');
+  expect(second.prefix!.streams[0]).toBe(1);
+  expect(second.diagnostics).not.toContain('tampered');
+  expect(text(ok(await historical.readCapturedOutput(job())).prefix!.bytes)).toBe('abc');
+});
+
+it('reports every real permission-denied expiry attempt rather than only a changed diagnostic', async () => {
+  let now = 0;
+  const { store, token, outputRoot } = await setup({ now: () => now, retentionMs: 1 });
+  ok(await store.resultSink.save(result()));
+  ok(await store.jobStore.save(token, terminal()));
+  now = 10;
+  const ref = ok(await store.inspect(job())).outputReference;
+  await chmod(outputRoot, 0o500);
+  try {
+    expect(ok(await store.expireEligibleOutputs()).failed).toEqual([ref]);
+    expect(ok(await store.expireEligibleOutputs()).failed).toEqual([ref]);
+    expect((await stat(join(outputRoot, ref))).isFile()).toBe(true);
+    expect(ok(await store.resultSink.read(result().identity))).toEqual(result());
+  } finally {
+    await chmod(outputRoot, 0o700);
+  }
+  expect(ok(await store.expireEligibleOutputs()).expired).toEqual([ref]);
 });
 
 it('screens invalid admission payloads before evaluating/copying unknown getters', async () => {

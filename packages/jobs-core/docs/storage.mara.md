@@ -232,7 +232,9 @@ possible and diagnose cleanup failure; failures do not restart writing into
 a second authoritative store. Live owner capture is 2B bytes; at most one
 immutable write snapshot adds 2B+4096. There is no accumulated write queue.
 Returned detailed reads allocate at most 2B bytes of caller-owned data/tags,
-and coalesced per-job historical I/O reads at most 2B+4096. Returned text is
+and coalesced per-job historical I/O reads at most 2B+4096, plus at most
+2B shared decoded bytes/tags until that read settles. Each caller then receives
+its own detached at-most-2B buffers, never a mutable shared reply. Returned text is
 derived from retained bytes; JS UTF-16 text is at most 2B code units.
 Metadata is bounded by the 65,536-byte entry envelope, with a fixed schema
 (no arbitrary extra fields), one observation/result/intent and bounded diagnostic
