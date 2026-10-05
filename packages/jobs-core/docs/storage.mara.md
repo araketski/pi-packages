@@ -216,4 +216,10 @@ Hydration's output-read reply is a lifecycle prerequisite: confirmed expiry/remo
 Copy the reservation's known identity and capture the observation before the first await. A fitting serialized observation is the single immutable validated/persisted/cached snapshot. Oversized observations are not cloned or sent as unbounded helper payloads: validate record/nonce via a bounded read, then return capacity unavailability with a bounded unknown projection from the original scalar fields. Reusable caller objects cannot change either the accepted state or the cached budget after the call.
 
 Queued result commits use the copied snapshot's stable full identity for every cache check, helper call and diagnostic. Even oversized/refused inputs capture bounded identity fields rather than aliasing mutable caller objects. This is storage input isolation, not a native authority or generation mechanism.
+
+Construction captures its mode, lock settings and requested policy before asynchronous setup. Reusing a caller options object for another store cannot change persistent/ephemeral cleanup ownership or authoritative initialization preferences.
+
+An unhydrated held reservation resolves its already persisted per-job policy through a nonce-checked bounded private metadata read before applying observation capacity. Root policy changes affect later admissions, not an existing job's committed tracking/result allowance. Capture the original observation/scalar projection before awaiting that policy; mutation cannot alter it. Oversized candidate serialization is a transient input, never an oversized retained fallback or helper payload.
+
+Admission bookkeeping uses only the successful helper's returned reservation identity after IO, not the caller's mutable launch object. This keeps a granted reservation usable for the output sink and gives raced-close cancellation the exact committed storage identity. No native generations/authority/session decisions follow from these storage identities.
 :::

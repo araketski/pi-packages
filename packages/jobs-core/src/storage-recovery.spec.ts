@@ -64,6 +64,48 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review eight regression: persistent mode is fixed before caller options are reused', async () => {
+  const { storage, reservation, options, dir } = await setup();
+  options.ephemeral = true;
+  const other = await createJobStorage({
+    ...options,
+    agentDirectory: join(options.agentDirectory, 'other'),
+  });
+  expect((await other.close()).status).toBe('ok');
+  expect((await storage.close()).status).toBe('ok');
+  await expect(readFile(join(dir, 'record.json'), 'utf8')).resolves.toContain('format');
+  expect(
+    (await (await createJobStorage({ ...options, ephemeral: false })).jobs.read(reservation.job))
+      .status,
+  ).toBe('ok');
+});
+it('review eight regression: hydration uses the job commitment after a root budget reduction', async () => {
+  const { storage, reservation, options } = await setup();
+  expect((await storage.setUserPolicy({ ...options.policy, trackingBytes: 1000 })).status).toBe(
+    'ok',
+  );
+  const reader = await createJobStorage({ ...options, policy: undefined });
+  const observed = {
+    ...running,
+    execution: { state: 'unknown' as const, reason: 'X'.repeat(2500) },
+  };
+  expect((await reader.jobs.save(reservation, observed)).status).toBe('ok');
+  expect(await reader.jobs.read(reservation.job)).toMatchObject({ status: 'ok', value: observed });
+});
+it('review eight regression: admission bookkeeping cannot alias a mutable launch identity', async () => {
+  const { storage } = await setup();
+  const input = { ...launch, identity: { ...launch.identity, jobId: 'snapshot-admission' } };
+  const pending = storage.jobs.reserve(input);
+  input.identity.jobId = 'changed';
+  const reply = await pending;
+  if (reply.status !== 'ok') throw new Error(reply.reason);
+  expect(reply.value.job.jobId).toBe('snapshot-admission');
+  await storage.output(reply.value).append({ stream: 'combined', bytes: Buffer.from('captured') });
+  expect(await storage.readOutput(reply.value.job)).toMatchObject({
+    status: 'ok',
+    value: { text: 'captured' },
+  });
+});
 it('review seven regression: normal expiry during hydration does not poison later admission', async () => {
   const { storage, reservation, options } = await setup();
   expect((await storage.setUserPolicy({ ...options.policy, retentionMs: 1 })).status).toBe('ok');

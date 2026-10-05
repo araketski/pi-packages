@@ -294,6 +294,7 @@ async function transaction(request: Request): Promise<unknown> {
       !sameJob(request.reservation.job, data.request.identity))
   )
     return { ...invalid('Reservation does not match.'), reservationRejected: true };
+  if (request.operation === 'reservation-policy') return ok(data.policy);
   if (request.operation === 'read')
     return ok(
       data.observation.execution.state === 'running'

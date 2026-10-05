@@ -87,7 +87,13 @@ const failure = <T>(reason: string): JobReply<T> => ({ status: 'unavailable', re
 const invalid = <T>(reason: string): JobReply<T> => ({ status: 'invalid', reason });
 
 /** Linux local-filesystem store. No execution, Pi journal, session manager or delivery service. */
-export async function createJobStorage(options: StorageOptions): Promise<JobStorage> {
+export async function createJobStorage(optionsInput: StorageOptions): Promise<JobStorage> {
+  const options: StorageOptions = {
+    agentDirectory: optionsInput?.agentDirectory,
+    ephemeral: optionsInput?.ephemeral,
+    lockTimeoutMs: optionsInput?.lockTimeoutMs,
+    policy: optionsInput?.policy ? { ...optionsInput.policy } : undefined,
+  };
   if (!options || !isAbsolute(options.agentDirectory))
     throw new Error('An absolute Pi agent directory is required.');
   const agentDirectory = resolve(options.agentDirectory),
@@ -282,7 +288,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     }>('reserve', { launch: request, outputBytes: overrides?.outputBytes });
     if (reply.status !== 'ok') return reply;
     for (const k of memory.keys()) if (!reply.value.presentKeys.includes(k)) forget(k);
-    memory.set(key(request.identity), {
+    memory.set(key(reply.value.reservation.job), {
       createdHere: true,
       cancelledAdmission: closed,
       durableDigest: 'missing',
@@ -329,13 +335,6 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       };
       let local = localFor(reservation);
       const serialized = JSON.stringify(observationInput);
-      const fits =
-        Buffer.byteLength(serialized) <= (local?.policy.trackingBytes ?? policy.trackingBytes);
-      const observation: JobObservation | undefined = fits
-        ? (JSON.parse(serialized) as JobObservation)
-        : undefined;
-      if (observation && !validObservation(observation))
-        return invalid('Invalid observation snapshot.');
       const unknown: JobObservation = {
         identity: job,
         execution: {
@@ -353,6 +352,26 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           readResult: false,
         },
       };
+      let committed = local?.policy;
+      if (!committed) {
+        const inspected = await invoke<StoragePolicy>('reservation-policy', { job, reservation });
+        if (obsolete(job, local, inspected))
+          return invalid(
+            inspected.status === 'invalid' ? inspected.reason : 'Obsolete reservation.',
+          );
+        if (confirmedRemoved(inspected)) {
+          forgetLocal(job, local);
+          return failure(inspected.reason);
+        }
+        if (inspected.status !== 'ok') return inspected;
+        committed = inspected.value;
+      }
+      const fits = Buffer.byteLength(serialized) <= committed.trackingBytes;
+      const observation: JobObservation | undefined = fits
+        ? (JSON.parse(serialized) as JobObservation)
+        : undefined;
+      if (observation && !validObservation(observation))
+        return invalid('Invalid observation snapshot.');
       let reply: JobReply<StoragePolicy>;
       if (observation)
         reply = await invoke<StoragePolicy>('save', { job, reservation, observation });
