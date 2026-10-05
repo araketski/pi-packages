@@ -1,8 +1,8 @@
 # Planned Herdr integration and separate jobs module
 
-This records the agreed direction, not an implemented extension or a complete
-behavioral contract. Keep it here until the Herdr project is scaffolded, then
-relocate it into that project's `docs/` with Mara while preserving item identities.
+This records the agreed runtime direction, not an implemented integration or a
+complete behavioral contract. The package is now scaffolded as a typed no-op;
+see [the scaffold boundary and checks](./scaffold.mara.md).
 
 ## Workflow and responsibility boundary
 
@@ -14,7 +14,7 @@ agent messaging or delegation service.
 
 The separate jobs module is now planned as `pi-jobs-core`, shared by the local
 `pi-jobs` bash execution path and `pi-herdr`. The
-[jobs-core contract](../../../packages/jobs-core/docs/contract.mara.md) owns the three-package boundary
+[jobs-core contract](../../jobs-core/docs/contract.mara.md) owns the three-package boundary
 and distinguishes package releases from the library-reported contract version.
 The [Herdr execution and transport contract](./contract.mara.md) owns dedicated-pane
 behavior, explicit managed/persistent modes, and the current-local-session public
@@ -33,18 +33,18 @@ remain open and observable without automatically creating a wait for its entire
 lifetime. An agent becoming idle, a screen marker, or an unavailable backend is
 not by itself proof that assigned work succeeded.
 
-Use the existing [gates contract](../../../packages/gates-protocol/docs/contract.mara.md)
+Use the existing [gates contract](../../gates-protocol/docs/contract.mara.md)
 for cross-extension pending-work coordination. The job integration owns result
 delivery and recovery ([[REQ-GATES-SIGNAL-ONLY]]); unreconciled work must not become
 confirmed empty merely because an owner cannot inspect it
 ([[REQ-GATES-RECONCILIATION]]). The intended workflow avoids idle-driven `goal`
 nudges while required work or its result delivery is pending. The agreed
-[lifecycle policy](../../../packages/jobs-core/docs/lifecycle.mara.md) distinguishes normal-exit
+[lifecycle policy](../../jobs-core/docs/lifecycle.mara.md) distinguishes normal-exit
 cancellation of owned managed commands from explicitly persistent Herdr terminals,
 which remain running. Job cleanup must not close parent workspaces or delete
-worktrees. Shared [delivery behavior](../../../packages/jobs-core/docs/delivery.mara.md) is specified
-separately from consumer-owned [goal](../goal/jobs-integration.mara.md) and
-[caffeinate](../caffeinate/jobs-integration.mara.md) policies. The originating-session
+worktrees. Shared [delivery behavior](../../jobs-core/docs/delivery.mara.md) is specified
+separately from consumer-owned [goal](../../../docs/planned/goal/jobs-integration.mara.md) and
+[caffeinate](../../../docs/planned/caffeinate/jobs-integration.mara.md) policies. The originating-session
 completion inbox ([[REQ-JOBS-COMPLETION-INBOX]]) belongs to shared jobs delivery:
 results can accumulate while the owner works, with one pending wake rather than
 one prompt per completion. This is not child-assignment tracking; a Herdr status

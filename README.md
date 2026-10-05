@@ -15,7 +15,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Release preparation and protected publication](docs/release.mara.md)
 - [Pi release compatibility policy](docs/pi-compatibility.mara.md)
 - [Workflow package delivery items](.work/items/836650d231e94caa851d8ca082aa32ad.md) and [Pi 0.99.1 capability reconciliation](docs/pi-0991-reconciliation.mara.md)
-- [Planned Herdr workflow](docs/planned/herdr/scope.mara.md) and [execution/RPC contract](docs/planned/herdr/contract.mara.md)
+- [Herdr scaffold](packages/herdr/README.md), [intended workflow](packages/herdr/docs/scope.mara.md) and [execution/RPC contract](packages/herdr/docs/contract.mara.md)
 - [Jobs-core package boundary and contract compatibility](packages/jobs-core/docs/contract.mara.md)
 - [Local jobs execution](packages/jobs/docs/execution.mara.md) and [controls](packages/jobs/docs/controls.mara.md)
 - [Planned goal contract](docs/planned/goal/contract.mara.md) and [jobs integration](docs/planned/goal/jobs-integration.mara.md)
