@@ -4,8 +4,9 @@ This records the agreed package split and compatibility promise. It is not a
 complete runtime, a complete delivery implementation, or evidence of full workflow
 verification. The initial consumers are developed in this repository and released
 together. The [shared interface checkpoint](./interface.mara.md) now supplies public
-envelopes and minimal owner/observer discovery/contract metadata. Execution,
-lifecycle, storage and delivery runtime remain unimplemented.
+envelopes and minimal owner/observer discovery/contract metadata. The shared
+[lifecycle policy](./lifecycle.mara.md) now adds generic observation/control/waits;
+native execution, storage and concrete delivery runtime remain unimplemented.
 
 ## Concrete consumers
 

@@ -1,3 +1,23 @@
+export {
+  createJobLifecycle,
+  createJobsLifecycleRouter,
+  resolveJobsLifecycleSettings,
+  waitForJobs,
+  systemJobsClock,
+} from './lifecycle.js';
+export type {
+  JobLifecycle,
+  JobsLifecycleRouter,
+  JobsClock,
+  JobsLifecycleSettings,
+  JobsLifecycleSettingsInput,
+  JobsWaitResult,
+  SelectedJobStatus,
+  StopIntent,
+  StopReason,
+  StopStatus,
+} from './lifecycle.js';
+
 /** First contract shipping stamp, selected explicitly; not the current package version. */
 export const JOBS_CONTRACT_VERSION = '0.1.0';
 /** Stable discovery channel, deliberately not partitioned by contract version. */

@@ -22,6 +22,11 @@ it('proves Pi 0.99.1 atomic native registrations and conservative nested-result 
         join(root, `${name}.mjs`),
         readFileSync(new URL('../dist/index.js', import.meta.url)),
       );
+    writeFileSync(
+      join(root, 'lifecycle.js'),
+      readFileSync(new URL('../dist/lifecycle.js', import.meta.url)),
+    );
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     mkdirSync(join(root, 'home'));
     mkdirSync(join(root, 'tmp'));
     const result = spawnSync(

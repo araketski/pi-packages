@@ -311,6 +311,11 @@ it('communicates between independently loaded copies and warns on a late incompa
   const root = mkdtempSync(join(tmpdir(), 'jobs-copies-'));
   try {
     const source = readFileSync(new URL('../dist/index.js', import.meta.url), 'utf8');
+    writeFileSync(
+      join(root, 'lifecycle.js'),
+      readFileSync(new URL('../dist/lifecycle.js', import.meta.url)),
+    );
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     writeFileSync(join(root, 'a.mjs'), source);
     writeFileSync(join(root, 'b.mjs'), source);
     writeFileSync(
