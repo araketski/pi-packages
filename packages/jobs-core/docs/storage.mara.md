@@ -166,7 +166,145 @@ Expire eligible delivered-terminal output after configurable seven-day retention
 
 ## Checkpoint and implementation state
 
-The committed JobStore/ResultSink envelopes predate this simplification. Reconcile their reservation-shaped ports with this design before implementing storage; a port name is not an aggregate-quota requirement. Follow the public contract-version/release policy for any incompatible API change. This documentation increment changes no runtime exports, package versions, dependencies or JOBS_CONTRACT_VERSION. Concrete host lifecycle/delivery composition belongs to its existing separate work item. This is accepted design guidance, not implemented storage or passing verification.
+The committed JobStore/ResultSink envelopes predate this simplification. Reconcile their reservation-shaped ports with this design before implementing storage; a port name is not an aggregate-quota requirement. Follow the public contract-version/release policy for any incompatible API change. This documentation increment changes no runtime exports, package versions, dependencies or JOBS_CONTRACT_VERSION. Concrete host lifecycle/delivery composition belongs to its existing separate work item. This is accepted design guidance; the concrete format below is committed before behavior implementation, not passing verification.
+
+## Concrete v1 format and public ports
+
+The user approved keeping JobStore/ResultSink and package/contract stamp 0.1.0,
+adding an opt-in createSessionJobStorage API, and clarifying reserve/save.
+reserve establishes required output and compact tracking before the caller may
+launch; reservationId is a local admission token, NOT reserved disk capacity.
+save means serialized public Pi append acceptance, NOT an atomic filesystem
+transaction, fsync or guaranteed completion space. Existing participant types
+gain no required fields/capabilities. Existing lifecycle/executor APIs are unchanged.
+
+The user also approved a 65,536-byte UTF-8 JSON limit on each new store entry,
+including identity, format/version and transition envelope. Oversized/invalid
+submissions return invalid before mutation/append; never truncate final content.
+This opt-in ResultSink accepts one stable compact final identity/outcome/content
+per job. It rejects FinalResult.output explicitly: that optional text snapshot
+is neither silently dropped nor replaced on read. Retrieve captured output
+separately. Callers supply summaries, not full logs in final content.
+
+Use customType araketski.pi-jobs/session-store.v1 and envelope
+{formatVersion:1,contractVersion,kind,revision,identity,outputReference,
+observation,result?,intent?,eligibleAtMs?}. Kinds are admitted, observation,
+intent and result; identical transitions do not append. Each event is a compact
+full metadata assertion, never an output chunk. One increasing safe-integer
+revision per live owner orders accepted events. The complete JobIdentity
+(runtime/owner/native-session/job/producer) plus the random outputReference
+identifies an execution; replay rejects origin mismatches, changed references,
+malformed data, unsupported format/contract and non-increasing revisions.
+Read ALL public entries, not just the active branch, so /tree cannot rewind
+saved execution. Copied/forked entries with a different native session are
+not adopted. A known terminal execution and saved result are absorbing;
+historical running becomes unknown and all control capabilities are false.
+
+## Byte representation and resource bounds
+
+Let B=10,000,000, P=min(65,536,floor(B/2)), T=B-P. Smaller B/P are explicit
+test/storage-construction limits only, never above the fixed ceiling.
+The single live owner allocates B data bytes plus B stream tags: 0=unused,
+1=stdout, 2=stderr, 3=combined. A fixed prefix occupies slots [0,P); the
+remaining slots are a circular tail. This handles alternating single-byte
+streams without an unbounded span/chunk index. Incoming bytes are borrowed and
+processed synchronously, never queued/copied wholesale. After overflow the
+prefix is unchanged and the newest T bytes replace the tail. Count total and
+per-stream received bytes, retained counts, and exact losses. Offset ranges
+are [0,prefixLength) and [total-tailLength,total), with a single exact omitted
+middle range. Safe-integer counter exhaustion is explicit unavailable accounting,
+never zero loss or complete output.
+
+Each output artifact is a 4,096-byte zero-padded JSON header plus B physical
+data bytes plus B tag bytes. Header includes v1, reference, B/P, total and
+stream counts, and SHA-256 of the data/tag arrays. It contains output-format
+bookkeeping only, no execution/result records. Validate length, counters,
+tags, offsets and checksum before exposing historical bytes. The filename is
+an opaque random UUID with .output suffix; it is not a consumer-selected path.
+
+Persist via one same-directory .tmp sibling, close then rename over the
+artifact; no backup/journal/fsync claim. At most 2B+4096 bytes at rest and
+4B+8192 during replacement per job. Unlink the temporary file on failure where
+possible and diagnose cleanup failure; failures do not restart writing into
+a second authoritative store. Live owner capture is 2B bytes; at most one
+immutable write snapshot adds 2B+4096. There is no accumulated write queue.
+Returned detailed reads allocate at most 2B bytes of caller-owned data/tags,
+and coalesced per-job historical I/O reads at most 2B+4096. Returned text is
+derived from retained bytes; JS UTF-16 text is at most 2B code units.
+Metadata is bounded by the 65,536-byte entry envelope, with a fixed schema
+(no arbitrary extra fields), one observation/result/intent and bounded diagnostic
+slots (one latest metadata and one latest output error, each at most 1,024
+characters). JS engine object/allocator overhead is not claimed as a portable
+exact byte count; binary allocations, text code-unit limits and object/index
+counts are explicit. No independent helper/reply/memory authority exists.
+
+## One owner ordering and failure rules
+
+All accepted capture, metadata transitions, live reads and eligibility changes
+linearize synchronously in call order at the owner. Inputs are validated and
+detached before acceptance. Reads copy current owner state and never overwrite
+it from disk. One coalesced writer per owner serializes immutable output
+snapshots; writes accepted during an in-flight snapshot update only the owner
+ring and require a newer snapshot afterward. Disk replies carry that snapshot's
+revision and never assign old capture, metadata or terminal state back to the
+owner. All append callers share the flush promise and do not retain input chunks.
+A write failure disables further disk writes, keeps the bounded owner ring,
+continues accepting/draining bytes and reports memory-only output/reduced
+resumability. Execution outcome is unchanged. Public metadata appends are
+synchronous Pi operations, so there is no asynchronous append reply authority.
+
+Required initial artifact creation and admitted-entry acceptance both precede
+a successful reserve reply. A failed prerequisite returns unavailable, does
+not grant a token, and best-effort removes its artifact; the caller must not
+launch. There is no session-file test. Later append failures keep accepted
+bounded owner metadata/results with diagnostics; callers may retry persistence
+without re-execution. Invalid submissions do not become accepted evidence.
+
+Replay is an explicit public-capability read, not a recovery/monitoring service.
+An old/delayed replay can add missing historical owners but cannot prune
+admissions or overwrite a live owner. Historical merges preserve terminal/result
+evidence and accept only newer valid revisions of the same execution. Output
+reads are non-consuming; missing/corrupt/expired logs do not remove saved results.
+
+## Origin capabilities and cleanup eligibility
+
+createJobsSessionCapability captures a native session ID, persistence mode,
+synchronous public append callback, public read callback and a fresh-origin
+validity predicate. The integration must bind callbacks to that origin and
+invalidate the capability BEFORE replacing/reloading its public APIs. Check
+validity immediately before every append and before/after an awaited read;
+an invalidated capability never invokes a late callback. Same-session reload may
+rebind a NEW valid capability without replacing live owners or running commands.
+A replacement-session capability is rejected. Arbitrary callbacks that themselves
+defer/retarget writes are not supported; actual Pi append APIs are synchronous.
+Concrete host event/cancellation mapping and bounded deactivation are downstream.
+
+EligibleAtMs is wall-clock time when terminal execution and delivered/not-required
+obligation first coexist. Unknown, running and pending output stays protected.
+Expire automatically on an output read or metadata activity for that eligible
+job once retentionMs (default 604,800,000) elapses; expose expireEligibleOutputs
+for the downstream active-session integration to invoke on its existing activity
+boundaries. There is no timer/service/root scan. Recheck current eligibility
+after awaited writer completion before deletion. Only output is deleted;
+history/results remain. Missing versus expired output is reported separately.
+No-session construction omits public-session persistence or uses a nonpersistent
+capability; its artifacts are temporary and dispose best-effort removes only
+this instance's admitted outputs after its writes finish. It advertises no
+later resumability. Persistent dispose retains output. No crash sweeps,
+survivor adoption, backend stop, delivery receipts or scheduling are implemented.
+
+## Verification obligations
+
+Observe intended red failures before behavior, then real binary I/O overflow,
+single-byte stream alternation, checksums, bounded temporary replacement,
+write/setup failure, coalesced delayed writers and delayed replay tests.
+Exercise origin invalidation/rebind, exact fallback losses, protected/eligible
+expiry and orderly temporary cleanup. Actual Pi 0.99.1 SessionManagers must
+verify setup buffering, first-user flushing before assistant, outside-context
+custom entries and historical replay. Independent jobs/producers/copies/sessions
+must exceed one job's bound in aggregate. Fresh packed npm/pnpm runtime and
+generated-declaration consumers exercise this API. Intended format agreement
+is not evidence of implemented behavior or passing checks.
 :::
 
 :::mara decision ADR-JOBS-SESSION-BOUNDED-STORAGE
