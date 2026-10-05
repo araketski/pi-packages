@@ -107,20 +107,25 @@ it('review two regression: changed durable history cannot be overwritten by fall
   });
   expect((await other.readOutput(reservation.job)).status).toBe('unavailable');
 });
-it('review two regression: close settles raced admissions and cleans their records', async () => {
-  const { storage, options } = await setup(true);
-  const pending = storage.jobs.reserve({
-    ...launch,
-    identity: { ...launch.identity, jobId: 'raced' },
-  });
-  expect((await storage.close()).status).toBe('ok');
-  expect((await pending).status).toBe('unavailable');
-  expect((await readdir(storage.root)).filter((n) => /^[a-f0-9]{64}$/.test(n))).toHaveLength(0);
-  const reopened = await createJobStorage({ ...options, ephemeral: false });
-  expect((await reopened.jobs.read({ ...launch.identity, jobId: 'raced' })).status).toBe(
-    'unavailable',
-  );
-});
+it.each([false, true])(
+  'review two regression: close settles raced admissions and cleans their records (ephemeral %s)',
+  async (ephemeral) => {
+    const { storage, options } = await setup(ephemeral);
+    const pending = storage.jobs.reserve({
+      ...launch,
+      identity: { ...launch.identity, jobId: 'raced' },
+    });
+    expect((await storage.close()).status).toBe('ok');
+    expect((await pending).status).toBe('unavailable');
+    expect((await readdir(storage.root)).filter((n) => /^[a-f0-9]{64}$/.test(n))).toHaveLength(
+      ephemeral ? 0 : 1,
+    );
+    const reopened = await createJobStorage({ ...options, ephemeral: false });
+    expect((await reopened.jobs.read({ ...launch.identity, jobId: 'raced' })).status).toBe(
+      'unavailable',
+    );
+  },
+);
 it('review regression: preserves multibyte final content across both process pipes', async () => {
   const { storage, options, reservation, dir } = await setup(false, true);
   const result = {
