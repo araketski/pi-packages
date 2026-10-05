@@ -116,7 +116,7 @@ Use actual persistent and in-memory Pi 0.99.1 session managers with isolated use
 
 Apply [[VER-JOBS-SESSION-AND-EXIT]] for deactivation: record known outcome or unconfirmed cancellation where the originating append capability is still valid, do not call stale session APIs, and do not deliver a late result into another session. Reopen saved metadata/results without rerunning work or treating saved running state as live. Continued completion capture/delivery after deactivation and crash/forced-kill recovery are not acceptance obligations.
 
-Fail required tracking/output setup before launch and assert no command starts. Fail writes after launch and require bounded in-memory fallback, visible diagnostics and continued draining without fabricated outcomes or completeness. Exercise overlapping append/read/observation operations with delayed replies: older replies must not erase newer admission/output/terminal evidence. Preserve byte-loss accounting through fallback. These are future checks, not passing evidence; normal metadata/format operations still require concrete tests.
+Fail required tracking/output setup before launch and assert no command starts. Fail writes after launch and require bounded in-memory fallback, visible diagnostics and continued draining without fabricated outcomes or completeness. Exercise overlapping append/read/observation operations with delayed replies: older replies must not erase newer admission/output/terminal evidence. Preserve byte-loss accounting through fallback. The core storage tests now exercise these storage boundaries; passing execution evidence is recorded separately in Work. These checks do not implement the downstream Pi event/cancellation/delivery composition or prove its end-to-end lifetime obligations.
 :::
 
 :::mara verification VER-JOBS-STORAGE-BOUNDS
@@ -132,7 +132,7 @@ Check the fixed per-job ceiling of 10,000,000 captured bytes and configurable se
 
 Exercise independent jobs/producers/core copies and distinct sessions sharing the output root. Their combined retained output may exceed 10,000,000 bytes without a root quota, completion reservation, pressure eviction or quota-based launch rejection. Concurrent operations must not corrupt another job or apply stale replies over newer state. With writes/reads failing, fallback preserves known bytes and honest omission/completeness information.
 
-Verify timed cleanup of finished/delivered output, protection of tracked running/unresolved/pending output, and no promotion of unconfirmed cancellation to terminal/cleanup eligibility. Expired output is unavailable without re-execution; saved Pi metadata/final outcomes remain in session history, without raw JSONL deletion. These are future checks; no existing quota-store tests establish acceptance of this revised policy.
+Verify timed cleanup of finished/delivered output, protection of tracked running/unresolved/pending output, and no promotion of unconfirmed cancellation to terminal/cleanup eligibility. Expired output is unavailable without re-execution; saved Pi metadata/final outcomes remain in session history, without raw JSONL deletion. The core's real output-artifact, fallback, replay and retention tests implement these checks, with observed results recorded separately. No historical quota-store tests establish acceptance of this policy.
 :::
 
 :::mara design DES-JOBS-SESSION-STORE
