@@ -1,10 +1,24 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { ControlAuthority, LaunchRequest, OutputSink } from '@araketski/pi-jobs-core';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createLocalExecutor, type LocalHandle } from '../extensions/jobs/local-executor.ts';
 import { readProcess, alive } from '../extensions/jobs/linux-evidence.mjs';
+
+const { supervisors } = vi.hoisted(() => ({ supervisors: new Map<number, ChildProcess>() }));
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    fork: (...args: Parameters<typeof actual.fork>) => {
+      const child = actual.fork(...args);
+      child.once('spawn', () => supervisors.set(child.pid!, child));
+      child.once('close', () => supervisors.delete(child.pid!));
+      return child;
+    },
+  };
+});
 
 const authority: ControlAuthority = Object.freeze({
   runtimeId: 'R',
@@ -298,6 +312,91 @@ it('reports an escaped pipe-holding child as unknown without waiting for its pip
         });
       } finally {
         // The fixture child has a bounded self-exit. Never signal an escaped numeric PID.
+        await until(() => {
+          const p = readProcess(escaped.pid);
+          return !p || p.startTicks !== escaped.startTicks || !alive(p);
+        });
+      }
+    },
+    { background: true },
+  );
+});
+
+it('never downgrades verified termination while a slow output sink is flushing', async () => {
+  const e = createLocalExecutor({ authority: () => authority });
+  let started = false;
+  let release!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const r = await e.launch(
+    request(),
+    {
+      command:
+        'trap "exit 0" TERM; printf ready; head -c 4000000 /dev/zero; while :; do sleep .1; done',
+      cwd: process.cwd(),
+    },
+    {
+      append: async () => {
+        started = true;
+        await barrier;
+      },
+    },
+  );
+  if (r.status !== 'ok') throw Error(r.reason);
+  try {
+    await until(() => started);
+    await sleep(50); // Fill the bounded pipe/read buffers behind the blocked sink.
+    await e.stop(r.value, authority, 50);
+    await until(async () => (await e.observe(r.value)).state === 'terminal');
+    let settled = false;
+    void e.completion(r.value).then(() => {
+      settled = true;
+    });
+    await sleep(1150);
+    expect(await e.observe(r.value)).toEqual({
+      state: 'terminal',
+      outcome: { kind: 'exit', exitCode: 0 },
+    });
+    expect(settled).toBe(false);
+    release();
+    expect(await e.completion(r.value)).toEqual({
+      state: 'terminal',
+      outcome: { kind: 'exit', exitCode: 0 },
+    });
+  } finally {
+    release();
+    await e.stop(r.value, authority, 0);
+    await e.completion(r.value);
+  }
+});
+
+it('surfaces unexpected supervisor loss even while an observed escaped child holds output pipes', async () => {
+  const escapedCode = 'console.log("escaped-loss-ready");setTimeout(()=>{},1400)';
+  const script = `const {spawn}=require("node:child_process");const child=spawn(process.execPath,["-e",${JSON.stringify(escapedCode)}],{detached:true,stdio:"inherit"});child.unref();setTimeout(()=>{},250);`;
+  await fixture(
+    `${JSON.stringify(process.execPath)} -e '${script}'`,
+    async (h, e, output) => {
+      await until(
+        () => output().includes('escaped-loss-ready') && e.evidence(h).escaped.length > 0,
+      );
+      const evidence = e.evidence(h);
+      const escaped = evidence.escaped[0];
+      const supervisor = supervisors.get(evidence.supervisor!.pid);
+      try {
+        expect(supervisor).toBeDefined();
+        expect(readProcess(supervisor!.pid!)?.startTicks).toBe(evidence.supervisor!.startTicks);
+        // Signal only the captured, directly spawned fixture ChildProcess, not a copied numeric PID.
+        expect(supervisor!.kill('SIGKILL')).toBe(true);
+        await until(() => supervisor!.signalCode === 'SIGKILL');
+        expect(await e.observe(h)).toMatchObject({ state: 'unknown' });
+        expect(
+          await Promise.race([
+            e.completion(h),
+            sleep(400).then(() => ({ state: 'still-waiting' })),
+          ]),
+        ).toMatchObject({ state: 'unknown' });
+      } finally {
         await until(() => {
           const p = readProcess(escaped.pid);
           return !p || p.startTicks !== escaped.startTicks || !alive(p);

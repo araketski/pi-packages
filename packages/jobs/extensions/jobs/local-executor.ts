@@ -84,6 +84,8 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
     return record;
   };
   const update = (record: RecordState, state: ExecutionState) => {
+    // Once command/group termination is proven, late control/IPC diagnostics cannot undo it.
+    if (record.state.state === 'terminal' && state.state !== 'terminal') return;
     record.state = state;
     record.foreground.finish(clone(state));
     record.resolve(clone(state));
@@ -191,6 +193,22 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
       records.set(handle, record);
       let report: ExecutionState | undefined;
       let commandOutcome: ExecutionOutcome | undefined;
+      let exitSignal: NodeJS.Signals | null | undefined;
+      const surfaceSupervisorLoss = () => {
+        // Wait for IPC EOF, not stdout/stderr EOF, so a queued final report still wins.
+        if (
+          record.closed &&
+          !record.child?.connected &&
+          !report &&
+          !(record.stopped && exitSignal === 'SIGKILL')
+        ) {
+          update(record, {
+            state: 'unknown',
+            reason:
+              'Supervisor exited without a final report; command/descendant termination is unverified.',
+          });
+        }
+      };
       const drains: Promise<void>[] = [];
       // At most one awaited chunk per stream. The sink never needs a concurrent-write contract.
       let outputQueue = Promise.resolve();
@@ -234,6 +252,8 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
           if (message.kind === 'finished') {
             report = message.execution;
             if (report) {
+              clearTimeout(record.stopTimer);
+              clearTimeout(record.hardTimer);
               record.state = clone(report);
               record.foreground.finish(clone(report));
               // Unknown must not hide behind pipes held open by an escaped descendant.
@@ -262,9 +282,12 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
               outcome: { kind: 'launch-failed', reason: String(error) },
             };
         });
-        child.on('exit', () => {
+        child.on('exit', (_code, signalName) => {
           record.closed = true;
+          exitSignal = signalName;
+          surfaceSupervisorLoss();
         });
+        child.on('disconnect', surfaceSupervisorLoss);
         child.on('close', (_code, signalName) => {
           record.closed = true;
           clearTimeout(record.hardTimer);
