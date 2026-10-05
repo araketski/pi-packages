@@ -356,7 +356,6 @@ must exceed one job's bound in aggregate. Fresh packed npm/pnpm runtime and
 generated-declaration consumers exercise this API. Intended format agreement
 is not evidence of implemented behavior or passing checks.
 
-
 Before invoking an append callback, mark the newly asserted metadata/output
 status as unacknowledged. An identical reentrant call cannot infer acceptance
 from the previous assertion; only its own completed append can acknowledge it.
