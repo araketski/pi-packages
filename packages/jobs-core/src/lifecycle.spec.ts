@@ -359,6 +359,72 @@ describe('execution and owner control', () => {
 });
 
 describe('review race regressions', () => {
+  it('reentrant inspection shares a published observation and cannot erase terminal evidence', async () => {
+    const fake = createJobsTestAdapter(clock);
+    let calls = 0;
+    let lifecycle!: core.JobLifecycle;
+    let nested!: Promise<core.JobReply<core.JobObservation>>;
+    lifecycle = core.createJobLifecycle({
+      request,
+      handle: fake.handle,
+      clock,
+      startedAtMs: 0,
+      authorize: () => true,
+      adapter: {
+        ...fake.adapter,
+        observe: async () => {
+          calls++;
+          if (calls === 1) nested = lifecycle.inspect(identity);
+          return terminal;
+        },
+      },
+    });
+    const outer = lifecycle.inspect(identity);
+    await outer;
+    await nested;
+    expect(calls).toBe(1);
+    expect(await lifecycle.inspect(identity)).toMatchObject({ value: { execution: terminal } });
+    lifecycle.dispose();
+  });
+  it('reentrant stop during observation shares the published admission operation', async () => {
+    const fake = createJobsTestAdapter(clock);
+    let lifecycle!: core.JobLifecycle;
+    let nested!: Promise<core.JobReply<core.StopStatus>>;
+    let reentered = false;
+    let stopCalls = 0;
+    let admit!: (value: core.JobReply<{ requested: true }>) => void;
+    lifecycle = core.createJobLifecycle({
+      request,
+      handle: fake.handle,
+      clock,
+      startedAtMs: 0,
+      authorize: () => true,
+      adapter: {
+        ...fake.adapter,
+        observe: async () => {
+          if (!reentered) {
+            reentered = true;
+            nested = lifecycle.stop({ ...control, requestId: 'nested' });
+          }
+          return { state: 'running' };
+        },
+        stop: async () => {
+          stopCalls++;
+          return new Promise((resolve) => {
+            admit = resolve;
+          });
+        },
+      },
+    });
+    const outer = lifecycle.stop(control);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stopCalls).toBe(1);
+    admit({ status: 'ok', value: { requested: true } });
+    expect(await outer).toMatchObject({ value: { state: 'requested' } });
+    expect(await nested).toMatchObject({ value: { state: 'requested' } });
+    lifecycle.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('constructor options cannot redirect the selected adapter/handle or replace authorization', async () => {
     const fake = createJobsTestAdapter(clock);
     fake.setExecution(terminal);
@@ -521,6 +587,7 @@ describe('review race regressions', () => {
     });
     const admission = lifecycle.stop(control);
     expect(lifecycle.stopIntent()).toMatchObject({ state: 'unconfirmed' });
+    await Promise.resolve();
     expect(vi.getTimerCount()).toBe(1);
     lifecycle.dispose();
     expect(await admission).toMatchObject({ status: 'unavailable' });

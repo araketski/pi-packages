@@ -314,25 +314,28 @@ export function createJobLifecycle<Handle>(options: {
   function refresh(): Promise<void> {
     if (observing) return observing;
     if (disposed || state.execution.state === 'terminal') return Promise.resolve();
-    observing = (async () => {
-      let next: ExecutionState;
-      try {
-        const raw = await observe(handle);
-        next = execution(raw)
-          ? copy(raw)
-          : { state: 'unknown', reason: 'Malformed execution observation.' };
-      } catch (error) {
-        next = { state: 'unknown', reason: `Observation failed: ${reason(error)}` };
-      }
-      if (disposed) return;
-      state = { ...state, execution: next };
-      if (next.state === 'terminal') {
-        cancelDeadline?.();
-        cancelDeadline = undefined;
-      }
-    })().finally(() => {
-      observing = undefined;
-    });
+    // Publish the latch before any adapter callback can reenter this controller.
+    observing = Promise.resolve()
+      .then(async () => {
+        let next: ExecutionState;
+        try {
+          const raw = await observe(handle);
+          next = execution(raw)
+            ? copy(raw)
+            : { state: 'unknown', reason: 'Malformed execution observation.' };
+        } catch (error) {
+          next = { state: 'unknown', reason: `Observation failed: ${reason(error)}` };
+        }
+        if (disposed || state.execution.state === 'terminal') return;
+        state = { ...state, execution: next };
+        if (next.state === 'terminal') {
+          cancelDeadline?.();
+          cancelDeadline = undefined;
+        }
+      })
+      .finally(() => {
+        observing = undefined;
+      });
     return observing;
   }
   function refreshBeforeStop(): Promise<void> {
@@ -384,48 +387,51 @@ export function createJobLifecycle<Handle>(options: {
       state: 'unconfirmed',
       reply: { status: 'unknown', reason: 'Pre-stop observation/admission is pending.' },
     };
-    stopping = (async (): Promise<JobReply<StopStatus>> => {
-      await refreshBeforeStop();
-      const rejected = allowed(captured);
-      if (rejected) return rejected;
-      if (state.execution.state === 'terminal')
-        return {
-          status: 'ok',
-          value: { state: 'already-terminal', execution: copy(state.execution) },
+    // Defer external observation until every reentrant stop can see this latch.
+    stopping = Promise.resolve()
+      .then(async (): Promise<JobReply<StopStatus>> => {
+        await refreshBeforeStop();
+        const rejected = allowed(captured);
+        if (rejected) return rejected;
+        if (state.execution.state === 'terminal')
+          return {
+            status: 'ok',
+            value: { state: 'already-terminal', execution: copy(state.execution) },
+          };
+        if (intent?.state === 'requested') return copy(intent.reply);
+        let reply: JobReply<StopStatus>;
+        intent = {
+          requestId: captured.requestId,
+          reason: stopReason,
+          state: 'unconfirmed',
+          reply: { status: 'unknown', reason: 'Stop admission is pending.' },
         };
-      if (intent?.state === 'requested') return copy(intent.reply);
-      let reply: JobReply<StopStatus>;
-      intent = {
-        requestId: captured.requestId,
-        reason: stopReason,
-        state: 'unconfirmed',
-        reply: { status: 'unknown', reason: 'Stop admission is pending.' },
-      };
-      try {
-        const result = await requestStop(handle, copy(captured.authority), settings.graceMs);
-        if (result.status === 'ok' && result.value?.requested === true)
-          reply = { status: 'ok', value: { state: 'requested' } };
-        else if (
-          result.status !== 'ok' &&
-          diagnostic(result.reason) &&
-          ['unknown', 'unavailable', 'denied', 'unsupported', 'invalid'].includes(result.status)
-        )
-          reply = copy(result);
-        else reply = { status: 'unknown', reason: 'Malformed stop admission reply.' };
-      } catch (error) {
-        reply = { status: 'unknown', reason: `Stop admission failed: ${reason(error)}` };
-      }
-      intent = {
-        requestId: captured.requestId,
-        reason: stopReason,
-        state: reply.status === 'ok' ? 'requested' : 'unconfirmed',
-        reply: copy(reply),
-      };
-      return reply;
-    })().finally(() => {
-      stopping = undefined;
-      pendingIntent = undefined;
-    });
+        try {
+          const result = await requestStop(handle, copy(captured.authority), settings.graceMs);
+          if (result.status === 'ok' && result.value?.requested === true)
+            reply = { status: 'ok', value: { state: 'requested' } };
+          else if (
+            result.status !== 'ok' &&
+            diagnostic(result.reason) &&
+            ['unknown', 'unavailable', 'denied', 'unsupported', 'invalid'].includes(result.status)
+          )
+            reply = copy(result);
+          else reply = { status: 'unknown', reason: 'Malformed stop admission reply.' };
+        } catch (error) {
+          reply = { status: 'unknown', reason: `Stop admission failed: ${reason(error)}` };
+        }
+        intent = {
+          requestId: captured.requestId,
+          reason: stopReason,
+          state: reply.status === 'ok' ? 'requested' : 'unconfirmed',
+          reply: copy(reply),
+        };
+        return reply;
+      })
+      .finally(() => {
+        stopping = undefined;
+        pendingIntent = undefined;
+      });
     return copy(await stopping);
   }
   const lifecycle: JobLifecycle = {
