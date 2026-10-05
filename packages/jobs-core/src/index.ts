@@ -400,6 +400,9 @@ export function createJobsParticipant(
     try {
       // Preserve scalar types until validation: JSON cloning would turn boxed values into primitives.
       raw = structuredClone(data);
+      // The wire remains JSON data. Reject cycles before any participant/snapshot mutation,
+      // but never replace the preserved scalar types with the JSON-normalized values.
+      JSON.stringify(raw);
     } catch {
       return;
     }

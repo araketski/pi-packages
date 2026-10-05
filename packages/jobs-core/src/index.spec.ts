@@ -144,6 +144,27 @@ it('rejects inbound boxed scalars instead of coercing them into success', () => 
   owner.close();
 });
 
+it('ignores non-serializable optional snapshot data without throwing or changing accepted state', () => {
+  const host = bus();
+  const owner = core.createJobsParticipant(host, identity);
+  owner.start();
+  owner.publish('session-A', [job]);
+  const before = owner.view().snapshots;
+  const future: { loop?: unknown } = {};
+  future.loop = future;
+  expect(() =>
+    host.events.emit(core.JOBS_PARTICIPANT_CHANNEL, {
+      kind: 'snapshot',
+      participant: owner.metadata(),
+      sessionId: 'session-A',
+      jobs: [job],
+      future,
+    }),
+  ).not.toThrow();
+  expect(owner.view().snapshots).toEqual(before);
+  owner.close();
+});
+
 it('preserves diagnostic text independently of bounded identities', () => {
   const host = bus();
   const owner = core.createJobsParticipant(host, identity);
