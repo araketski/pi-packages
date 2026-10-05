@@ -165,6 +165,31 @@ it('ignores non-serializable optional snapshot data without throwing or changing
   owner.close();
 });
 
+it.each(['single', 'mixed'])(
+  'rejects %s-hole job arrays without replacing valid assertions',
+  (kind) => {
+    const host = bus();
+    const owner = core.createJobsParticipant(host, identity);
+    owner.start();
+    owner.publish('session-A', [job]);
+    const before = owner.view().snapshots;
+    // Extending length deliberately leaves position zero absent in both malformed fixtures.
+    const sparse: core.JobObservation[] = [];
+    sparse.length = kind === 'single' ? 1 : 2;
+    if (kind === 'mixed') sparse[1] = { ...job, identity: { ...job.identity, jobId: 'other-job' } };
+    host.events.emit(core.JOBS_PARTICIPANT_CHANNEL, {
+      kind: 'snapshot',
+      participant: owner.metadata(),
+      sessionId: 'session-A',
+      jobs: sparse,
+    });
+    expect(owner.view().snapshots).toEqual(before);
+    expect(owner.view().diagnostics.at(-1)?.code).toBe('malformed');
+    expect(() => owner.publish('session-A', sparse)).toThrow('Invalid owner jobs snapshot');
+    owner.close();
+  },
+);
+
 it('preserves diagnostic text independently of bounded identities', () => {
   const host = bus();
   const owner = core.createJobsParticipant(host, identity);

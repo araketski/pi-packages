@@ -351,12 +351,15 @@ function snapshot(value: unknown): value is JobsSnapshot {
     !participantIdentity(value.participant) ||
     value.participant.role !== 'owner' ||
     !id(value.sessionId) ||
-    !Array.isArray(value.jobs) ||
-    !value.jobs.every(observation)
+    !Array.isArray(value.jobs)
   )
     return false;
   const participant = value.participant;
   const jobs = value.jobs as JobObservation[];
+  // Array.every skips holes. Every position must hold an actual conforming job.
+  for (let index = 0; index < jobs.length; index++) {
+    if (!observation(jobs[index])) return false;
+  }
   return (
     jobs.every(
       (job) =>
