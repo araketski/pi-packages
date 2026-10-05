@@ -118,7 +118,8 @@ class Capture {
       capacity = this.max - this.beginning;
     if (!rest.length || !capacity) return;
     if (rest.length >= capacity) {
-      this.tail = rest.slice(-capacity);
+      // Buffer.slice() is a view; own only the selected retained suffix.
+      this.tail = new Uint8Array(rest.subarray(rest.length - capacity));
       this.size = capacity;
       this.cursor = 0;
       return;
@@ -173,14 +174,14 @@ export function createSessionJobStore(options: {
   headBytes?: number;
 }): SessionJobStore {
   const max = options.maxBytes ?? JOBS_OUTPUT_BYTES;
-  const head = options.headBytes ?? Math.min(65_536, max);
+  const head = options.headBytes ?? Math.min(65_536, Math.max(1, Math.floor(max / 4)));
   if (
     !Number.isInteger(max) ||
-    max < 1 ||
+    max < 2 ||
     max > JOBS_OUTPUT_BYTES ||
     !Number.isInteger(head) ||
     head < 1 ||
-    head > max
+    head >= max
   )
     throw new Error('Invalid combined output bounds.');
   // Capture bindings: do not consult mutable/replacement options after construction.

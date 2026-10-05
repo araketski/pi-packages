@@ -98,6 +98,45 @@ it('captures combined bytes with live reads and completion snapshots, not chunk 
   }
 });
 
+it('owns a bounded copy of Buffer tails even when callers reuse their input', async () => {
+  const f = await fixture(8, 2);
+  try {
+    ok(await f.store.jobs.reserve(request()));
+    const bytes = Buffer.alloc(1_000_000, 65);
+    ok(await f.store.capture(request().identity, { stream: 'combined', bytes }));
+    bytes.fill(66);
+    const retained = ok(await f.store.readOutput(request().identity));
+    expect(retained.retainedBytes).toBe(8);
+    expect(retained.window.omittedBytes).toBe(999_992);
+    expect(retained.window.text).toBe('AA\n[... 999992 bytes omitted ...]\nAAAAAA');
+  } finally {
+    await f.cleanup();
+  }
+});
+
+it('defaults smaller bounds to a beginning plus rolling tail, never an all-head buffer', async () => {
+  const f = await fixture(8, 2);
+  try {
+    const store = createSessionJobStore({ ...f.options, headBytes: undefined });
+    ok(await store.jobs.reserve(request()));
+    ok(
+      await store.capture(request().identity, {
+        stream: 'combined',
+        bytes: Buffer.from('BEGINxxx'),
+      }),
+    );
+    ok(
+      await store.capture(request().identity, { stream: 'combined', bytes: Buffer.from('LATEST') }),
+    );
+    const retained = ok(await store.readOutput(request().identity));
+    expect(retained.window.text).toBe('BE\n[... 6 bytes omitted ...]\nLATEST');
+    expect(retained.retainedBytes).toBe(8);
+    expect(() => createSessionJobStore({ ...f.options, headBytes: 8 })).toThrow('bounds');
+  } finally {
+    await f.cleanup();
+  }
+});
+
 it('keeps ordinary UTF-8 complete and missing output separate from saved nonzero results', async () => {
   const f = await fixture(100, 64);
   try {
