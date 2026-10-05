@@ -46,6 +46,9 @@ it.each(['npm', 'pnpm'] as const)(
         'package/dist/index.d.ts',
         'package/dist/index.d.ts.map',
         'package/dist/index.js',
+        ...['storage', 'storage-format', 'storage-policy', 'storage-worker']
+          .flatMap((name) => ['js', 'd.ts', 'd.ts.map'].map((ext) => `package/dist/${name}.${ext}`))
+          .sort(),
         'package/dist/testing.d.ts',
         'package/dist/testing.d.ts.map',
         'package/dist/testing.js',
@@ -109,6 +112,8 @@ it.each(['npm', 'pnpm'] as const)(
         import { JOBS_CONTRACT_VERSION, createJobsParticipant } from '${manifest.name}';
         import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
         import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+        import { resolve } from 'node:path';
+        import { createJobStorage } from '${manifest.name}/storage';
         import metadata from '${manifest.name}/package.json' with { type: 'json' };
         const entry = realpathSync(fileURLToPath(import.meta.resolve('${manifest.name}')));
         const local = relative(realpathSync(process.cwd()), entry);
@@ -127,6 +132,20 @@ it.each(['npm', 'pnpm'] as const)(
         assert.deepEqual(observer.view().snapshots[0].jobs, [job]);
         owner.close(); observer.close();
         assert.equal(events.listenerCount(), 0);
+        const store = await createJobStorage({agentDirectory:resolve('./fake-agent'),policy:{totalBytes:40000,outputBytes:100,trackingBytes:4096,resultBytes:4096}});
+        const launch = {identity:job.identity,authority:{runtimeId:'R',ownerId:'O',generation:'G'},awaiting:true,delivery:'automatic',lifetime:'managed'};
+        const reserved=await store.jobs.reserve(launch);
+        assert.equal(reserved.status,'ok');
+        await store.output(reserved.value).append({stream:'combined',bytes:Buffer.from('beginning '+ 'X'.repeat(200)+' ending')});
+        const retained=await store.readOutput(job.identity);
+        assert.equal(retained.status,'ok');assert.equal(retained.value.complete,false);
+        assert(retained.value.text.startsWith('beginning '));assert(retained.value.text.endsWith(' ending'));
+        const final={identity:{job:job.identity,resultId:'stable'},outcome:{kind:'exit',exitCode:0},content:'saved result, not delivered'};
+        assert.equal((await store.results.save(final)).status,'ok');
+        const reloaded=await createJobStorage({agentDirectory:resolve('./fake-agent')});
+        assert.deepEqual((await reloaded.results.read(final.identity)).value,final);
+        assert.equal((await reloaded.jobs.read(job.identity)).value.delivery.state,'pending');
+        assert.throws(() => import.meta.resolve('${manifest.name}/storage-worker'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
         const metadataPath = fileURLToPath(import.meta.resolve('${manifest.name}/package.json'));
         const before = readFileSync(entry, 'utf8');
         const metadataBefore = readFileSync(metadataPath, 'utf8');
@@ -154,6 +173,8 @@ it.each(['npm', 'pnpm'] as const)(
           type JobStore, type ResultSink, type FinalResultReceipt, type JobOwnerPort,
           type JobsPiHost, type JobObservation } from '${manifest.name}';
         import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
+        import { createJobStorage, type JobStorage, type StoragePolicy } from '${manifest.name}/storage';
+        export const storageFactory: (options: {agentDirectory:string;policy?:Partial<StoragePolicy>})=>Promise<JobStorage> = createJobStorage;
         const events = createJobsTestBus();
         const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
         export const job: JobObservation = createUnknownJobFixture({runtimeId:'R', ownerId:'O', sessionId:'S', jobId:'J', producerId:'unknown'});

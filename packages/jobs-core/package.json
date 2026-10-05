@@ -8,13 +8,30 @@
     "dist/index.d.ts.map",
     "dist/testing.js",
     "dist/testing.d.ts",
-    "dist/testing.d.ts.map"
+    "dist/testing.d.ts.map",
+    "dist/storage.js",
+    "dist/storage.d.ts",
+    "dist/storage.d.ts.map",
+    "dist/storage-format.js",
+    "dist/storage-format.d.ts",
+    "dist/storage-format.d.ts.map",
+    "dist/storage-worker.js",
+    "dist/storage-worker.d.ts",
+    "dist/storage-worker.d.ts.map",
+    "dist/storage-policy.js",
+    "dist/storage-policy.d.ts",
+    "dist/storage-policy.d.ts.map"
   ],
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "import": "./dist/storage.js",
+      "default": "./dist/storage.js"
+    },
     "./testing": {
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js",
