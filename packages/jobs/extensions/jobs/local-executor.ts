@@ -10,7 +10,7 @@ import type {
 } from '@araketski/pi-jobs-core';
 import { createForegroundHandoff, type ForegroundResult } from './foreground.ts';
 import {
-  alive,
+  dead,
   readProcess,
   verifyGroupQuiescence,
   type ProcessEvidence,
@@ -228,7 +228,7 @@ export function createLocalExecutor(options: { authority: () => ControlAuthority
           try {
             const escaped = record.evidence.escaped.filter((p) => {
               const current = readProcess(p.pid);
-              return current && current.startTicks === p.startTicks && alive(current);
+              return current && current.startTicks === p.startTicks && !dead(current);
             });
             if (
               confirmation.state === 'quiescent' &&

@@ -10,6 +10,7 @@ export function readProcess(pid) {
     return {
       pid,
       state: fields[0],
+      threadCount: Number(fields[17]),
       ppid: Number(fields[1]),
       group: Number(fields[2]),
       session: Number(fields[3]),
@@ -29,8 +30,13 @@ export function processes() {
   }
   return rows;
 }
+const deadLeader = (row) => ['Z', 'X', 'x'].includes(row.state);
 export function alive(row) {
-  return row.state !== 'Z' && row.state !== 'X';
+  return !deadLeader(row) || row.threadCount > 1;
+}
+export function dead(row) {
+  // Kernel nr_threads includes the unreaped group leader: workers can outlive its main task.
+  return deadLeader(row) && row.threadCount === 1;
 }
 export function verifyGroupQuiescence(
   group,
@@ -41,12 +47,16 @@ export function verifyGroupQuiescence(
     const before = probe.counter();
     if (!/^\d+$/.test(before)) throw Error('Invalid Linux PID allocation counter');
     const membersOf = (rows) =>
-      rows.filter((p) => p.pid !== group && p.group === group && p.session === session && alive(p));
+      rows.filter((p) => p.pid !== group && p.group === group && p.session === session && !dead(p));
+    const present = (members) =>
+      members.some(alive)
+        ? { state: 'occupied', members }
+        : { state: 'unknown', members, reason: 'Member-task liveness is unconfirmed' };
     const first = membersOf(probe.processes());
-    if (first.length) return { state: 'occupied', members: first };
+    if (first.length) return present(first);
     const second = membersOf(probe.processes());
     const after = probe.counter();
-    if (second.length) return { state: 'occupied', members: second };
+    if (second.length) return present(second);
     if (before !== after)
       return {
         state: 'unknown',

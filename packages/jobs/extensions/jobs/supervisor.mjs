@@ -1,6 +1,13 @@
 // This process is the pinned Linux session/group leader. Only it sends group signals.
 import { spawn } from 'node:child_process';
-import { alive, bootId, processes, readProcess, verifyGroupQuiescence } from './linux-evidence.mjs';
+import {
+  alive,
+  dead,
+  bootId,
+  processes,
+  readProcess,
+  verifyGroupQuiescence,
+} from './linux-evidence.mjs';
 
 const own = process.pid;
 let child,
@@ -27,13 +34,13 @@ function sample() {
   const byPid = new Map(all.map((p) => [p.pid, p]));
   for (const [pid, startTicks] of known) {
     const current = byPid.get(pid) ?? readProcess(pid);
-    if (!current || current.startTicks !== startTicks || !alive(current)) known.delete(pid);
+    if (!current || current.startTicks !== startTicks || dead(current)) known.delete(pid);
     else if (!byPid.has(pid)) all.push(current); // Preserve directly verified live escaped identities.
   }
   const inGroup = all.filter((p) => p.group === own && p.session === own && p.pid !== own);
   const descendants = new Set([
     own,
-    ...inGroup.filter(alive).map((p) => p.pid),
+    ...inGroup.filter((p) => !dead(p)).map((p) => p.pid),
     ...all.filter((p) => known.get(p.pid) === p.startTicks).map((p) => p.pid),
   ]);
   // Establish ancestry without treating process names as ownership.
@@ -47,15 +54,15 @@ function sample() {
       }
   }
   for (const p of all)
-    if (descendants.has(p.pid) && p.pid !== own && alive(p)) {
+    if (descendants.has(p.pid) && p.pid !== own && !dead(p)) {
       if (known.size >= 1024 && !known.has(p.pid))
         evidenceError = 'descendant evidence limit exceeded';
       else known.set(p.pid, p.startTicks);
     }
   const escaped = all.filter(
-    (p) => known.get(p.pid) === p.startTicks && alive(p) && (p.group !== own || p.session !== own),
+    (p) => known.get(p.pid) === p.startTicks && !dead(p) && (p.group !== own || p.session !== own),
   );
-  return { group: inGroup.filter(alive), escaped };
+  return { group: inGroup.filter((p) => !dead(p)), escaped };
 }
 function finish(state) {
   if (ended) return;
@@ -75,7 +82,7 @@ function poll() {
   try {
     const s = sample();
     send({ kind: 'sample', escaped: s.escaped, remainingLiveGroup: s.group, evidenceError });
-    if (outcome && s.group.length === 0) {
+    if (outcome && !s.group.some(alive)) {
       const confirmation = verifyGroupQuiescence(own, own);
       if (confirmation.state !== 'quiescent') {
         for (const p of confirmation.members) {

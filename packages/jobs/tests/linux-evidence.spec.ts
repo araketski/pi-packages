@@ -37,6 +37,26 @@ it('confirms two empty scans only with stable allocation evidence', () => {
   ).toMatchObject({ state: 'quiescent', members: [] });
   expect(scans).toBe(2);
 });
+it('does not exclude a zombie leader with live member tasks', () => {
+  const zombie = { ...child, state: 'Z', threadCount: 2 };
+  expect(
+    verifyGroupQuiescence(10, 10, { processes: () => [zombie], counter: () => '21' }),
+  ).toMatchObject({ state: 'occupied', members: [zombie] });
+});
+it('does not infer dead workers from missing or zero task counts', () => {
+  for (const threadCount of [undefined, 0]) {
+    const zombie = { ...child, state: 'Z', threadCount };
+    expect(
+      verifyGroupQuiescence(10, 10, { processes: () => [zombie], counter: () => '21' }),
+    ).toMatchObject({ state: 'unknown' });
+  }
+});
+it('excludes a sole confirmed-dead leader task', () => {
+  const zombie = { ...child, state: 'Z', threadCount: 1 };
+  expect(
+    verifyGroupQuiescence(10, 10, { processes: () => [zombie], counter: () => '21' }),
+  ).toMatchObject({ state: 'quiescent', members: [] });
+});
 it('retains uncertainty if allocation evidence is unavailable', () => {
   expect(
     verifyGroupQuiescence(10, 10, {

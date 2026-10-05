@@ -1,5 +1,8 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { readFileSync, mkdtempSync, existsSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { ControlAuthority, LaunchRequest, OutputSink } from '@araketski/pi-jobs-core';
 import { expect, it, vi } from 'vitest';
@@ -543,6 +546,57 @@ it('reports actual completion after more than 1024 observed short-lived children
     { foregroundBudgetMs: 20000 },
   );
 }, 25000);
+
+it('retains the supervisor until a zombie-leader process finishes its worker threads', async () => {
+  // pthread_exit is not exposed by Node. The compiler is fixture-only, not a runtime prerequisite.
+  const root = mkdtempSync(join(tmpdir(), 'pi-jobs-thread-'));
+  const marker = join(root, 'marker');
+  const binary = join(root, 'worker');
+  try {
+    execFileSync('cc', [
+      '-pthread',
+      fileURLToPath(new URL('./fixtures/threaded-worker.c', import.meta.url)),
+      '-o',
+      binary,
+    ]);
+    const quote = (s: string) => "'" + s.replaceAll("'", "'\\''") + "'";
+    await fixture(
+      `${quote(binary)} ${quote(marker)} >/dev/null 2>&1 & printf 'worker=%s\\n' "$!"; sleep .15`,
+      async (h, e, output) => {
+        await until(() => output().includes('worker='));
+        const pid = Number(/worker=(\d+)/.exec(output())![1]);
+        try {
+          await until(() => readProcess(pid)?.state === 'Z');
+          const fields = readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].split(/\s+/);
+          expect(Number(fields[17])).toBeGreaterThan(1); // Kernel nr_threads includes live member tasks.
+          await sleep(250); // The Bash root is finished; the confined worker still executes.
+          expect(await e.observe(h)).toMatchObject({ state: 'running' });
+          expect(alive(readProcess(e.evidence(h).supervisor!.pid)!)).toBe(true);
+          expect(await e.foreground(h)).toMatchObject({
+            kind: 'completed',
+            execution: { state: 'terminal', outcome: { kind: 'exit', exitCode: 0 } },
+          });
+          expect(existsSync(marker)).toBe(true);
+          expect(readFileSync(marker, 'utf8')).toBe('worker done\n');
+        } finally {
+          await until(() => existsSync(marker)); // The bounded worker self-exits even on a failing assertion.
+          await until(() => {
+            try {
+              const stat = readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].split(/\s+/);
+              return stat[0] === 'Z' && Number(stat[17]) === 1;
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true;
+              throw error;
+            }
+          }); // Verify member-task teardown, not a cached adapter result or fixed sleep.
+        }
+      },
+      { foregroundBudgetMs: 4000 },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 10000);
 
 it('serializes stdout/stderr sink appends with bounded stream backpressure', async () => {
   const e = createLocalExecutor({ authority: () => authority });
