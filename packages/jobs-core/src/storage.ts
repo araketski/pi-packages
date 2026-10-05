@@ -389,16 +389,16 @@ export async function createJobStorage(optionsInput: StorageOptions): Promise<Jo
         return failure(reply.reason);
       }
       if (reply.status !== 'ok' && reply.status !== 'unavailable') return reply;
-      if (!local && reply.status === 'ok') {
+      if (!local) {
         local = {
           createdHere: false,
           cancelledAdmission: false,
           reservation,
-          policy: reply.value,
+          policy: committed,
           queue: Promise.resolve(),
           resultQueue: Promise.resolve(),
           window: empty(),
-          outputLimit: Math.min(reply.value.outputBytes, 64 * 1024),
+          outputLimit: Math.min(committed.outputBytes, 64 * 1024),
           outputDegraded: false,
           degraded: false,
         };

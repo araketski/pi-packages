@@ -64,6 +64,34 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review nine regression: transferred reservations retain bounded fallback after a failed rewrite', async () => {
+  const { reservation, options, dir } = await setup();
+  const reader = await createJobStorage(options);
+  await chmod(dir, 0o555);
+  try {
+    const observed = {
+      ...running,
+      execution: { state: 'unknown' as const, reason: 'fresh unavailable-write state' },
+    };
+    expect((await reader.jobs.save(reservation, observed)).status).toBe('unavailable');
+    expect(await reader.jobs.read(reservation.job)).toMatchObject({
+      status: 'ok',
+      value: observed,
+    });
+    expect(reader.diagnostics()).toMatchObject([
+      { kind: 'persistence-loss', reducedRecoverability: true },
+    ]);
+    await reader
+      .output(reservation)
+      .append({ stream: 'combined', bytes: Buffer.from('continued') });
+    expect(await reader.readOutput(reservation.job)).toMatchObject({
+      status: 'ok',
+      value: { text: 'continued' },
+    });
+  } finally {
+    await chmod(dir, 0o755);
+  }
+});
 it('review eight regression: persistent mode is fixed before caller options are reused', async () => {
   const { storage, reservation, options, dir } = await setup();
   options.ephemeral = true;
