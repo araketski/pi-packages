@@ -64,6 +64,63 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review two regression: normal result absence does not degrade healthy admission', async () => {
+  const { storage, reservation } = await setup();
+  expect((await storage.results.read({ job: reservation.job, resultId: 'not-yet' })).status).toBe(
+    'unavailable',
+  );
+  expect(storage.diagnostics()).toEqual([]);
+  expect(
+    (await storage.jobs.reserve({ ...launch, identity: { ...launch.identity, jobId: 'second' } }))
+      .status,
+  ).toBe('ok');
+  const result = {
+    identity: { job: reservation.job, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'final',
+  };
+  expect((await storage.results.save(result)).status).toBe('ok');
+  expect((await storage.results.read({ job: reservation.job, resultId: 'wrong' })).status).toBe(
+    'unavailable',
+  );
+  expect(storage.diagnostics()).toEqual([]);
+});
+it('review two regression: changed durable history cannot be overwritten by fallback', async () => {
+  const { storage, options, reservation, dir } = await setup();
+  const a = storage.output(reservation);
+  await a.append({ stream: 'combined', bytes: Buffer.from('a') });
+  const other = await createJobStorage(options);
+  expect((await other.jobs.save(reservation, running)).status).toBe('ok');
+  const b = other.output(reservation);
+  await chmod(dir, 0o500);
+  try {
+    await b.append({ stream: 'combined', bytes: Buffer.from('b') });
+  } finally {
+    await chmod(dir, 0o700);
+  }
+  await a.append({ stream: 'combined', bytes: Buffer.from('c') });
+  await b.append({ stream: 'combined', bytes: Buffer.from('d') });
+  const fresh = await createJobStorage(options);
+  expect(await fresh.readOutput(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { text: 'ac' },
+  });
+  expect((await other.readOutput(reservation.job)).status).toBe('unavailable');
+});
+it('review two regression: close settles raced admissions and cleans their records', async () => {
+  const { storage, options } = await setup(true);
+  const pending = storage.jobs.reserve({
+    ...launch,
+    identity: { ...launch.identity, jobId: 'raced' },
+  });
+  expect((await storage.close()).status).toBe('ok');
+  expect((await pending).status).toBe('unavailable');
+  expect((await readdir(storage.root)).filter((n) => /^[a-f0-9]{64}$/.test(n))).toHaveLength(0);
+  const reopened = await createJobStorage({ ...options, ephemeral: false });
+  expect((await reopened.jobs.read({ ...launch.identity, jobId: 'raced' })).status).toBe(
+    'unavailable',
+  );
+});
 it('review regression: preserves multibyte final content across both process pipes', async () => {
   const { storage, options, reservation, dir } = await setup(false, true);
   const result = {

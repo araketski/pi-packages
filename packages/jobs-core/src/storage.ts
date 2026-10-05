@@ -67,6 +67,8 @@ export interface JobStorage {
 }
 interface MemoryJob {
   createdHere: boolean;
+  cancelledAdmission: boolean;
+  durableDigest?: string;
   reservation: StorageReservation;
   observation?: JobObservation;
   unavailableOutput?: string;
@@ -190,6 +192,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
   const warnings = new Map<string, StorageDiagnostic>();
   let closed = false;
   let cleanupComplete = false;
+  const admissions = new Set<Promise<JobReply<StorageReservation>>>();
   const confirmedRemoved = (
     reply: JobReply<unknown>,
   ): reply is { status: 'unavailable'; reason: string; removed: true } =>
@@ -219,7 +222,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       ? local
       : undefined;
   };
-  const reserve = async (
+  const reserveImpl = async (
     request: LaunchRequest,
     overrides?: { outputBytes?: number },
   ): Promise<JobReply<StorageReservation>> => {
@@ -238,6 +241,8 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     for (const k of memory.keys()) if (!reply.value.presentKeys.includes(k)) forget(k);
     memory.set(key(request.identity), {
       createdHere: true,
+      cancelledAdmission: closed,
+      durableDigest: 'missing',
       reservation: clone(reply.value.reservation),
       policy: reply.value.policy,
       queue: Promise.resolve(),
@@ -246,7 +251,21 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       outputDegraded: false,
       degraded: false,
     });
-    return { status: 'ok', value: reply.value.reservation };
+    return closed
+      ? failure('Admission raced storage closure; no launch may start.')
+      : { status: 'ok', value: reply.value.reservation };
+  };
+  const reserve = (
+    request: LaunchRequest,
+    overrides?: { outputBytes?: number },
+  ): Promise<JobReply<StorageReservation>> => {
+    const pending = reserveImpl(request, overrides);
+    admissions.add(pending);
+    void pending.then(
+      () => admissions.delete(pending),
+      () => admissions.delete(pending),
+    );
+    return pending;
   };
   const jobs: JobStore = {
     reserve,
@@ -274,6 +293,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
       if (!local && reply.status === 'ok') {
         local = {
           createdHere: false,
+          cancelledAdmission: false,
           reservation: clone(reservation),
           policy: reply.value,
           queue: Promise.resolve(),
@@ -283,16 +303,20 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           degraded: false,
         };
         memory.set(key(reservation.job), local);
-        const output = await invoke<{ bytes: string; seen: number; head: number }>('output-read', {
-          job: reservation.job,
-        });
-        if (output.status === 'ok')
+        const output = await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
+          'output-read',
+          {
+            job: reservation.job,
+          },
+        );
+        if (output.status === 'ok') {
+          local.durableDigest = output.value.digest;
           local.window = {
             bytes: Buffer.from(output.value.bytes, 'base64'),
             seen: output.value.seen,
             head: output.value.head,
           };
-        else {
+        } else {
           local.unavailableOutput = output.reason;
           warn(reservation.job, output.reason);
         }
@@ -370,14 +394,21 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         forget(key(identity.job));
         return failure(reply.reason);
       }
-      if (reply.status === 'unavailable' && local) warn(identity.job, reply.reason);
+      if (
+        reply.status === 'unavailable' &&
+        'absence' in reply &&
+        reply.absence === 'identity-mismatch'
+      )
+        return failure(reply.reason);
+      if (reply.status === 'unavailable' && local && !('absence' in reply))
+        warn(identity.job, reply.reason);
       if (
         reply.status !== 'ok' &&
         local?.degraded &&
         local.result?.identity.resultId === identity.resultId
       )
         return { status: 'ok', value: clone(local.result) };
-      return reply;
+      return reply.status === 'unavailable' ? failure(reply.reason) : reply;
     },
   };
   return {
@@ -397,30 +428,35 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
               const bytes = Buffer.from(chunk.bytes.subarray(offset, offset + 64 * 1024));
               const reply =
                 closed || (local.unavailableOutput && local.outputDegraded)
-                  ? failure<{ bytes: string; seen: number; head: number }>(
+                  ? failure<{ bytes: string; seen: number; head: number; digest: string }>(
                       closed
                         ? 'Storage closed.'
                         : 'Earlier output history is unknown; bounded capture is not recoverable on this instance.',
                     )
-                  : await invoke<{ bytes: string; seen: number; head: number }>('append', {
-                      job: reservation.job,
-                      reservation,
-                      bytes: bytes.toString('base64'),
-                      ...(local.outputDegraded
-                        ? {
-                            resumeWindow: {
-                              bytes: local.window.bytes.toString('base64'),
-                              seen: local.window.seen,
-                              head: local.window.head,
-                            },
-                          }
-                        : {}),
-                    });
+                  : await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
+                      'append',
+                      {
+                        job: reservation.job,
+                        reservation,
+                        bytes: bytes.toString('base64'),
+                        ...(local.outputDegraded
+                          ? {
+                              baselineDigest: local.durableDigest,
+                              resumeWindow: {
+                                bytes: local.window.bytes.toString('base64'),
+                                seen: local.window.seen,
+                                head: local.window.head,
+                              },
+                            }
+                          : {}),
+                      },
+                    );
               if (confirmedRemoved(reply)) {
                 forget(key(reservation.job));
                 return;
               }
               if (reply.status === 'ok') {
+                local.durableDigest = reply.value.digest;
                 local.outputDegraded = false;
                 delete local.unavailableOutput;
                 local.window = {
@@ -440,6 +476,8 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
                     omittedBytes,
                   });
               } else {
+                if ('conflict' in reply && reply.conflict === true)
+                  local.unavailableOutput = reply.reason;
                 local.outputDegraded = true;
                 local.window = appendWindow(local.window, bytes, local.outputLimit);
                 warn(reservation.job, reply.reason);
@@ -454,15 +492,19 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     async readOutput(job) {
       if (!validJob(job)) return invalid('Invalid job identity.');
       const local = memory.get(key(job));
-      const reply = await invoke<{ bytes: string; seen: number; head: number }>('output-read', {
-        job,
-      });
+      const reply = await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
+        'output-read',
+        {
+          job,
+        },
+      );
       if (confirmedRemoved(reply)) {
         forget(key(job));
         return failure(reply.reason);
       }
       if (reply.status === 'ok' && local?.unavailableOutput && !local.outputDegraded) {
         delete local.unavailableOutput;
+        local.durableDigest = reply.value.digest;
         local.window = {
           bytes: Buffer.from(reply.value.bytes, 'base64'),
           seen: reply.value.seen,
@@ -515,17 +557,17 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     async close() {
       if (cleanupComplete) return { status: 'ok', value: undefined };
       closed = true;
+      await Promise.allSettled(admissions);
       await Promise.allSettled([...memory.values()].map((local) => local.queue));
-      if (options.ephemeral)
-        for (const local of memory.values()) {
-          if (!local.createdHere) continue;
-          const reply = await invoke<null>('delete', {
-            job: local.reservation.job,
-            reservation: local.reservation,
-          });
-          if (reply.status !== 'ok') return reply;
-          local.createdHere = false;
-        }
+      for (const local of memory.values()) {
+        if (!local.createdHere || (!options.ephemeral && !local.cancelledAdmission)) continue;
+        const reply = await invoke<null>('delete', {
+          job: local.reservation.job,
+          reservation: local.reservation,
+        });
+        if (reply.status !== 'ok') return reply;
+        local.createdHere = false;
+      }
       memory.clear();
       cleanupComplete = true;
       return { status: 'ok', value: undefined };

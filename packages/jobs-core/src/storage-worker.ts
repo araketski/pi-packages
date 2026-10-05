@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, readdir, rename, rm, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -32,6 +32,7 @@ interface Request {
   resultId?: string;
   bytes?: string;
   resumeWindow?: { bytes: string; seen: number; head: number };
+  baselineDigest?: string;
   outputBytes?: number;
   now?: number;
 }
@@ -336,10 +337,10 @@ async function transaction(request: Request): Promise<unknown> {
         throw new Error('Corrupt result.');
       return result.identity.resultId === request.resultId
         ? ok(result)
-        : unavailable('Result identity unavailable.');
+        : { ...unavailable('Result identity unavailable.'), absence: 'identity-mismatch' };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT')
-        return unavailable('No saved final result.');
+        return { ...unavailable('No saved final result.'), absence: 'not-saved' };
       throw error;
     }
   }
@@ -349,14 +350,29 @@ async function transaction(request: Request): Promise<unknown> {
       if (job.outputSize > data.policy.outputBytes + 24) throw new Error('Corrupt output size.');
       window = decodeWindow(await readFile(join(path, 'output.bin')));
     }
+    const digest = (w: ByteWindow) => createHash('sha256').update(encodeWindow(w)).digest('hex');
+    const diskDigest = job.outputSize ? digest(window) : 'missing';
     if (request.operation === 'output-read')
-      return ok({ bytes: window.bytes.toString('base64'), seen: window.seen, head: window.head });
+      return ok({
+        bytes: window.bytes.toString('base64'),
+        seen: window.seen,
+        head: window.head,
+        digest: diskDigest,
+      });
     if (request.resumeWindow) {
       const restored = {
         bytes: Buffer.from(request.resumeWindow.bytes, 'base64'),
         seen: request.resumeWindow.seen,
         head: request.resumeWindow.head,
       };
+      if (
+        typeof request.baselineDigest !== 'string' ||
+        (diskDigest !== request.baselineDigest && diskDigest !== digest(restored))
+      )
+        return {
+          ...unavailable('Output history conflicts with the verified recovery baseline.'),
+          conflict: true,
+        };
       if (
         !Number.isSafeInteger(restored.seen) ||
         restored.seen < window.seen ||
@@ -383,7 +399,12 @@ async function transaction(request: Request): Promise<unknown> {
       return unavailable('Quota has no output header capacity.');
     window = appendWindow(window, chunk, allowance);
     await atomic(join(path, 'output.bin'), encodeWindow(window));
-    return ok({ bytes: window.bytes.toString('base64'), seen: window.seen, head: window.head });
+    return ok({
+      bytes: window.bytes.toString('base64'),
+      seen: window.seen,
+      head: window.head,
+      digest: digest(window),
+    });
   }
   return invalid('Unknown storage operation.');
 }
