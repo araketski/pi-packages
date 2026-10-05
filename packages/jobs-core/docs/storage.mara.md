@@ -210,4 +210,10 @@ Cache entries belong to their existing storage reservation nonce, not merely a r
 Serialize final-result fallback commits per admitted record; check immutability when each commit runs and again before installing after IO, so concurrent unavailability cannot replace an already known completion. Bounded queued snapshots are independent of caller mutations. Close waits the admitted records' result commits as well as output queues. This is a storage critical section, not a job scheduler.
 
 Verified final-result reads refresh the bounded completion cache for a held, matching reservation. Absence of the entire result file is persistence loss whenever that instance knows a saved completion, irrespective of the requested result ID; return unavailable for a different ID, never that cached completion. A present file containing a different ID remains an ordinary mismatch. These facts concern durability/recoverability, not delivery receipt or execution.
+
+Hydration's output-read reply is a lifecycle prerequisite: confirmed expiry/removal or an obsolete existing storage nonce invalidates only that captured entry and returns the refusal before retaining its observation. It is not persistence loss and does not poison subsequent admissions.
+
+Copy the reservation's known identity and capture the observation before the first await. A fitting serialized observation is the single immutable validated/persisted/cached snapshot. Oversized observations are not cloned or sent as unbounded helper payloads: validate record/nonce via a bounded read, then return capacity unavailability with a bounded unknown projection from the original scalar fields. Reusable caller objects cannot change either the accepted state or the cached budget after the call.
+
+Queued result commits use the copied snapshot's stable full identity for every cache check, helper call and diagnostic. Even oversized/refused inputs capture bounded identity fields rather than aliasing mutable caller objects. This is storage input isolation, not a native authority or generation mechanism.
 :::

@@ -313,27 +313,60 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
   };
   const jobs: JobStore = {
     reserve,
-    async save(reservation, observation) {
+    async save(reservationInput, observationInput) {
       if (closed) return failure('Storage instance closed.');
       if (
-        !validJob(reservation?.job) ||
-        !validObservation(observation) ||
-        !sameJob(reservation.job, observation.identity)
+        !validJob(reservationInput?.job) ||
+        !validObservation(observationInput) ||
+        !sameJob(reservationInput.job, observationInput.identity)
       )
         return invalid('Invalid reservation/observation.');
+      const { runtimeId, ownerId, sessionId, jobId, producerId } = reservationInput.job;
+      const job: JobIdentity = { runtimeId, ownerId, sessionId, jobId, producerId };
+      const reservation: StorageReservation = {
+        job,
+        reservationId: reservationInput.reservationId,
+      };
       let local = localFor(reservation);
+      const serialized = JSON.stringify(observationInput);
       const fits =
-        Buffer.byteLength(JSON.stringify(observation)) <=
-        (local?.policy.trackingBytes ?? policy.trackingBytes);
-      const reply = await invoke<StoragePolicy>('save', {
-        job: reservation.job,
-        reservation,
-        observation,
-      });
-      if (obsolete(reservation.job, local, reply))
+        Buffer.byteLength(serialized) <= (local?.policy.trackingBytes ?? policy.trackingBytes);
+      const observation: JobObservation | undefined = fits
+        ? (JSON.parse(serialized) as JobObservation)
+        : undefined;
+      if (observation && !validObservation(observation))
+        return invalid('Invalid observation snapshot.');
+      const unknown: JobObservation = {
+        identity: job,
+        execution: {
+          state: 'unknown',
+          reason: 'Oversized tracking state was not retained; persistence/recoverability reduced.',
+        },
+        delivery: { mode: observationInput.delivery.mode, state: 'unknown' },
+        awaiting: observationInput.awaiting,
+        lifetime: observationInput.lifetime,
+        capabilities: {
+          stop: false,
+          setAwaiting: false,
+          setDelivery: false,
+          readOutput: false,
+          readResult: false,
+        },
+      };
+      let reply: JobReply<StoragePolicy>;
+      if (observation)
+        reply = await invoke<StoragePolicy>('save', { job, reservation, observation });
+      else {
+        const checked = await invoke<JobObservation>('read', { job, reservation });
+        reply =
+          checked.status === 'ok'
+            ? failure('Tracking payload exceeds reserved capacity.')
+            : checked;
+      }
+      if (obsolete(job, local, reply))
         return invalid(reply.status === 'invalid' ? reply.reason : 'Obsolete reservation.');
       if (confirmedRemoved(reply)) {
-        forgetLocal(reservation.job, local);
+        forgetLocal(job, local);
         return failure(reply.reason);
       }
       if (reply.status !== 'ok' && reply.status !== 'unavailable') return reply;
@@ -341,7 +374,7 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
         local = {
           createdHere: false,
           cancelledAdmission: false,
-          reservation: clone(reservation),
+          reservation,
           policy: reply.value,
           queue: Promise.resolve(),
           resultQueue: Promise.resolve(),
@@ -350,14 +383,17 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           outputDegraded: false,
           degraded: false,
         };
-        memory.set(key(reservation.job), local);
+        memory.set(key(job), local);
         const output = await invoke<{ bytes: string; seen: number; head: number; digest: string }>(
           'output-read',
-          {
-            job: reservation.job,
-            reservation,
-          },
+          { job, reservation },
         );
+        if (obsolete(job, local, output))
+          return invalid(output.status === 'invalid' ? output.reason : 'Obsolete reservation.');
+        if (confirmedRemoved(output)) {
+          forgetLocal(job, local);
+          return failure(output.reason);
+        }
         if (output.status === 'ok') {
           local.durableDigest = output.value.digest;
           local.window = {
@@ -368,33 +404,12 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
           local.outputLimit = Math.max(local.outputLimit, local.window.bytes.length);
         } else {
           local.unavailableOutput = output.reason;
-          warn(reservation.job, output.reason);
+          warn(job, output.reason);
         }
       }
       if (!local) return reply.status === 'ok' ? { status: 'ok', value: undefined } : reply;
-      if (reply.status === 'ok' || fits) local.observation = clone(observation);
-      else {
-        const { runtimeId, ownerId, sessionId, jobId, producerId } = observation.identity;
-        local.observation = {
-          identity: { runtimeId, ownerId, sessionId, jobId, producerId },
-          execution: {
-            state: 'unknown',
-            reason:
-              'Oversized tracking state was not retained; persistence/recoverability reduced.',
-          },
-          delivery: { mode: observation.delivery.mode, state: 'unknown' },
-          awaiting: observation.awaiting,
-          lifetime: observation.lifetime,
-          capabilities: {
-            stop: false,
-            setAwaiting: false,
-            setDelivery: false,
-            readOutput: false,
-            readResult: false,
-          },
-        };
-      }
-      if (reply.status !== 'ok') warn(reservation.job, reply.reason);
+      if (memory.get(key(job)) === local) local.observation = observation ?? unknown;
+      if (reply.status === 'unavailable') warn(job, reply.reason);
       return reply.status === 'ok' ? { status: 'ok', value: undefined } : reply;
     },
     async read(job) {
@@ -419,10 +434,11 @@ export async function createJobStorage(options: StorageOptions): Promise<JobStor
     async save(result) {
       if (closed) return failure('Storage instance closed.');
       if (!validResult(result)) return invalid('Invalid final result.');
-      const job = result.identity.job,
-        local = memory.get(key(job));
+      const local = memory.get(key(result.identity.job));
       const fits = !local || Buffer.byteLength(JSON.stringify(result)) <= local.policy.resultBytes;
       const snapshot = fits && local ? clone(result) : result;
+      const { runtimeId, ownerId, sessionId, jobId, producerId } = snapshot.identity.job;
+      const job: JobIdentity = { runtimeId, ownerId, sessionId, jobId, producerId };
       const commit = async (): Promise<JobReply<void>> => {
         if (closed) return failure('Storage instance closed.');
         if (local && memory.get(key(job)) !== local)

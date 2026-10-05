@@ -64,6 +64,57 @@ it('finishes a committed partial deletion without treating it as live unresolved
   expect((await reopened.jobs.read(reservation.job)).status).toBe('unavailable');
   expect((await readdir(storage.root)).some((name) => name.startsWith('.deleted-'))).toBe(false);
 });
+it('review seven regression: normal expiry during hydration does not poison later admission', async () => {
+  const { storage, reservation, options } = await setup();
+  expect((await storage.setUserPolicy({ ...options.policy, retentionMs: 1 })).status).toBe('ok');
+  const reader = await createJobStorage({ ...options, policy: undefined });
+  const terminal = {
+    ...running,
+    execution: { state: 'terminal' as const, outcome: { kind: 'exit' as const, exitCode: 0 } },
+    delivery: { mode: 'display-only' as const, state: 'not-required' as const },
+  };
+  expect((await reader.jobs.save(reservation, terminal)).status).toBe('unavailable');
+  expect(reader.diagnostics()).toEqual([]);
+  expect(
+    (
+      await reader.jobs.reserve({
+        ...launch,
+        identity: { ...launch.identity, jobId: 'after-hydration-expiry' },
+      })
+    ).status,
+  ).toBe('ok');
+});
+it('review seven regression: observation mutation cannot bypass a bounded accepted snapshot', async () => {
+  const { storage, reservation, dir } = await setup();
+  const observed = { ...running, execution: { state: 'unknown' as const, reason: 'original' } };
+  const pending = storage.jobs.save(reservation, observed);
+  observed.execution.reason = 'X'.repeat(100000);
+  expect((await pending).status).toBe('ok');
+  expect(await storage.jobs.read(reservation.job)).toMatchObject({
+    status: 'ok',
+    value: { execution: { state: 'unknown', reason: 'original' } },
+  });
+  expect(
+    JSON.parse(await readFile(join(dir, 'record.json'), 'utf8')).observation.execution.reason,
+  ).toBe('original');
+  expect(storage.diagnostics()).toEqual([]);
+});
+it('review seven regression: queued result commits use the snapshotted nested identity', async () => {
+  const { storage, reservation } = await setup();
+  const result = {
+    identity: { job: { ...reservation.job }, resultId: 'saved' },
+    outcome: { kind: 'exit' as const, exitCode: 0 },
+    content: 'original',
+  };
+  const expected = structuredClone(result),
+    pending = storage.results.save(result);
+  result.identity.job.jobId = 'changed';
+  expect((await pending).status).toBe('ok');
+  expect(await storage.results.read(expected.identity)).toMatchObject({
+    status: 'ok',
+    value: expected,
+  });
+});
 async function retiredReservation(ephemeral = false) {
   const original = await setup(ephemeral);
   const { storage, reservation, options } = original;
