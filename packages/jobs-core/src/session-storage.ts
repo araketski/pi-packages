@@ -227,6 +227,39 @@ export function createJobsSessionCapability(options: {
     },
   });
 }
+
+function launchRequest(request: unknown, sessionId: string): request is LaunchRequest {
+  return !(
+    !record(request) ||
+    !keys(request as unknown as Record<string, unknown>, [
+      'identity',
+      'authority',
+      'awaiting',
+      'delivery',
+      'lifetime',
+      'hardTimeoutMs',
+    ]) ||
+    !identity(request.identity) ||
+    request.identity.sessionId !== sessionId ||
+    !record(request.authority) ||
+    !keys(request.authority as unknown as Record<string, unknown>, [
+      'runtimeId',
+      'ownerId',
+      'generation',
+    ]) ||
+    !id(request.authority.generation) ||
+    request.authority.runtimeId !== request.identity.runtimeId ||
+    request.authority.ownerId !== request.identity.ownerId ||
+    typeof request.awaiting !== 'boolean' ||
+    !mode(request.delivery) ||
+    (request.lifetime !== 'managed' && request.lifetime !== 'persistent') ||
+    (request.hardTimeoutMs !== undefined &&
+      (typeof request.hardTimeoutMs !== 'number' ||
+        !Number.isSafeInteger(request.hardTimeoutMs) ||
+        request.hardTimeoutMs < 0))
+  );
+}
+
 export interface StorageIntent {
   kind: 'stop-requested' | 'stop-unconfirmed';
   reason: string;
@@ -291,6 +324,7 @@ interface Owner {
   capture?: OutputCapture;
   captureRevision: number;
   persistedRevision: number;
+  admission?: Promise<JobReply<StorageReservation>>;
   writer?: Promise<void>;
   expiration?: Promise<boolean>;
   historicalRead?: Promise<CapturedOutput>;
@@ -577,38 +611,15 @@ export function createSessionJobStorage(options: {
         if (disposed) return fail('unavailable', 'Storage disposed.');
         let request: LaunchRequest;
         try {
+          if (!launchRequest(input, sessionId))
+            return fail('invalid', 'Invalid or unbounded launch request.');
           request = detached(input);
         } catch {
           return fail('invalid', 'Invalid launch input.');
         }
-        if (
-          !record(request) ||
-          !keys(request as unknown as Record<string, unknown>, [
-            'identity',
-            'authority',
-            'awaiting',
-            'delivery',
-            'lifetime',
-            'hardTimeoutMs',
-          ]) ||
-          !identity(request.identity) ||
-          request.identity.sessionId !== sessionId ||
-          !record(request.authority) ||
-          !keys(request.authority as unknown as Record<string, unknown>, [
-            'runtimeId',
-            'ownerId',
-            'generation',
-          ]) ||
-          !id(request.authority.generation) ||
-          request.authority.runtimeId !== request.identity.runtimeId ||
-          request.authority.ownerId !== request.identity.ownerId ||
-          typeof request.awaiting !== 'boolean' ||
-          !mode(request.delivery) ||
-          !['managed', 'persistent'].includes(request.lifetime) ||
-          (request.hardTimeoutMs !== undefined &&
-            (!Number.isSafeInteger(request.hardTimeoutMs) || request.hardTimeoutMs < 0))
-        )
+        if (!launchRequest(request, sessionId))
           return fail('invalid', 'Invalid originating launch request.');
+        if (disposed) return fail('unavailable', 'Storage disposed during input validation.');
         if (owners.has(key(request.identity)))
           return fail('denied', 'Job already admitted or historical; never replay execution.');
         if (session && !session.valid())
@@ -655,24 +666,31 @@ export function createSessionJobStorage(options: {
           metadataAccepted: false,
         };
         owners.set(key(request.identity), owner);
-        try {
-          if (!fits(m)) throw new Error('Admission entry exceeds compact bound.');
-          await io.write(m.outputReference, owner.capture!.image(m.outputReference));
-          if (disposed) throw new Error('Storage disposed during setup.');
-          const saved = appendMetadata(owner);
-          if (saved.status !== 'ok') throw new Error(saved.reason);
-          owner.ready = true;
-          return ok(detached(token));
-        } catch (error) {
-          owners.delete(key(request.identity));
-          let message = reason(error);
-          try {
-            await io.remove(m.outputReference);
-          } catch (cleanup) {
-            message += `; setup cleanup failed: ${reason(cleanup)}`;
-          }
-          return fail('unavailable', message);
-        }
+        // Track the whole admission, including failed-setup cleanup, before injected I/O.
+        const admission = Promise.resolve().then(
+          async (): Promise<JobReply<StorageReservation>> => {
+            try {
+              if (!fits(m)) throw new Error('Admission entry exceeds compact bound.');
+              await io.write(m.outputReference, owner.capture!.image(m.outputReference));
+              if (disposed) throw new Error('Storage disposed during setup.');
+              const saved = appendMetadata(owner);
+              if (saved.status !== 'ok') throw new Error(saved.reason);
+              owner.ready = true;
+              return ok(detached(token));
+            } catch (error) {
+              let message = reason(error);
+              try {
+                await io.remove(m.outputReference);
+              } catch (cleanup) {
+                message += `; setup cleanup failed: ${reason(cleanup)}`;
+              }
+              owners.delete(key(request.identity));
+              return fail('unavailable', message);
+            }
+          },
+        );
+        owner.admission = admission;
+        return admission;
       },
       async save(token, input) {
         if (disposed) return fail('unavailable', 'Storage disposed.');
@@ -938,6 +956,7 @@ export function createSessionJobStorage(options: {
     async dispose() {
       disposed = true;
       for (const owner of owners.values()) {
+        await owner.admission;
         await owner.writer;
         await owner.expiration;
         if (!persistent && !owner.historical) {

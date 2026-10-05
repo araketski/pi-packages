@@ -611,6 +611,66 @@ it('rejects stale/malformed/forked replay and preserves saved terminal and deliv
   expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
 });
 
+it('screens invalid admission payloads before evaluating/copying unknown getters', async () => {
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot: await root(),
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  let copied = 0;
+  const invalid = {
+    ...launch(),
+    get unexpected() {
+      copied++;
+      return new Uint8Array(1_000_000);
+    },
+  };
+  expect((await store.jobStore.reserve(invalid)).status).toBe('invalid');
+  expect(copied).toBe(0);
+});
+
+it('settles initial admission I/O before no-session disposal can return', async () => {
+  const outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let release!: () => void,
+    entered!: () => void,
+    done = false;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    maxBytes: 10,
+    prefixBytes: 3,
+    io: {
+      ...io,
+      write: async (...args) => {
+        entered();
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await io.write(...args);
+      },
+    },
+  });
+  const admitting = store.jobStore.reserve(launch());
+  await started;
+  const disposing = store.dispose().then(() => {
+    done = true;
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(done).toBe(false);
+  } finally {
+    release();
+    await disposing;
+    expect((await admitting).status).toBe('unavailable');
+  }
+  expect(await readdir(outputRoot)).toEqual([]);
+});
+
 it('accepts semantically identical final outcomes and retries regardless of key insertion order', async () => {
   const { store, token } = await setup();
   ok(await store.jobStore.save(token, terminal()));
