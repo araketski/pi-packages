@@ -82,8 +82,21 @@ it.each(['npm', 'pnpm'] as const)(
       run(
         manager,
         manager === 'npm'
-          ? ['install', '--ignore-scripts', '--no-audit', '--no-fund']
-          : ['install', '--ignore-scripts', '--no-frozen-lockfile'],
+          ? [
+              'install',
+              '--ignore-scripts',
+              '--no-audit',
+              '--no-fund',
+              '--cache',
+              join(process.env.PI_TEST_PACKAGE_CACHE ?? root, 'npm-cache'),
+            ]
+          : [
+              'install',
+              '--ignore-scripts',
+              '--no-frozen-lockfile',
+              '--store-dir',
+              join(process.env.PI_TEST_PACKAGE_CACHE ?? root, 'pnpm-store'),
+            ],
         consumer,
       );
       writeFileSync(
@@ -95,7 +108,7 @@ it.each(['npm', 'pnpm'] as const)(
         import { fileURLToPath } from 'node:url';
         import { JOBS_CONTRACT_VERSION, createJobsParticipant } from '${manifest.name}';
         import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
-        import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+        import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
         import metadata from '${manifest.name}/package.json' with { type: 'json' };
         const entry = realpathSync(fileURLToPath(import.meta.resolve('${manifest.name}')));
         const local = relative(realpathSync(process.cwd()), entry);
@@ -116,10 +129,15 @@ it.each(['npm', 'pnpm'] as const)(
         assert.equal(events.listenerCount(), 0);
         const metadataPath = fileURLToPath(import.meta.resolve('${manifest.name}/package.json'));
         const before = readFileSync(entry, 'utf8');
-        writeFileSync(metadataPath, JSON.stringify({...metadata, version:'0.4.11'}));
-        const afterVersionBump = await import(import.meta.resolve('${manifest.name}')+'?bump');
+        const metadataBefore = readFileSync(metadataPath, 'utf8');
+        // Never modify installed files: pnpm may hardlink them into its content store.
+        mkdirSync('./version-bump');
+        copyFileSync(entry, './version-bump/index.js');
+        writeFileSync('./version-bump/package.json', JSON.stringify({...metadata, version:'0.4.11'}));
+        const afterVersionBump = await import('./version-bump/index.js');
         assert.equal(afterVersionBump.JOBS_CONTRACT_VERSION, '0.1.0');
         assert.equal(readFileSync(entry, 'utf8'), before);
+        assert.equal(readFileSync(metadataPath, 'utf8'), metadataBefore);
         assert.equal(metadata.name, '${manifest.name}');
         assert.equal(metadata.version, '${manifest.version}');
         assert(!Object.hasOwn(metadata, 'pi'));

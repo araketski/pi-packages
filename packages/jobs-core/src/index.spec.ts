@@ -121,6 +121,79 @@ it('rejects malformed, foreign-owner and mismatched snapshots without replacing 
   observer.close();
 });
 
+it('preserves distinct execution outcomes and recorded-result assertions independently of delivery mode', () => {
+  const host = bus();
+  const owner = core.createJobsParticipant(host, identity);
+  const observer = core.createJobsParticipant(host, {
+    ...identity,
+    participantId: 'observer',
+    role: 'observer',
+  });
+  owner.start();
+  observer.start();
+  const receipt: core.FinalResultReceipt = {
+    result: { job: job.identity, resultId: 'result-A' },
+    record: { sessionId: 'session-A', entryId: 'record-A', kind: 'tool-result' },
+    contentDigest: 'sha256:fixture-final-content',
+  };
+  const terminal: core.JobObservation = {
+    ...job,
+    execution: { state: 'terminal', outcome: { kind: 'exit', exitCode: 1 } },
+  };
+  const values: core.JobObservation[] = [
+    { ...job, execution: { state: 'running' } },
+    terminal,
+    {
+      ...terminal,
+      execution: { state: 'terminal', outcome: { kind: 'terminated', signal: 'SIGTERM' } },
+    },
+    {
+      ...terminal,
+      execution: {
+        state: 'terminal',
+        outcome: { kind: 'launch-failed', reason: 'fixture launch failure' },
+      },
+    },
+    { ...terminal, delivery: { mode: 'next-natural-turn', state: 'pending' } },
+    { ...terminal, delivery: { mode: 'display-only', state: 'not-required' } },
+    { ...terminal, delivery: { mode: 'automatic', state: 'delivered', receipt } },
+  ];
+  for (const value of values) {
+    owner.publish('session-A', [value]);
+    expect(observer.view().snapshots[0]?.jobs).toEqual([value]);
+  }
+  const before = observer.view().snapshots;
+  for (const invalidReceipt of [
+    { ...receipt, record: { ...receipt.record, sessionId: 'other-session' } },
+    {
+      ...receipt,
+      result: { ...receipt.result, job: { ...job.identity, producerId: 'relabeled' } },
+    },
+    { ...receipt, record: { ...receipt.record, kind: 'nested-call' } },
+  ])
+    host.events.emit(core.JOBS_PARTICIPANT_CHANNEL, {
+      kind: 'snapshot',
+      participant: owner.metadata(),
+      sessionId: 'session-A',
+      jobs: [
+        {
+          ...terminal,
+          delivery: { mode: 'automatic', state: 'delivered', receipt: invalidReceipt },
+        },
+      ],
+    });
+  expect(observer.view().snapshots).toEqual(before);
+  // A serialized saved result preserves producer/result identity; this is not a functioning store.
+  const result: core.FinalResult = {
+    identity: receipt.result,
+    outcome: { kind: 'exit', exitCode: 1 },
+    content: 'fixture final result',
+  };
+  expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+  owner.close();
+  observer.close();
+});
+
 it('isolates runtimes, copies outbound/inbound values and closes subscriptions', () => {
   const host = bus();
   const owner = core.createJobsParticipant(host, identity);

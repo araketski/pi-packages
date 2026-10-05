@@ -42,7 +42,10 @@ artifact provenance and strict declaration resolution with the workspace-selecte
 TypeScript version installed in each consumer. A disposable package-version bump
 must leave the hardcoded contract marker and library bytes unchanged.
 It also inspects the actual archive members rather than trusting `files`.
-Disposable consumer directories are removed after each test.
+Consumer installs use explicitly isolated npm caches/pnpm stores. The version-bump
+probe copies compiled files and metadata into a disposable package; it never
+mutates installed files, which pnpm may hardlink into a content store. Consumer
+directories are removed after each test.
 
 Use disk-backed isolated temporary storage for these checks. Run formatting,
 Nx sync, frozen installation, and complete Mara validation after relocation.
