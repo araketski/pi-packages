@@ -2,10 +2,12 @@
 
 Compiled shared library for the jobs packages. Not a Pi extension.
 The root exports shared job, adapter, storage, result/receipt, control and delivery
-coordination types, plus minimal participant discovery and contract metadata.
-`./testing` exports explicit in-memory bus and unknown-job fixtures for contract
-tests. Jobs execution, storage, concrete delivery and gate integration are not
-implemented; the fixtures are not a runtime or native-workflow proof.
+coordination types, participant discovery, and generic lifecycle/control/wait policy.
+Lifecycle policy uses explicit settings, an injected clock, and adapter observation
+and stop ports; it does not launch processes or load configuration files.
+`./testing` exports explicit in-memory bus, unknown-job and fake-adapter fixtures.
+Native execution, storage, concrete delivery and gate integration are not
+implemented; fake-adapter tests are not real-process or native-workflow proof.
 
 - [Shared interface checkpoint](docs/interface.mara.md)
 - [Scaffold boundary and package checks](docs/scaffold.mara.md)

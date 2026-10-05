@@ -46,6 +46,9 @@ it.each(['npm', 'pnpm'] as const)(
         'package/dist/index.d.ts',
         'package/dist/index.d.ts.map',
         'package/dist/index.js',
+        'package/dist/lifecycle.d.ts',
+        'package/dist/lifecycle.d.ts.map',
+        'package/dist/lifecycle.js',
         'package/dist/testing.d.ts',
         'package/dist/testing.d.ts.map',
         'package/dist/testing.js',
@@ -106,17 +109,18 @@ it.each(['npm', 'pnpm'] as const)(
         import { realpathSync } from 'node:fs';
         import { relative, isAbsolute } from 'node:path';
         import { fileURLToPath } from 'node:url';
-        import { JOBS_CONTRACT_VERSION, createJobsParticipant } from '${manifest.name}';
-        import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
-        import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+        import { JOBS_CONTRACT_VERSION, createJobsParticipant, createJobLifecycle, createJobsLifecycleRouter, resolveJobsLifecycleSettings, waitForJobs } from '${manifest.name}';
+        import { createJobsTestBus, createUnknownJobFixture, createJobsTestAdapter } from '${manifest.name}/testing';
+        import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+        import { dirname } from 'node:path';
         import metadata from '${manifest.name}/package.json' with { type: 'json' };
         const entry = realpathSync(fileURLToPath(import.meta.resolve('${manifest.name}')));
         const local = relative(realpathSync(process.cwd()), entry);
         assert(!isAbsolute(local) && !local.startsWith('../'));
         assert(entry.endsWith('/dist/index.js'));
         assert.equal(JOBS_CONTRACT_VERSION, '0.1.0');
-        copyFileSync(entry, './separate-copy.mjs');
-        const copy = await import('./separate-copy.mjs');
+        cpSync(dirname(entry), './separate-copy', {recursive:true});
+        const copy = await import('./separate-copy/index.js');
         assert.notEqual(copy.createJobsParticipant, createJobsParticipant);
         const events = createJobsTestBus();
         const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
@@ -132,7 +136,7 @@ it.each(['npm', 'pnpm'] as const)(
         const metadataBefore = readFileSync(metadataPath, 'utf8');
         // Never modify installed files: pnpm may hardlink them into its content store.
         mkdirSync('./version-bump');
-        copyFileSync(entry, './version-bump/index.js');
+        cpSync(dirname(entry), './version-bump', {recursive:true});
         writeFileSync('./version-bump/package.json', JSON.stringify({...metadata, version:'0.4.11'}));
         const afterVersionBump = await import('./version-bump/index.js');
         assert.equal(afterVersionBump.JOBS_CONTRACT_VERSION, '0.1.0');
@@ -143,6 +147,45 @@ it.each(['npm', 'pnpm'] as const)(
         assert(!Object.hasOwn(metadata, 'pi'));
         assert.throws(() => import.meta.resolve('${manifest.name}/src/index.ts'),
           { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
+        // Exercise NEW policy exports from installed compiled bytes, with actual timers.
+        const timers = new Set();
+        const clock = {now:()=>performance.now(), schedule:(callback,ms)=>{
+          const timer = setTimeout(()=>{timers.delete(timer);callback();},ms);
+          timers.add(timer); return ()=>{clearTimeout(timer);timers.delete(timer);};
+        }};
+        assert.equal(resolveJobsLifecycleSettings().graceMs, 5000);
+        assert.equal(resolveJobsLifecycleSettings().hardTimeoutMs, undefined);
+        const fake = createJobsTestAdapter(clock);
+        const authority = {runtimeId:'R',ownerId:'O',generation:'installed'};
+        const lifecycle = createJobLifecycle({request:{identity:job.identity,authority,awaiting:true,lifetime:'managed',delivery:'automatic'},
+          handle:fake.handle,adapter:fake.adapter,clock,startedAtMs:clock.now(),settings:{graceMs:0},
+          authorize:request=>request.authority===authority});
+        const router = createJobsLifecycleRouter(id=>id.jobId===job.identity.jobId?lifecycle:undefined,{clock,pollIntervalMs:1});
+        assert.equal((await router.inspect({...job.identity,sessionId:'fork'})).status,'unknown');
+        const wait = await router.wait({requestId:'installed-wait',selection:{mode:'one',jobs:[job.identity]},timeoutMs:5});
+        assert.equal(wait.value.state,'timed-out');
+        assert.equal(fake.stopCalls.length,0);
+        assert.equal((await lifecycle.inspect(job.identity)).value.delivery.state,'pending');
+        const denied = await lifecycle.stop({requestId:'denied',job:job.identity,authority:{...authority}});
+        assert.equal(denied.status,'denied');
+        assert.equal((await lifecycle.setAwaiting({requestId:'opt-out',job:job.identity,authority,awaiting:false})).value.execution.state,'unknown');
+        const stopping = await lifecycle.stop({requestId:'installed-stop',job:job.identity,authority});
+        assert.equal(stopping.value.state,'requested');
+        const completion = await waitForJobs({requestId:'installed-completion',selection:{mode:'all',jobs:[job.identity]},timeoutMs:1000},
+          lifecycle.inspect,{clock,pollIntervalMs:1});
+        assert.equal(completion.value.state,'completed');
+        assert.equal(completion.value.jobs[0].reply.value.execution.outcome.kind,'terminated');
+        lifecycle.dispose();fake.dispose();assert.equal(timers.size,0);
+        // A hung observation must not defeat the compiled policy's hard-stop path.
+        const deadlineFake = createJobsTestAdapter(clock);
+        const deadline = createJobLifecycle({request:{identity:job.identity,authority,awaiting:true,lifetime:'managed',delivery:'automatic',hardTimeoutMs:1},
+          handle:deadlineFake.handle,adapter:{...deadlineFake.adapter,observe:()=>new Promise(()=>{})},clock,startedAtMs:clock.now(),
+          settings:{graceMs:0,pollIntervalMs:1},authorize:r=>r.authority===authority});
+        const forced = await waitForJobs({requestId:'deadline-proof',selection:{mode:'one',jobs:[job.identity]},timeoutMs:1000},
+          async()=>({status:'ok',value:{...job,execution:await deadlineFake.adapter.observe(deadlineFake.handle)}}),{clock,pollIntervalMs:1});
+        assert.equal(forced.value.state,'completed');
+        assert.equal(deadline.stopIntent().state,'requested');assert.equal(deadlineFake.stopCalls.length,1);
+        deadline.dispose();deadlineFake.dispose();assert.equal(timers.size,0);
         console.log('installed artifact:', local);
       `,
       );
@@ -152,8 +195,17 @@ it.each(['npm', 'pnpm'] as const)(
         `
         import { createJobsParticipant, type CompletionCoordinator, type ExecutionAdapter,
           type JobStore, type ResultSink, type FinalResultReceipt, type JobOwnerPort,
-          type JobsPiHost, type JobObservation } from '${manifest.name}';
-        import { createJobsTestBus, createUnknownJobFixture } from '${manifest.name}/testing';
+          type JobsPiHost, type JobObservation, createJobLifecycle, resolveJobsLifecycleSettings,
+          waitForJobs, type JobsClock, type JobsWaitResult, type JobLifecycle } from '${manifest.name}';
+        import { createJobsTestBus, createUnknownJobFixture, createJobsTestAdapter } from '${manifest.name}/testing';
+        const clock: JobsClock = {now:()=>0,schedule:()=>()=>undefined};
+        const fake = createJobsTestAdapter(clock);
+        const authority = {runtimeId:'R',ownerId:'O',generation:'G'};
+        const lifecycle: JobLifecycle = createJobLifecycle({request:{identity:{runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'unknown'},
+          authority,awaiting:true,lifetime:'managed',delivery:'automatic'},handle:fake.handle,adapter:fake.adapter,
+          authorize:r=>r.authority===authority,clock,startedAtMs:0,settings:resolveJobsLifecycleSettings()});
+        export const waited = waitForJobs({requestId:'W',selection:{mode:'one',jobs:[{runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'unknown'}]},timeoutMs:0},lifecycle.inspect,{clock});
+        export type Waited = JobsWaitResult;
         const events = createJobsTestBus();
         const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
         export const job: JobObservation = createUnknownJobFixture({runtimeId:'R', ownerId:'O', sessionId:'S', jobId:'J', producerId:'unknown'});
