@@ -359,6 +359,99 @@ describe('execution and owner control', () => {
 });
 
 describe('review race regressions', () => {
+  it('getter-backed execution cannot become a malformed stored observation', async () => {
+    class InheritedExecution {
+      get state() {
+        return 'terminal' as const;
+      }
+      get outcome() {
+        return { kind: 'exit' as const, exitCode: 7 };
+      }
+    }
+    const fake = createJobsTestAdapter(clock);
+    const lifecycle = core.createJobLifecycle({
+      request,
+      handle: fake.handle,
+      clock,
+      startedAtMs: 0,
+      authorize: () => true,
+      adapter: { ...fake.adapter, observe: async () => new InheritedExecution() },
+    });
+    expect(await lifecycle.inspect(identity)).toMatchObject({
+      value: { execution: { state: 'unknown' } },
+    });
+    lifecycle.dispose();
+  });
+  it('getter-backed selected observations are unknown, never malformed ok replies', async () => {
+    class InheritedObservation {
+      get identity() {
+        return identity;
+      }
+      get execution() {
+        return terminal;
+      }
+      get awaiting() {
+        return true;
+      }
+      get lifetime() {
+        return 'managed' as const;
+      }
+      get delivery() {
+        return { mode: 'automatic' as const, state: 'pending' as const };
+      }
+      get capabilities() {
+        return createUnknownJobFixture(identity).capabilities;
+      }
+    }
+    const wait = core.waitForJobs(
+      { requestId: 'W', selection: { mode: 'one', jobs: [identity] }, timeoutMs: 10 },
+      async () => ({ status: 'ok', value: new InheritedObservation() }),
+      { clock, pollIntervalMs: 5 },
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await wait).toMatchObject({
+      value: { state: 'timed-out', jobs: [{ reply: { status: 'unknown' } }] },
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('rejects identities that lose required fields when detached instead of creating incomplete job identities', async () => {
+    class InheritedIdentity {
+      get runtimeId() {
+        return 'R';
+      }
+      get ownerId() {
+        return 'O';
+      }
+      get sessionId() {
+        return 'S';
+      }
+      get jobId() {
+        return 'J';
+      }
+      get producerId() {
+        return 'opaque/external';
+      }
+    }
+    const inherited = new InheritedIdentity();
+    const fake = createJobsTestAdapter(clock);
+    expect(() =>
+      core.createJobLifecycle({
+        request: { ...request, identity: inherited },
+        handle: fake.handle,
+        adapter: fake.adapter,
+        clock,
+        startedAtMs: 0,
+        authorize: () => true,
+      }),
+    ).toThrow(/Invalid/);
+    expect(
+      await core.waitForJobs(
+        { requestId: 'W', selection: { mode: 'one', jobs: [inherited] }, timeoutMs: 0 },
+        async () => ({ status: 'unknown', reason: 'missing' }),
+        { clock },
+      ),
+    ).toMatchObject({ status: 'invalid' });
+  });
   it('reentrant inspection shares a published observation and cannot erase terminal evidence', async () => {
     const fake = createJobsTestAdapter(clock);
     let calls = 0;

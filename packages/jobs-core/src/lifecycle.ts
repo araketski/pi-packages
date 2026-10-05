@@ -261,6 +261,7 @@ export function createJobLifecycle<Handle>(options: {
     },
   );
   const job = copy(request.identity);
+  if (!validIdentity(job)) throw new Error('Invalid detached lifecycle identity.');
   // Preserve the owner-held reference for possession checks, but isolate backend data at action time.
   const launchAuthority = request.authority;
   let state: JobObservation = {
@@ -319,7 +320,7 @@ export function createJobLifecycle<Handle>(options: {
       .then(async () => {
         let next: ExecutionState;
         try {
-          const raw = await observe(handle);
+          const raw = copy(await observe(handle));
           next = execution(raw)
             ? copy(raw)
             : { state: 'unknown', reason: 'Malformed execution observation.' };
@@ -407,7 +408,9 @@ export function createJobLifecycle<Handle>(options: {
           reply: { status: 'unknown', reason: 'Stop admission is pending.' },
         };
         try {
-          const result = await requestStop(handle, copy(captured.authority), settings.graceMs);
+          const result = copy(
+            await requestStop(handle, copy(captured.authority), settings.graceMs),
+          );
           if (result.status === 'ok' && result.value?.requested === true)
             reply = { status: 'ok', value: { state: 'requested' } };
           else if (
@@ -503,7 +506,10 @@ export function createJobsLifecycleRouter(
   ): Promise<JobReply<T>> {
     if (!validIdentity(job)) return { status: 'invalid', reason: 'Invalid routing identity.' };
     try {
-      const owner = ownerFor(copy(job));
+      const detached = copy(job);
+      if (!validIdentity(detached))
+        return { status: 'invalid', reason: 'Invalid detached routing identity.' };
+      const owner = ownerFor(detached);
       return owner
         ? await action(owner)
         : { status: 'unknown', reason: 'Current owner could not be resolved.' };
@@ -557,6 +563,8 @@ export function waitForJobs(
       reason: 'Invalid wait selection/budget/poll interval.',
     });
   const jobs = copy([...selection.jobs]);
+  if (!jobs.every(validIdentity))
+    return Promise.resolve({ status: 'invalid', reason: 'Invalid detached selection identity.' });
   const waitMode = selection.mode;
   const signal = request.signal;
   const latest: SelectedJobStatus[] = jobs.map((identity) => ({
@@ -597,7 +605,7 @@ export function waitForJobs(
     };
     const sample = async (identity: JobIdentity, index: number): Promise<void> => {
       try {
-        const raw = await inspect(copy(identity));
+        const raw = copy(await inspect(copy(identity)));
         let reply: JobReply<JobObservation>;
         if (raw.status === 'ok' && observation(raw.value, identity)) reply = copy(raw);
         else if (
