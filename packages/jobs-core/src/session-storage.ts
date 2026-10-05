@@ -315,6 +315,43 @@ interface Metadata {
   result?: FinalResult;
   intent?: StorageIntent;
   eligibleAtMs?: number;
+  outputPending?: true;
+  outputUnavailable?: string;
+}
+interface OutputStatus {
+  formatVersion: 1;
+  contractVersion: string;
+  kind: 'output-status';
+  revision: number;
+  identity: JobIdentity;
+  outputReference: string;
+  outputState: 'ready' | 'unavailable';
+  reason?: string;
+}
+function outputStatus(value: unknown, sessionId: string): value is OutputStatus {
+  return (
+    record(value) &&
+    keys(value, [
+      'formatVersion',
+      'contractVersion',
+      'kind',
+      'revision',
+      'identity',
+      'outputReference',
+      'outputState',
+      'reason',
+    ]) &&
+    value.formatVersion === 1 &&
+    value.contractVersion === JOBS_CONTRACT_VERSION &&
+    value.kind === 'output-status' &&
+    Number.isSafeInteger(value.revision) &&
+    (value.revision as number) > 0 &&
+    identity(value.identity) &&
+    value.identity.sessionId === sessionId &&
+    validOutputReference(value.outputReference) &&
+    ((value.outputState === 'ready' && value.reason === undefined) ||
+      (value.outputState === 'unavailable' && text(value.reason) && value.reason.length <= 1024))
+  );
 }
 interface Owner {
   metadata: Metadata;
@@ -366,6 +403,8 @@ function metadata(value: unknown, sessionId: string): value is Metadata {
       'result',
       'intent',
       'eligibleAtMs',
+      'outputPending',
+      'outputUnavailable',
     ]) ||
     value.formatVersion !== 1 ||
     value.contractVersion !== JOBS_CONTRACT_VERSION ||
@@ -396,6 +435,14 @@ function metadata(value: unknown, sessionId: string): value is Metadata {
       !eligible(value as unknown as Metadata))
   )
     return false;
+  if (value.outputPending !== undefined && value.outputPending !== true) return false;
+  if (
+    value.outputUnavailable !== undefined &&
+    (!text(value.outputUnavailable) ||
+      value.outputUnavailable.length > 1024 ||
+      value.outputPending !== undefined)
+  )
+    return false;
   return !(
     value.observation.delivery.state === 'delivered' &&
     value.result !== undefined &&
@@ -406,9 +453,11 @@ function detached<T>(value: T): T {
   return structuredClone(value);
 }
 function diagnostics(owner: Owner): string[] {
-  return [owner.metadataError, owner.outputError, owner.counterError].filter(
-    (v): v is string => v !== undefined,
-  );
+  return [
+    owner.metadataError,
+    owner.outputError ?? owner.metadata.outputUnavailable,
+    owner.counterError,
+  ].filter((v): v is string => v !== undefined);
 }
 
 /** One in-process capture owner per admitted job; disk replies never become owner state. */
@@ -490,7 +539,11 @@ export function createSessionJobStorage(options: {
     };
   };
   const appendMetadata = (owner: Owner): JobReply<void> => {
-    const reply = session ? session.append(owner.metadata) : ok(undefined);
+    const reply = !fits(owner.metadata)
+      ? fail<void>('invalid', 'Compact entry exceeds 65,536 UTF-8 JSON bytes.')
+      : session
+        ? session.append(owner.metadata)
+        : ok(undefined);
     owner.metadataAccepted = reply.status === 'ok';
     owner.metadataError = reply.status === 'ok' ? undefined : reply.reason;
     return reply;
@@ -500,6 +553,43 @@ export function createSessionJobStorage(options: {
     return owner?.ready && !owner.historical && token.reservationId === owner.token?.reservationId
       ? owner
       : undefined;
+  };
+  const publishOutputStatus = (owner: Owner): void => {
+    if (!owner.ready || disposed) return;
+    const unavailable = owner.outputFailed ? owner.outputError : owner.counterError;
+    if (unavailable && owner.metadata.outputUnavailable === unavailable) return;
+    if (
+      !unavailable &&
+      (!owner.metadata.outputPending || owner.captureRevision !== owner.persistedRevision)
+    )
+      return;
+    const revision = owner.metadata.revision + 1;
+    if (!Number.isSafeInteger(revision)) {
+      owner.metadataError = 'Metadata revision exhausted.';
+      return;
+    }
+    const delta: OutputStatus = {
+      formatVersion: 1,
+      contractVersion: JOBS_CONTRACT_VERSION,
+      kind: 'output-status',
+      revision,
+      identity: owner.metadata.identity,
+      outputReference: owner.metadata.outputReference,
+      outputState: unavailable ? 'unavailable' : 'ready',
+      ...(unavailable ? { reason: unavailable } : {}),
+    };
+    if (!fits(delta)) {
+      owner.metadataError = 'Output status exceeds compact entry limit.';
+      return;
+    }
+    owner.metadata = { ...owner.metadata, revision };
+    delete owner.metadata.outputPending;
+    if (unavailable) owner.metadata.outputUnavailable = unavailable;
+    const reply = session ? session.append(delta) : ok(undefined);
+    if (reply.status !== 'ok') {
+      owner.metadataAccepted = false;
+      owner.metadataError = reply.reason;
+    }
   };
   const flush = (owner: Owner): Promise<void> => {
     if (owner.writer) return owner.writer;
@@ -521,6 +611,7 @@ export function createSessionJobStorage(options: {
           owner.outputError = `Output persistence lost: ${reason(error)}`.slice(0, 1024);
         }
       }
+      publishOutputStatus(owner);
     });
     owner.writer = writer;
     void writer.finally(() => {
@@ -559,6 +650,14 @@ export function createSessionJobStorage(options: {
     return expiration;
   };
   const commit = (owner: Owner, next: Metadata): JobReply<void> => {
+    const unavailable =
+      owner.metadata.outputUnavailable ??
+      (owner.outputFailed ? owner.outputError : owner.counterError);
+    if (unavailable) {
+      next.outputUnavailable = unavailable;
+      delete next.outputPending;
+    } else if (owner.captureRevision !== owner.persistedRevision) next.outputPending = true;
+    else delete next.outputPending;
     if (!eligible(next)) delete next.eligibleAtMs;
     else next.eligibleAtMs = owner.metadata.eligibleAtMs ?? time();
     if (!fits(next)) return fail('invalid', 'Compact entry exceeds 65,536 UTF-8 JSON bytes.');
@@ -584,6 +683,17 @@ export function createSessionJobStorage(options: {
             ? 'memory-only'
             : 'saved',
       };
+    if (owner.metadata.outputUnavailable || owner.metadata.outputPending)
+      return {
+        ...base,
+        availability: 'corrupt',
+        diagnostics: [
+          ...base.diagnostics,
+          ...(owner.metadata.outputPending
+            ? ['Output persistence was pending at the saved checkpoint.']
+            : []),
+        ],
+      };
     if (owner.historicalRead) return detached(await owner.historicalRead);
     const reading = Promise.resolve().then(async (): Promise<CapturedOutput> => {
       try {
@@ -592,6 +702,17 @@ export function createSessionJobStorage(options: {
           JOBS_OUTPUT_HEADER_BYTES + 2 * JOBS_OUTPUT_MAX_BYTES,
         );
         if (owner.expired) return { ...base, availability: 'expired' };
+        if (owner.metadata.outputUnavailable || owner.metadata.outputPending)
+          return {
+            reference: base.reference,
+            availability: 'corrupt',
+            diagnostics: [
+              ...diagnostics(owner),
+              ...(owner.metadata.outputPending
+                ? ['Output persistence was pending at the saved checkpoint.']
+                : []),
+            ],
+          };
         return { ...base, ...decodeOutputImage(base.reference, image), availability: 'saved' };
       } catch (error) {
         return {
@@ -758,6 +879,10 @@ export function createSessionJobStorage(options: {
           return fail('denied', 'No live admitted storage owner.');
         if (owner.metadata.result && !same(owner.metadata.result, value))
           return fail('invalid', 'Final result identity/content is immutable.');
+        if (owner.metadata.result && owner.metadataAccepted) {
+          await expire(owner);
+          return ok(undefined);
+        }
         if (
           owner.metadata.observation.execution.state === 'terminal' &&
           !same(owner.metadata.observation.execution.outcome, value.outcome)
@@ -800,6 +925,7 @@ export function createSessionJobStorage(options: {
             owner.captureRevision++;
           } catch (error) {
             owner.counterError = reason(error);
+            publishOutputStatus(owner);
             return Promise.resolve();
           }
           return flush(owner);
@@ -867,12 +993,14 @@ export function createSessionJobStorage(options: {
         return fail('invalid', 'Invalid stop intent.');
       }
       if (!intent(value)) return fail('invalid', 'Invalid stop intent.');
-      return commit(owner, {
+      const reply = commit(owner, {
         ...owner.metadata,
         kind: 'intent',
         revision: owner.metadata.revision + 1,
         intent: value,
       });
+      await expire(owner);
+      return reply;
     },
     async replay() {
       if (disposed || !session) return fail('unavailable', 'No valid public replay capability.');
@@ -889,6 +1017,22 @@ export function createSessionJobStorage(options: {
             entry.customType !== JOBS_SESSION_ENTRY_TYPE
           )
             continue;
+          if (outputStatus(entry.data, sessionId)) {
+            const delta = detached(entry.data);
+            const existing = owners.get(key(delta.identity));
+            if (
+              !existing?.historical ||
+              existing.metadata.outputReference !== delta.outputReference ||
+              existing.metadata.revision >= delta.revision
+            )
+              continue;
+            existing.metadata = { ...existing.metadata, revision: delta.revision };
+            if (delta.outputState === 'unavailable') {
+              existing.metadata.outputUnavailable = delta.reason;
+              delete existing.metadata.outputPending;
+            } else if (!existing.metadata.outputUnavailable) delete existing.metadata.outputPending;
+            continue;
+          }
           if (!metadata(entry.data, sessionId)) continue;
           const m = detached(entry.data);
           if (!metadata(m, sessionId)) continue;
@@ -909,6 +1053,8 @@ export function createSessionJobStorage(options: {
             )
               continue;
             if (previous.result && (!m.result || !same(previous.result, m.result))) continue;
+            if (previous.outputUnavailable && m.outputUnavailable !== previous.outputUnavailable)
+              continue;
             if (
               previous.observation.delivery.mode === m.observation.delivery.mode &&
               previous.observation.delivery.state === 'delivered' &&

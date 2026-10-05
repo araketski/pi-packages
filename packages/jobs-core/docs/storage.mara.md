@@ -190,8 +190,16 @@ separately. Callers supply summaries, not full logs in final content.
 Use customType araketski.pi-jobs/session-store.v1 and envelope
 {formatVersion:1,contractVersion,kind,revision,identity,outputReference,
 observation,result?,intent?,eligibleAtMs?}. Kinds are admitted, observation,
-intent and result; identical transitions do not append. Each event is a compact
-full metadata assertion, never an output chunk. One increasing safe-integer
+intent and result; identical transitions do not append. Lifecycle/result/intent events are compact full metadata assertions, never
+output chunks. Full assertions may include outputPending:true or a bounded
+outputUnavailable reason. A compact output-status delta
+{formatVersion,contractVersion,kind:output-status,revision,identity,
+outputReference,outputState:ready|unavailable,reason?} records a meaningful
+coverage/loss transition without repeating a potentially near-limit final result.
+It shares the same owner's increasing revision, never changes execution/results,
+and applies only to an already-known matching job/reference. Unavailable is
+absorbing for that execution; a ready delta only clears an earlier pending flag.
+Actual public all-entry order supplies the preceding admission assertion. One increasing safe-integer
 revision per live owner orders accepted events. The complete JobIdentity
 (runtime/owner/native-session/job/producer) plus the random outputReference
 identifies an execution; replay rejects origin mismatches, changed references,
@@ -236,7 +244,11 @@ and coalesced per-job historical I/O reads at most 2B+4096, plus at most
 2B shared decoded bytes/tags until that read settles. Each caller then receives
 its own detached at-most-2B buffers, never a mutable shared reply. Returned text is
 derived from retained bytes; JS UTF-16 text is at most 2B code units.
-Metadata is bounded by the 65,536-byte entry envelope, with a fixed schema
+Every appended metadata/status entry is bounded by 65,536 UTF-8 JSON bytes.
+The owner's composed metadata is bounded by 73,728 UTF-8 JSON bytes: a maximum
+full assertion plus one at-most-1,024-character JSON-escaped loss reason and
+fixed flag/revision overhead. A result already accepted is not rejected merely
+because its unchanged retry needs no new full assertion. The schema is fixed
 (no arbitrary extra fields), one observation/result/intent and bounded diagnostic
 slots (one latest metadata, one latest output and one counter-exhaustion error,
 each at most 1,024 characters). JS engine object/allocator overhead is not claimed as a portable
@@ -262,7 +274,16 @@ revision and never assign old capture, metadata or terminal state back to the
 owner. All append callers share the flush promise and do not retain input chunks.
 A write failure disables further disk writes, keeps the bounded owner ring,
 continues accepting/draining bytes and reports memory-only output/reduced
-resumability. Execution outcome is unchanged. Public metadata appends are
+resumability. Append a compact output-status loss delta while the origin remains
+valid; later lifecycle/result assertions carry that unavailable reason as well.
+Replay never describes the older artifact as complete/current after known loss:
+it reports unavailable coverage, with no invented byte counts. Live fallback
+still exposes its known bytes and exact loss. A metadata checkpoint taken while
+a replacement is pending records outputPending; historical reads remain
+unavailable until a later matching ready delta confirms current coverage. Normal
+successful chunks do not emit output-status history unless clearing a pending
+checkpoint. Loss-status deltas are bounded independently of saved result size;
+this is format bookkeeping, not completion-capacity reservation or a database. Execution outcome is unchanged. Public metadata appends are
 synchronous Pi operations, so there is no asynchronous append reply authority.
 
 Required initial artifact creation and admitted-entry acceptance both precede

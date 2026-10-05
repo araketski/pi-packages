@@ -611,6 +611,240 @@ it('rejects stale/malformed/forked replay and preserves saved terminal and deliv
   expect(ok(await historical.resultSink.read(result().identity))).toEqual(result());
 });
 
+it('replays known output write loss without describing an older artifact as complete', async () => {
+  const base = await root(),
+    manager = SessionManager.create(base, join(base, 'sessions')),
+    sessionId = manager.getSessionId(),
+    outputRoot = join(base, 'output');
+  const capability = (session: SessionManager) =>
+    core.createJobsSessionCapability({
+      sessionId,
+      persistent: true,
+      isCurrent: () => session.getSessionId() === sessionId,
+      appendEntry: (kind, data) => {
+        session.appendCustomEntry(kind, data);
+      },
+      readEntries: () => session.getEntries(),
+    });
+  const identity = job('J', sessionId),
+    store = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: capability(manager),
+      maxBytes: 10,
+      prefixBytes: 3,
+    });
+  const token = ok(await store.jobStore.reserve(launch(identity))),
+    sink = ok(store.output(token)),
+    ref = ok(await store.inspect(identity)).outputReference;
+  await sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  await mkdir(join(outputRoot, `${ref}.tmp`));
+  await sink.append({ stream: 'stdout', bytes: bytes('DEF') });
+  ok(await store.resultSink.save(result(identity)));
+  manager.appendMessage({ role: 'user', content: 'persist', timestamp: Date.now() });
+  const opened = SessionManager.open(manager.getSessionFile()!),
+    historical = core.createSessionJobStorage({
+      sessionId,
+      outputRoot,
+      session: capability(opened),
+    });
+  ok(await historical.replay());
+  const captured = ok(await historical.readCapturedOutput(identity));
+  expect(captured.availability).toBe('corrupt');
+  expect(captured.complete).not.toBe(true);
+  expect(captured.diagnostics.join(' ')).toContain('Output persistence lost');
+  expect((await historical.readOutput(identity)).status).toBe('unavailable');
+  expect(ok(await historical.resultSink.read(result(identity).identity))).toEqual(result(identity));
+  expect(ok(await store.readCapturedOutput(identity)).totalBytes).toBe(6);
+});
+
+it('keeps output-loss deltas compact even when the saved final summary nearly fills its entry', async () => {
+  const entries: unknown[] = [],
+    outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let writes = 0;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId: 'S',
+      persistent: true,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        entries.push({ type: 'custom', customType: kind, data });
+      },
+      readEntries: () => entries,
+    });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+    io: {
+      ...io,
+      write: async (...args) => {
+        if (++writes > 2) throw new Error('X'.repeat(1024));
+        await io.write(...args);
+      },
+    },
+  });
+  const token = ok(await store.jobStore.reserve(launch())),
+    sink = ok(store.output(token));
+  await sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  const final = { ...result(), content: 'S'.repeat(64000) };
+  ok(await store.resultSink.save(final));
+  await sink.append({ stream: 'stderr', bytes: bytes('DEF') });
+  const historical = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+  });
+  ok(await historical.replay());
+  expect(ok(await historical.resultSink.read(final.identity))).toEqual(final);
+  expect(ok(await historical.readCapturedOutput(job())).availability).toBe('corrupt');
+  expect(
+    entries.every(
+      (entry) =>
+        new TextEncoder().encode(JSON.stringify((entry as { data: unknown }).data)).length <= 65536,
+    ),
+  ).toBe(true);
+  ok(await store.resultSink.save(final));
+});
+
+it('does not return a delayed disk read as complete after newer replay accepts output-loss evidence', async () => {
+  const entries: unknown[] = [],
+    outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let release!: () => void, entered!: () => void;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId: 'S',
+      persistent: true,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        entries.push({ type: 'custom', customType: kind, data });
+      },
+      readEntries: () => entries,
+    });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+  });
+  const token = ok(await store.jobStore.reserve(launch())),
+    sink = ok(store.output(token)),
+    ref = ok(await store.inspect(job())).outputReference;
+  await sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const historical = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    io: {
+      ...io,
+      read: async (...args) => {
+        entered();
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return io.read(...args);
+      },
+    },
+  });
+  ok(await historical.replay());
+  const reading = historical.readCapturedOutput(job());
+  await started;
+  await mkdir(join(outputRoot, `${ref}.tmp`));
+  await sink.append({ stream: 'stderr', bytes: bytes('DEF') });
+  ok(await historical.replay());
+  release();
+  expect(ok(await reading).availability).toBe('corrupt');
+});
+
+it('replays pending output coverage honestly until a matching ready transition is saved', async () => {
+  const entries: unknown[] = [],
+    outputRoot = await root(),
+    io = core.createOutputArtifactIO(outputRoot);
+  let writes = 0,
+    release!: () => void,
+    entered!: () => void;
+  const capability = () =>
+    core.createJobsSessionCapability({
+      sessionId: 'S',
+      persistent: true,
+      isCurrent: () => true,
+      appendEntry: (kind, data) => {
+        entries.push({ type: 'custom', customType: kind, data });
+      },
+      readEntries: () => entries,
+    });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const store = core.createSessionJobStorage({
+    sessionId: 'S',
+    outputRoot,
+    session: capability(),
+    maxBytes: 10,
+    prefixBytes: 3,
+    io: {
+      ...io,
+      write: async (...args) => {
+        if (++writes === 3) {
+          entered();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        await io.write(...args);
+      },
+    },
+  });
+  const token = ok(await store.jobStore.reserve(launch())),
+    sink = ok(store.output(token));
+  await sink.append({ stream: 'stdout', bytes: bytes('abc') });
+  const updating = sink.append({ stream: 'stderr', bytes: bytes('DEF') });
+  await started;
+  try {
+    ok(await store.resultSink.save(result()));
+    const historical = core.createSessionJobStorage({
+      sessionId: 'S',
+      outputRoot,
+      session: capability(),
+    });
+    ok(await historical.replay());
+    expect(ok(await historical.readCapturedOutput(job())).availability).toBe('corrupt');
+    release();
+    await updating;
+    ok(await historical.replay());
+    const capture = ok(await historical.readCapturedOutput(job()));
+    expect(capture.totalBytes).toBe(6);
+    expect(capture.complete).toBe(true);
+  } finally {
+    release();
+    await updating;
+  }
+});
+
+it('expires eligible output on accepted intent activity without promoting unknown intent to a terminal outcome', async () => {
+  let now = 0;
+  const { store, token, outputRoot } = await setup({ now: () => now, retentionMs: 1 });
+  ok(await store.resultSink.save(result()));
+  ok(await store.jobStore.save(token, terminal()));
+  now = 10;
+  ok(
+    await store.recordIntent(token, {
+      kind: 'stop-unconfirmed',
+      reason: 'Late bounded cleanup status',
+    }),
+  );
+  expect(await readdir(outputRoot)).toEqual([]);
+  expect(ok(await store.resultSink.read(result().identity))).toEqual(result());
+});
+
 it('isolates each coalesced historical byte/tag/diagnostic reply from other callers', async () => {
   const entries: unknown[] = [],
     outputRoot = await root();
