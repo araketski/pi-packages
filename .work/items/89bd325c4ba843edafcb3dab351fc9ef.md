@@ -18,6 +18,7 @@ Connect actual Pi activity/messages and all tracked session gate views to inhibi
 
 ## Canonical contracts
 
+- ADR-WORKFLOW-MINIMAL-PROFILE
 - REQ-CAFFEINATE-AUTO-HOLD
 - REQ-CAFFEINATE-MANUAL-CONTROLS
 - REQ-WORKFLOW-PRODUCER-INDEPENDENCE

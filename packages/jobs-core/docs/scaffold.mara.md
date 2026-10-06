@@ -10,7 +10,9 @@ The user initially selected an empty public module rather than Nx's sample funct
 The subsequent [shared-interface checkpoint](./interface.mara.md) supplies public
 envelopes, minimal participant discovery and explicit test fixtures. Its separately
 selected hardcoded contract stamp is `0.1.0`; the manifest is not its source. Neither
-version indicates an actual release.
+version indicates an actual release. Subsequent [[DES-JOBS-GENERIC-LIFECYCLE]]
+and [[DES-JOBS-SESSION-STORE]] increments add generic lifecycle and minimal storage;
+the original scaffold is not the full current runtime boundary.
 
 [[DES-JOBS-PACKAGE-BOUNDARY]] and [[REQ-JOBS-RELEASE-COMPAT]] remain intended
 contracts. Jobs runtime remains outside this scaffold; the shared-interface checkpoint is
@@ -22,7 +24,8 @@ scaffold does not settle public APIs or Pi peer ranges.
 ## Publication selection
 
 Build before packing. The manifest's file allowlist selects only compiled
-`dist/index.js`, `dist/index.d.ts`, their declaration map, and the equivalent
+`dist/index.js`, `dist/index.d.ts`, their declaration map, the internal emitted
+`lifecycle`, `storage` and `storage-files` modules/declarations/maps, and equivalent
 `dist/testing.*` files for the explicitly selected `./testing` fixture subpath.
 The package manager also includes `package.json` and the consumer-facing README.
 Source, tests, test configuration, compiler state, and repository-only
@@ -53,6 +56,7 @@ Minimal participant tests cover reported observation and compatibility, includin
 missing/malformed/mismatched data and unknown state. Credential-free SDK/public
 Pi-event-bus and native CLI fixtures establish registration/disablement and nested
 content boundaries on Pi 0.99.1; they are not implemented jobs tools or a runtime
-receipt verifier. Full lifecycle/delivery/storage verification remains future work. These checks do not prove full jobs/Herdr/goal/caffeinate integration,
+receipt verifier. Concrete Pi lifecycle/delivery/gate composition remains future work; generic
+lifecycle and minimal-storage check receipts belong to their completed Work items. These checks do not prove full jobs/Herdr/goal/caffeinate integration,
 remote CI, other hosts or Node versions, public registry installation, future Pi
 support, nor publication.

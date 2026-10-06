@@ -114,7 +114,9 @@ In an isolated local Herdr session on Linux, create a managed command while an e
 :verifies: DES-HERDR-PUBLIC-JSON-ADAPTER
 :verifies: REQ-HERDR-LOCAL-SCOPE
 
-Use controlled JSON-socket fixtures for subscription acknowledgement, events arriving during snapshot bootstrap, pane movement, disconnects, unsupported methods, invalid responses, and ambiguous mutation replies. Require resnapshot reconciliation after reconnect and preserve unknown state rather than fabricating completion or assuming event replay. Drop a mutation response after applying it: no blind resubmission or automatic CLI/local fallback. Confirm explicit IDs and inherited endpoint selection cannot drift with UI focus. Then test the adapter against a supported real Herdr server in an isolated session; inspect that it uses public JSON RPC, not the private binary protocol. CLI help/schema reads alone are insufficient. Do not stop the live user server for tests. These verification definitions have not been executed.
+Against an isolated supported real local Herdr server, demonstrate public JSON RPC through inherited endpoint context and explicit IDs, subscription acknowledgement, bootstrap snapshot plus buffered events, a pane move and ordinary disconnect/reconnect resnapshot. Confirm UI focus does not retarget requests and unsupported capabilities fail visibly.
+
+Use controlled socket fixtures for an invalid reply and one applied mutation whose response is lost: preserve uncertainty without blind resubmission, CLI/local fallback or fabricated command completion. Do not use the private protocol or restart the user's server. Under [[ADR-WORKFLOW-MINIMAL-PROFILE]], exhaustive event/reconnect/mutation permutations, remote support and generic RPC/recovery infrastructure are deferred. CLI/schema reads alone are not working-adapter evidence. These checks have not run.
 :::
 
 :::mara requirement REQ-HERDR-RESOURCE-CONTROLS

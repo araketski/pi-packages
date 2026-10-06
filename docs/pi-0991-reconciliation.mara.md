@@ -26,6 +26,13 @@ configured whole-goal token/wall-time limits are separate and remain opt-in.
 Earlier budget choices, conditional API proposals, and probe findings below are
 historical context, not contradictory current requirements.
 
+[[ADR-WORKFLOW-MINIMAL-PROFILE]] now narrows future acceptance for the whole
+remaining workflow: normal supported native paths plus focused errors and safety
+checks, not exhaustive mode/producer/fault products or new calibration/recovery
+machinery. Goal uses one bounded supplied-context assessment, not a multi-batch
+artifact assembler. Historical host probes and synthetic data below remain
+unchanged and do not prove this revised plan works.
+
 ## Fast-mode compatibility observations
 
 The user explicitly requested usable fast mode after encountering the no-op

@@ -6,8 +6,10 @@ verification. The initial consumers are developed in this repository and release
 together. The [shared interface checkpoint](./interface.mara.md) now supplies public
 envelopes and minimal owner/observer discovery/contract metadata. The shared
 [lifecycle policy](./lifecycle.mara.md) now adds generic observation/control/waits;
-concrete Pi lifetime mapping, session-backed storage and delivery still need
-implementation. Revised contracts are not verification of those behaviors.
+minimal best-effort session storage is also implemented under
+[[DES-JOBS-SESSION-STORE]]. Concrete Pi lifetime/delivery/gate composition still
+needs implementation under [[ADR-WORKFLOW-MINIMAL-PROFILE]]. Accepted contracts
+are not verification of those remaining behaviors.
 
 ## Concrete consumers
 
@@ -80,9 +82,10 @@ in each owning plan: [pi-jobs execution](../../jobs/docs/execution.mara.md) and
 [goal continuation](../../../docs/planned/goal/jobs-integration.mara.md),
 [caffeinate sleep inhibition](../../../docs/planned/caffeinate/jobs-integration.mara.md), and
 [Herdr integration](../../herdr/docs/scope.mara.md). The [interface checkpoint](./interface.mara.md) defines the minimum envelopes,
-participant diagnostics and explicit coordination ports. Storage mechanisms,
-upgrade handling, consumer warning presentation and lifecycle/delivery race
-implementations still need their respective designs and tests.
+participant diagnostics and explicit coordination ports. Minimal storage is
+specified in [[DES-JOBS-SESSION-STORE]] and implemented; concrete host composition,
+consumer warning presentation and lifecycle/delivery integration still need their
+bounded designs and checks. No upgrade/recovery framework is implied.
 Persistent interactive agents remain executions rather than inferred delegated
 tasks; agent messaging and parent-child orchestration are not prerequisites.
 

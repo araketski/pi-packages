@@ -67,7 +67,9 @@ Provide /caffeinate status, start, stop, enable, disable, display, sleep, quiet 
 :kind: functional
 :contributes_to: GOAL-PI-WAKEFULNESS
 
-Default to display plus system-sleep inhibition, with explicit system-sleep-only mode. Verify the selected Linux backend rather than equating a live helper process with every requested desktop effect. Surface unsupported or degraded capabilities honestly. Bound failed candidate attempts and avoid a continuous respawn loop after unavailability; explicit rearming or changed conditions may retry. Preserve ownership-safe normal shutdown, including helpers that finish starting or stopping during shutdown, and best-effort cleanup after process loss. Do not stop unrelated inhibitors or application processes. Other-platform reference code or simulated process tests alone do not establish native support.
+Default to display plus system-sleep inhibition, with explicit system-sleep-only mode. Verify the selected Linux backend and report unsupported/degraded capabilities rather than equating a live helper with every requested desktop effect. Bound failed attempts; do not continuously respawn an unavailable backend. Explicit rearming or changed conditions may retry.
+
+Own the inhibitor helper and release it on ordinary stop, mode change and shutdown, including a helper still starting when shutdown begins. Never stop unrelated inhibitors or application processes. Follow [[ADR-WORKFLOW-MINIMAL-PROFILE]]: one selected working Linux backend, ordinary acquisition/release and a basic failure/shutdown safety check are enough for initial delivery. Crash/process-loss cleanup campaigns, automatic supervisor recovery and cross-platform/compositor matrices are deferred. Native backend release on process loss may be used where available without promising a recovery service. Reference adapters/fakes alone do not establish other-platform support.
 :::
 
 :::mara requirement REQ-CAFFEINATE-SETTINGS
@@ -100,9 +102,9 @@ Expose activity, queued-message, gate, manual-override, mode, and availability d
 :verifies: REQ-CAFFEINATE-MANUAL-CONTROLS
 :verifies: REQ-CAFFEINATE-PRESENTATION
 
-Use actual Pi lifecycle and generic gate producers without loading jobs-core. Test activity, queued messages, pending and unconfirmed gates, multiple reasons, inactive tracked sessions, switching/reload, and final owner clearance. Keep an A-session gate pending while B is current and idle; inhibition remains. Exercise temporary stop even with gates present, rearming only for new activity/acquisition or start, persistent disable, idle start without a false actively-awake claim, and mode/quiet/status controls. Unknown producers receive identical behavior. Verify footer/structured status, warnings, and no gate mutations or model turns. These checks have not run.
+Use actual Pi lifecycle with generic producers and a controlled inhibitor driver. Demonstrate activity/queued messages holding and release after settlement. Keep an A-session gate pending while B is current and idle, then clear the gate; an independent reason still holds. Verify one unknown-owner case remains diagnostic rather than confirmed empty. Goal/classifier activity, including manual review outside a turn, uses the same public activity/gate boundary, not a producer-specific branch; actual Goal composition belongs to the combined workflow check.
 
-Include actual goal classifier calls during assistant turns and manual review outside a turn, as well as an independent producer with equivalent public activity/gate state. Verify holding, release, timeout/cancellation/failure, manual overrides, and remaining unrelated reasons without classifier-specific consumer logic. Model benchmark calls alone do not establish inhibition behavior.
+Exercise status/start/stop/enable/disable/mode/quiet controls: stop overrides current reasons, new activity/acquisition or start rearms, repeated snapshots do not, and persistent disable survives reload. Idle start does not falsely claim inhibition. Check ordinary footer/structured status and no model turns/gate mutations. Under [[ADR-WORKFLOW-MINIMAL-PROFILE]], these representative paths replace a full activity × session × reason × failure matrix. These checks have not run.
 :::
 
 :::mara verification VER-CAFFEINATE-INHIBITORS
@@ -113,7 +115,9 @@ Include actual goal classifier calls during assistant turns and manual review ou
 :level: integration
 :verifies: REQ-CAFFEINATE-MODES-AND-LIFETIME
 
-First use fake helpers for failed candidates, unexpected exits, rearming, mode changes, shutdown during startup/stop, bounded retries, and unrelated-process preservation. Then use an isolated test harness with a supported real Linux backend to establish requested inhibition and release, including relevant process-loss cleanup. Do not infer display behavior on every compositor from command arguments or process liveness; record the verified backend and remaining limitations. Do not suspend the user machine or change desktop configuration as an automated test. These are future tests, not executed native verification.
+Use one selected supported real Linux backend in a scoped harness to demonstrate acquisition and release, recording actual sleep/display capabilities and limitations. Do not infer universal compositor support from helper liveness, suspend the user's machine or edit desktop configuration.
+
+Use focused fake helpers for ordinary backend failure with bounded attempts, manual rearming, mode change and shutdown during startup. Verify cleanup targets only the owned helper, not an unrelated process. Under [[ADR-WORKFLOW-MINIMAL-PROFILE]], process-loss recovery campaigns, every candidate/compositor/platform and exhaustive startup/stop races are deferred. These are future checks, not executed inhibition evidence.
 :::
 
 :::mara verification VER-CAFFEINATE-FRESH-SETTINGS
@@ -124,5 +128,7 @@ First use fake helpers for failed candidates, unexpected exits, rearming, mode c
 :level: integration
 :verifies: REQ-CAFFEINATE-SETTINGS
 
-Seed the legacy settings file with nondefault valid preferences and separately malformed data: neither may be loaded, rewritten, or deleted. With no new-format settings, require the agreed fresh defaults. Exercise valid new preferences, unknown fields, ordered concurrent updates, atomic-save failures, and protection of unreadable/malformed new files. Verify no project-local preference is loaded and no successful-save claim occurs on failure. These checks have not run.
+In isolated settings fixtures, show absent new settings using the agreed defaults, one valid preference update round-tripping atomically, and preservation of an unknown valid field. Seed legacy settings and verify they remain untouched/unused. A malformed/unreadable new file stays write-protected; one ordinary failed save gives an honest diagnostic without claiming persistence. No project override is loaded.
+
+Follow [[ADR-WORKFLOW-MINIMAL-PROFILE]]: ordinary serialized command updates are enough; concurrent-writer, partial-write recovery and exhaustive filesystem-failure campaigns are deferred. These are future checks, not passing evidence.
 :::

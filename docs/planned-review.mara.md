@@ -84,3 +84,36 @@ startup mode/input coverage, recorded final-result receipts, real Herdr executio
 Linux inhibition, bounded classifier context and model quality still require
 implementation-time verification. Successful structural validation is not a
 substitute for these positive paths or evidence that a strict policy works.
+
+## Subsequent whole-plan minimal-profile audit
+
+[[ADR-WORKFLOW-MINIMAL-PROFILE]] applies the user's normal-workflow-first choice
+to the remaining six-package plan, not only storage. This supersedes expansive
+future acceptance campaigns, not the historical observations or explicit
+feature/safety choices above.
+
+The audit covered all remaining `docs/planned/` knowledge, jobs-core/jobs/Herdr
+contracts and scaffold boundaries, linked generic gates, this review, and Pi
+capability reconciliation, together with all open workflow Work acceptance.
+Synthetic classifier records and already-observed implementation/review evidence
+remain historical data, not new conformance.
+
+| Area               | Minimal-profile conclusion                                                                                                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Jobs-core delivery | Normal overlapping jobs, a shared pending wake, selected retrieval and confirmed receipts; no exhaustive five-job interleaving/recovery campaign.                                                                                                                             |
+| Local jobs         | Keep the implemented executor, regression tests and ownership safeguards. Remaining work composes the real normal workflow, not another runner or recovery service.                                                                                                           |
+| Herdr              | Keep the thin current-local public JSON adapter and explicit resource IDs. Demonstrate normal bootstrap/reconnect and an ambiguous mutation without adding generic RPC hardening.                                                                                             |
+| Goal               | One bounded native assessment with supplied evidence and simple revision-bound latest review. Defer multi-batch assembly, artifact crawling and new calibration/provider fault campaigns. Preserve evidenced completion, applicable refusals, pause/resume and generic gates. |
+| Caffeinate         | One verified Linux backend, ordinary holds/overrides, serialized protected settings and owned shutdown. Defer process-loss recovery and compositor/platform/failure matrices.                                                                                                 |
+| Gates              | Keep bounded inspection, notice suppression and explicit scoped recovery; no producer-specific control or automated orphan-clear/recovery system. Existing protocol evidence is not rewritten.                                                                                |
+| Shared Pi seams    | A normal positive path for each supported claim plus focused basic-error/safety checks, not a Cartesian product of modes, tools, producers and faults. Omit unsupported host capabilities honestly.                                                                           |
+
+Affected runtime/verification Work bodies reference the new decision and remove
+obsolete full-batch, five-job-campaign and calibration obligations. Scaffold-only
+items remain scaffold-only; no item is launched, closed or assigned by this audit.
+The previously accepted scoped gate-abandonment feature lacked an implementation
+item. Work `3c5a723cd36448839c9755350798d22b` now records that unscheduled outcome;
+normal responsive-owner work can proceed first, without waiving eventual recovery
+feature acceptance or adding an automatic orphan/recovery service.
+No runtime, dependency, package-version or jobs-contract-marker change is implied.
+The owning scope still requires actual combined acceptance before delivery.
