@@ -1,0 +1,25 @@
+{
+  "name": "@araketski/pi-caffeinate",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "extensions/caffeinate",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:pi-host"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/caffeinate/index.ts"
+    ]
+  }
+}

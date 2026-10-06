@@ -1,0 +1,17 @@
+{
+  "name": "@araketski/pi-caffeinate",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/caffeinate/extensions",
+  "targets": {
+    "test": {
+      "cache": false
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "packages/caffeinate",
+        "command": "tsc --noEmit --project tsconfig.json"
+      }
+    }
+  }
+}

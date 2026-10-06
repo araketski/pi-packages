@@ -1,7 +1,7 @@
-# Planned caffeinate integration with jobs
+# Caffeinate integration with jobs
 
-Caffeinate and [goal](../../../packages/goal/docs/jobs-integration.mara.md) consume the same generic
-[gates protocol](../../../packages/gates-protocol/docs/contract.mara.md). Job owners
+Caffeinate and [goal](../../goal/docs/jobs-integration.mara.md) consume the same generic
+[gates protocol](../../gates-protocol/docs/contract.mara.md). Job owners
 decide what remains gated; neither consumer needs the jobs API or job-phase filters.
 The [caffeinate contract](./contract.mara.md) defines automatic holding across tracked
 sessions and the user's explicit temporary/persistent overrides.
@@ -13,7 +13,7 @@ normal behavior; gate clearance does not override other awake reasons. Unconfirm
 gate state remains conservative rather than being treated as confirmed empty.
 
 This defines intended behavior, not a migrated caffeinate extension or verified
-integration. Keep it under `docs/planned/caffeinate/` until that package is scaffolded.
+integration. The package is scaffolded only; see [the scaffold boundary](./scaffold.mara.md).
 
 ## Agreed knowledge
 
