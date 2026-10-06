@@ -9,7 +9,8 @@ Use the [shared jobs lifecycle](../../../packages/jobs-core/docs/lifecycle.mara.
 [gates contract](../../../packages/gates-protocol/docs/contract.mara.md).
 
 This defines intended behavior, not a migrated goal extension or verified
-integration. The Goal package currently contains only no-op resource scaffolds.
+integration. The Goal package currently implements only its internal state/ledger
+seam and state lifecycle observers, not a jobs/gates consumer.
 
 ## Agreed knowledge
 

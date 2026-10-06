@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
 
-it('loads package-sourced no-op extension and TODO skill through Pi 0.99.1', () => {
+it('loads package-sourced state observers and round-trips the ledger through Pi 0.99.1', () => {
   const home = mkdtempSync(join(tmpdir(), 'goal-source-home-'));
   try {
     const result = spawnSync(
@@ -25,7 +25,12 @@ it('loads package-sourced no-op extension and TODO skill through Pi 0.99.1', () 
       },
     );
     expect(result.status, result.stdout + result.stderr || String(result.error)).toBe(0);
-    expect(JSON.parse(result.stdout.trim()).piVersion).toBe('0.99.1');
+    const receipt = JSON.parse(result.stdout.trim());
+    expect(receipt.piVersion).toBe('0.99.1');
+    expect(
+      receipt.stateObservations.map((observation: { mode: string }) => observation.mode),
+    ).toEqual(['persistent', 'memory']);
+    console.log(result.stdout.trim());
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

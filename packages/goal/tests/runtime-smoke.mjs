@@ -1,9 +1,10 @@
-// Shared source/installed scaffold check. No model inference or live user state.
+// Shared source/installed resource and state checks. No model inference or live user state.
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { exerciseState } from './state-native.mjs';
 
 const [sdkPath, resourcePath] = process.argv.slice(2);
 const packageRoot = await realpath(resourcePath);
@@ -33,14 +34,11 @@ try {
     );
     assert.equal(extension.sourceInfo.origin, 'package');
     assert.equal(await realpath(extension.sourceInfo.baseDir), packageRoot);
-    for (const field of [
-      'handlers',
-      'tools',
-      'commands',
-      'flags',
-      'shortcuts',
-      'messageRenderers',
-    ]) {
+    assert.deepEqual(
+      [...extension.handlers.keys()],
+      ['session_start', 'session_tree', 'session_compact', 'session_shutdown'],
+    );
+    for (const field of ['tools', 'commands', 'flags', 'shortcuts', 'messageRenderers']) {
       assert.equal(extension[field].size, 0, `${field} must remain empty`);
     }
     assert.equal(extension.markdownTransformer, undefined);
@@ -103,6 +101,8 @@ try {
   } finally {
     session.dispose();
   }
+  const stateObservations = await exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime);
+  assert.equal(networkCalls, 0);
   console.log(
     JSON.stringify({
       sdkPath: await realpath(sdkPath),
@@ -110,9 +110,11 @@ try {
       piVersion: JSON.parse(await readFile(join(sdkPath, '../../package.json'), 'utf8')).version,
       extension: 'goal',
       skill: 'goal-writer',
-      registrations: 0,
+      controlRegistrations: 0,
+      lifecycleHandlers: 4,
       networkCalls,
-      sessionEntriesUnchanged: true,
+      legacyOnlySessionEntriesUnchanged: true,
+      stateObservations,
     }),
   );
 } finally {
