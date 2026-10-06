@@ -200,6 +200,27 @@ it('tracks stable terminal identity through move events and reconnect/resnapshot
   await eventually(() => f.adapter.view().panes.length === 0);
 });
 
+it.each(['workspace.closed', 'tab.closed'])(
+  'removes contained panes after %s without a pane-closed event',
+  async (type) => {
+    const f = await fixture();
+    const otherTab = { ...original, pane_id: 'w1:p2', terminal_id: 'other_tab', tab_id: 'w1:t2' };
+    const otherWorkspace = { ...moved, terminal_id: 'other_workspace' };
+    f.setPanes([original, otherTab, otherWorkspace]);
+    await f.adapter.connect();
+    f.event(type, {
+      type: type.replaceAll('.', '_'),
+      workspace_id: original.workspace_id,
+      ...(type === 'tab.closed' ? { tab_id: original.tab_id } : {}),
+    });
+    const expected = type === 'workspace.closed' ? [otherWorkspace] : [otherTab, otherWorkspace];
+    await eventually(() => f.adapter.view().panes.length === expected.length);
+    expect(f.adapter.view()).toMatchObject({ state: 'ready', panes: expected });
+    const subscription = f.requests.find((request) => request.method === 'events.subscribe');
+    expect(subscription.params.subscriptions).toContainEqual({ type });
+  },
+);
+
 it('surfaces unsupported methods as normal structured server errors', async () => {
   const f = await fixture((request, socket) => {
     if (request.method !== 'pane.rename') return false;

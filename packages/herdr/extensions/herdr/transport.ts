@@ -117,17 +117,27 @@ const eventNames = [
   'pane.moved',
   'pane.closed',
   'pane.exited',
+  'workspace.closed',
+  'tab.closed',
 ] as const;
-type PaneEvent = { event: (typeof eventNames)[number]; data: Record<string, unknown> };
-function event(value: unknown): PaneEvent {
+type LifecycleEvent = { event: (typeof eventNames)[number]; data: Record<string, unknown> };
+function event(value: unknown): LifecycleEvent {
   const e = record(value),
     data = record(e.data);
   const name = eventNames.find((name) => name.replaceAll('.', '_') === e.event);
   if (!name || data.type !== e.event)
     throw invalid(`Invalid pane event: ${String(e.event)} / ${String(data.type)}`);
   if (['pane.created', 'pane.updated', 'pane.moved'].includes(name)) pane(data.pane);
-  else if (!nonempty(data.pane_id) || !nonempty(data.workspace_id))
-    throw invalid(`Invalid pane event IDs: ${JSON.stringify(data)}`);
+  else {
+    const keys =
+      name === 'workspace.closed'
+        ? ['workspace_id']
+        : name === 'tab.closed'
+          ? ['workspace_id', 'tab_id']
+          : ['pane_id', 'workspace_id'];
+    if (!keys.every((key) => nonempty(data[key])))
+      throw invalid(`Invalid lifecycle event IDs: ${JSON.stringify(data)}`);
+  }
   if (
     name === 'pane.moved' &&
     !['previous_pane_id', 'previous_workspace_id', 'previous_tab_id'].every((key) =>
@@ -262,7 +272,7 @@ export class HerdrTransport {
   private error?: HerdrError;
   private version?: string;
   private protocol?: number;
-  private buffered: PaneEvent[] = [];
+  private buffered: LifecycleEvent[] = [];
   private generation = 0;
   private eventRevision = 0;
   constructor(context: LocalContext, options: TransportOptions = {}) {
@@ -322,11 +332,18 @@ export class HerdrTransport {
     if (this.state === 'ready' && before.generation === this.generation && unchanged)
       this.panes.set(p.terminal_id, p);
   }
-  private apply(e: PaneEvent) {
+  private apply(e: LifecycleEvent) {
     ++this.eventRevision;
     if (e.event === 'pane.created' || e.event === 'pane.updated' || e.event === 'pane.moved') {
       const p = pane(e.data.pane);
       this.panes.set(p.terminal_id, p);
+    } else if (e.event === 'workspace.closed' || e.event === 'tab.closed') {
+      for (const [terminal, p] of this.panes)
+        if (
+          p.workspace_id === e.data.workspace_id &&
+          (e.event === 'workspace.closed' || p.tab_id === e.data.tab_id)
+        )
+          this.panes.delete(terminal);
     } else {
       for (const [terminal, p] of this.panes)
         if (p.pane_id === e.data.pane_id) {

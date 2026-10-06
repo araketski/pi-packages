@@ -166,6 +166,48 @@ it.skipIf(process.env.PI_HERDR_REAL_TEST !== '1')(
       await adapter.reconnect();
       const finalPane = adapter.view().panes.find((p) => p.terminal_id === current.terminal_id);
       expect(finalPane).toMatchObject({ pane_id: move.pane.pane_id, label: 'while-disconnected' });
+      // Container closures do not emit pane.closed in supported Herdr 0.9.1.
+      // Exercise the normal external workspace/tab lifecycle, not new adapter controls.
+      const victim = cli(['workspace', 'create', '--cwd', bulk, '--no-focus']).result;
+      const victimTab = cli([
+        'tab',
+        'create',
+        '--workspace',
+        b.workspace.workspace_id,
+        '--cwd',
+        bulk,
+        '--no-focus',
+      ]).result;
+      await adapter.getPane(victim.root_pane.pane_id);
+      await adapter.getPane(victimTab.root_pane.pane_id);
+      expect(adapter.view().panes.some((p) => p.pane_id === victim.root_pane.pane_id)).toBe(true);
+      expect(adapter.view().panes.some((p) => p.pane_id === victimTab.root_pane.pane_id)).toBe(
+        true,
+      );
+      cli(['workspace', 'close', victim.workspace.workspace_id]);
+      cli(['tab', 'close', victimTab.tab.tab_id]);
+      for (
+        let i = 0;
+        i < 100 &&
+        adapter
+          .view()
+          .panes.some(
+            (p) =>
+              p.workspace_id === victim.workspace.workspace_id || p.tab_id === victimTab.tab.tab_id,
+          );
+        i++
+      )
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(adapter.view().state).toBe('ready');
+      expect(
+        adapter
+          .view()
+          .panes.some(
+            (p) =>
+              p.workspace_id === victim.workspace.workspace_id || p.tab_id === victimTab.tab.tab_id,
+          ),
+      ).toBe(false);
+      expect(adapter.view().panes.some((p) => p.terminal_id === current.terminal_id)).toBe(true);
       const finalSnapshot = cli(['api', 'snapshot']);
       expect(finalSnapshot.result.snapshot.focused_workspace_id).toBe(b.workspace.workspace_id);
       const receipt = {
