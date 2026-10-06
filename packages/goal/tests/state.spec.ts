@@ -1,4 +1,7 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, rmdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GoalState, STATE_ENTRY, type GoalSnapshot } from '../extensions/goal/state.ts';
 
@@ -323,6 +326,55 @@ describe('ordinary replay and audit safety', () => {
     ).toBe(false);
     state.restore(session, 'tree');
     expect(state.inspect().goal?.ledger).toEqual([]);
+  });
+
+  it('quarantines the real Pi branch left by a failed disk append until safe reopen', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'goal-write-failure-'));
+    try {
+      const session = SessionManager.create(dir, join(dir, 'sessions'));
+      session.appendMessage({
+        role: 'user',
+        content: 'Create a real persistent fixture',
+        timestamp: 1,
+      });
+      const state = new GoalState((data) => session.appendCustomEntry(STATE_ENTRY, data));
+      state.restore(session, 'new');
+      evidenced(state);
+      state.recordReview(state.beginReview('evidence', 'input', 'config'), {
+        outcome: 'insufficient',
+        diagnostic: 'Applicable refusal',
+      });
+      const safe = state.inspect();
+      const file = session.getSessionFile()!;
+      const bytes = readFileSync(file);
+      renameSync(file, file + '.saved');
+      mkdirSync(file); // EISDIR at the real Pi disk-append boundary.
+      expect(() =>
+        state.addEvidence(binding(state), 'r1', {
+          id: 'rejected',
+          reference: 'ref',
+          claim: 'Rejected claim',
+        }),
+      ).toThrow();
+      rmdirSync(file);
+      renameSync(file + '.saved', file);
+      expect(readFileSync(file)).toEqual(bytes);
+      state.restore(session, 'tree');
+      expect(state.inspect().goal).toBeNull();
+      expect(state.diagnostic).toMatch(/failed append/);
+      expect(() => state.create('Bypass failed append')).toThrow(/session/);
+      const reloaded = new GoalState((data) => session.appendCustomEntry(STATE_ENTRY, data));
+      reloaded.restore(session, 'reload');
+      expect(reloaded.inspect().goal).toBeNull();
+      const reopened = SessionManager.open(file, join(dir, 'sessions'));
+      const recovered = new GoalState((data) => reopened.appendCustomEntry(STATE_ENTRY, data));
+      recovered.restore(reopened, 'resume');
+      expect(recovered.inspect()).toEqual(safe);
+      expect(recovered.hasApplicableRefusal()).toBe(true);
+      expect(() => recovered.recordTerminal(binding(recovered), 'complete')).toThrow(/review/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('does not publish a successful mutation when Pi append fails', () => {

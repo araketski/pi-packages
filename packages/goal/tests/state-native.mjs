@@ -2,7 +2,7 @@
 // Test-only companion observes state; the public runtime owns session replacement.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile, realpath } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rename, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export async function exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime) {
@@ -135,6 +135,30 @@ export async function exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime
       });
       state.updateSettings(bind(), { classifiersEnabled: false });
       const beforeReload = state.inspect();
+      if (mode === 'persistent') {
+        const diskBefore = await readFile(originalFile);
+        await rename(originalFile, originalFile + '.saved');
+        await mkdir(originalFile);
+        assert.throws(() =>
+          state.addEvidence(bind(), 'consumer', {
+            id: 'rejected',
+            reference: 'ref',
+            claim: 'Rejected by disk append',
+          }),
+        );
+        await rmdir(originalFile);
+        await rename(originalFile + '.saved', originalFile);
+        assert.deepEqual(await readFile(originalFile), diskBefore);
+        await session.reload();
+        assert.equal(state.inspect().goal, null);
+        assert.match(state.diagnostic, /failed append/);
+        assert.throws(() => state.create('Bypass failed append'), /session/);
+        assert.equal((await host.switchSession(originalFile)).cancelled, false);
+        session = host.session;
+        assert.deepEqual(state.inspect(), beforeReload);
+        assert.equal(state.hasApplicableRefusal(), true);
+        assert.throws(() => state.recordTerminal(bind(), 'complete'), /review/);
+      }
       const activeEntry = session.sessionManager.getLeafId();
       const late = state.beginReview('evidence', 'evidence-key', 'profile-key');
       await session.reload();
@@ -228,6 +252,7 @@ export async function exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime
         compaction: true,
         malformed: true,
         refusalRetained: true,
+        failedAppendQuarantined: mode === 'persistent',
         legacyBytePreserved: true,
         lifecycleReasons: [...new Set(reasons)],
       });

@@ -6,6 +6,21 @@ type ReadonlySessionManager = ExtensionContext['sessionManager'];
 // Fresh implementation; no legacy Goal source or persistence reader is reused.
 export const STATE_ENTRY = 'araketski.goal.state.v1';
 const LEDGER_BYTES = 16 * 1024;
+
+// Pi can advance memory before a disk append throws. Keep only failure quarantine
+// across resource reloads; never retain goals, contexts or authority here.
+interface FailedAppends {
+  sessions: WeakSet<ReadonlySessionManager>;
+  entries: Set<string>;
+}
+const failureKey = Symbol.for('araketski.goal.state.v1.failed-appends');
+const processMemory = globalThis as typeof globalThis & {
+  [key: symbol]: FailedAppends | undefined;
+};
+const failedAppends = (processMemory[failureKey] ??= {
+  sessions: new WeakSet(),
+  entries: new Set(),
+});
 export type RequirementStatus = 'pending' | 'blocked' | 'verified';
 export type ReviewKind = 'criteria' | 'evidence';
 export type RestoreReason = 'startup' | 'reload' | 'new' | 'resume' | 'fork' | 'tree' | 'compact';
@@ -202,6 +217,11 @@ function latest(session: ReadonlySessionManager) {
     .reverse()
     .find((entry) => entry.type === 'custom' && entry.customType === STATE_ENTRY);
 }
+function rejectedEntryKey(entry: ReturnType<typeof latest>): string | undefined {
+  if (entry?.type !== 'custom') return undefined;
+  const snapshot = entry.data as GoalSnapshot | undefined;
+  return `${entry.id}:${snapshot?.goal?.id}:${snapshot?.goal?.revision}`;
+}
 function terminal(goal: Goal) {
   return ['complete', 'budget-limited', 'cleared'].includes(goal.status);
 }
@@ -237,6 +257,20 @@ export class GoalState {
 
   restore(session: ReadonlySessionManager, reason: RestoreReason): void {
     this.detach();
+    if (
+      failedAppends.sessions.has(session) ||
+      session
+        .getBranch()
+        .some(
+          (entry) =>
+            entry.type === 'custom' &&
+            entry.customType === STATE_ENTRY &&
+            failedAppends.entries.has(rejectedEntryKey(entry)!),
+        )
+    ) {
+      this.diagnostic = 'Goal state unavailable after failed append; reopen safe persisted history';
+      return;
+    }
     this.session = session;
     this.sessionId = session.getSessionId();
     const entry = latest(session);
@@ -281,7 +315,17 @@ export class GoalState {
     this.assertSession();
     validateSnapshot(next);
     // Pi exceptions propagate. Never acknowledge failure or bypass it with file writes.
-    this.append(structuredClone(next));
+    try {
+      this.append(structuredClone(next));
+    } catch (error) {
+      failedAppends.sessions.add(this.session!);
+      const entry = latest(this.session!);
+      if (entry && entry.id !== this.stateEntryId)
+        failedAppends.entries.add(rejectedEntryKey(entry)!);
+      this.detach();
+      this.diagnostic = 'Goal state unavailable after failed append; reopen safe persisted history';
+      throw error;
+    }
     this.snapshot = next;
     this.stateEntryId = latest(this.session!)?.id;
     this.tickets = {};

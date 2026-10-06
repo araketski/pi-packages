@@ -42,7 +42,10 @@ the sole canonical copy. Workspace-wide knowledge remains in root `docs/`.
 ## Verification boundary
 
 Package-owned tests exercise the internal bounded ledger, identity/revision
-checks, review cache/refusal persistence, terminal audit and malformed replay.
+checks, review cache/refusal persistence, terminal audit, malformed replay and
+a real failed-disk-append regression. Goal quarantines rejected in-memory branch
+state across reload; recovery uses normal public reopen of safe persisted history.
+This process-local safeguard is not a crash-recovery or write-acknowledgement service.
 Actual Pi 0.99.1 source loading and fresh archives installed independently with
 npm and pnpm exercise persistent and in-memory state round trips, tree/fork/new/
 session restoration, compaction and default startup/reload pause. Test-only
