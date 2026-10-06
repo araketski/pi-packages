@@ -1,0 +1,26 @@
+{
+  "name": "@araketski/pi-goal",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "extensions/goal",
+    "skills/goal-writer",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:pi-host"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/goal/index.ts"
+    ],
+    "skills": [
+      "./skills/goal-writer"
+    ]
+  }
+}

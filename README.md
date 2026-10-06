@@ -18,7 +18,7 @@ libraries can be checked here and in independent npm/pnpm consumer fixtures.
 - [Herdr scaffold](packages/herdr/README.md), [intended workflow](packages/herdr/docs/scope.mara.md) and [execution/RPC contract](packages/herdr/docs/contract.mara.md)
 - [Jobs-core package boundary and contract compatibility](packages/jobs-core/docs/contract.mara.md)
 - [Local jobs execution](packages/jobs/docs/execution.mara.md) and [controls](packages/jobs/docs/controls.mara.md)
-- [Planned goal contract](docs/planned/goal/contract.mara.md) and [jobs integration](docs/planned/goal/jobs-integration.mara.md)
+- [Goal scaffold](packages/goal/README.md), [intended contract](packages/goal/docs/contract.mara.md) and [jobs integration](packages/goal/docs/jobs-integration.mara.md)
 - [Planned caffeinate contract](docs/planned/caffeinate/contract.mara.md) and [jobs integration](docs/planned/caffeinate/jobs-integration.mara.md)
 - [Planned gates inspection and visibility](docs/planned/gates/contract.mara.md)
 - [Questions extension](packages/questions/docs/contract.mara.md), [interaction/lifecycle design](packages/questions/docs/design.mara.md) and [verification plan](packages/questions/docs/verification.mara.md)
