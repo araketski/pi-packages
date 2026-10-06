@@ -11,6 +11,8 @@ it.skipIf(process.env.PI_HERDR_REAL_TEST !== '1')(
   async () => {
     expect(process.platform).toBe('linux');
     expect(execFileSync('herdr', ['--version'], { encoding: 'utf8' }).trim()).toBe('herdr 0.9.1');
+    if (process.env.PI_TEST_EVIDENCE_DIR)
+      mkdirSync(process.env.PI_TEST_EVIDENCE_DIR, { recursive: true });
     const bulk = mkdtempSync(join(tmpdir(), 'herdr-real-'));
     const ipc = mkdtempSync(join(process.env.XDG_RUNTIME_DIR!, 'ht-'));
     writeFileSync(
@@ -61,6 +63,11 @@ it.skipIf(process.env.PI_HERDR_REAL_TEST !== '1')(
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
       expect(existsSync(socketPath)).toBe(true);
+      // Test-only injection used to verify failure-path evidence and owned-resource cleanup.
+      if (process.env.PI_HERDR_TEST_FAILURE === 'before-receipt') {
+        console.info(JSON.stringify({ bulk, ipc, serverPid: server.pid }));
+        throw new Error('intentional fixture failure before receipt');
+      }
       // All setup CLI commands are pinned to the private socket, never the user's endpoint.
       env.HERDR_SOCKET_PATH = socketPath;
       const status = run(['status']);
@@ -198,17 +205,21 @@ it.skipIf(process.env.PI_HERDR_REAL_TEST !== '1')(
       expect(stopped, `Owned server ${server.pid} did not stop; retained ${bulk} and ${ipc}`).toBe(
         true,
       );
-      if (process.env.PI_TEST_EVIDENCE_DIR) {
-        writeFileSync(join(process.env.PI_TEST_EVIDENCE_DIR, 'real-herdr-server.log'), serverLog);
-        for (const file of ['herdr-server.log', 'config.toml'])
-          if (existsSync(join(config, file)))
-            writeFileSync(
-              join(process.env.PI_TEST_EVIDENCE_DIR, file),
-              readFileSync(join(config, file)),
-            );
+      try {
+        if (process.env.PI_TEST_EVIDENCE_DIR) {
+          writeFileSync(join(process.env.PI_TEST_EVIDENCE_DIR, 'real-herdr-server.log'), serverLog);
+          for (const file of ['herdr-server.log', 'config.toml'])
+            if (existsSync(join(config, file)))
+              writeFileSync(
+                join(process.env.PI_TEST_EVIDENCE_DIR, file),
+                readFileSync(join(config, file)),
+              );
+        }
+      } finally {
+        // Logging failure must not retain stopped-server fixtures.
+        rmSync(bulk, { recursive: true });
+        rmSync(ipc, { recursive: true });
       }
-      rmSync(bulk, { recursive: true });
-      rmSync(ipc, { recursive: true });
       if (process.env.PI_TEST_EVIDENCE_DIR)
         writeFileSync(
           join(process.env.PI_TEST_EVIDENCE_DIR, 'real-herdr-cleanup.json'),
