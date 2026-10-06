@@ -152,4 +152,9 @@ The independent one-at-a-time queued-input regression is fixed within the curren
 
 
 Captured batches are snapshots, not permission to submit stale settings. Revalidate each captured result's current mode, receipt and deferral after shared-inbox awaits and synchronously immediately before this composition calls sendMessage or returns boundary drafts. A successful display-only override completed before that submission removes the result from the batch. This does not retract drafts/content after admission to Pi's dispatcher or clear unrelated queues. The native capture/override regression fails on the previous code and passes in both installed consumers after correction; the input-dispatch blockers above remain.
+
+
+Admission rechecks the originating binding after every awaited reservation/read and again after initial gate registration before returning success. A closing/replaced origin cannot insert newly owned execution after its cancellation snapshot or authorize that launch. Rejected admission does not transfer ownership of the caller's unregistered integration; the caller retains its cleanup responsibility and obeys the existing native cancellation/executor policy before execution. No new executor or irrevocable launch guarantee is introduced.
+
+Extension-origin input establishes a startup guard when this binding is reached, without advancing accepted-user generations or lifting saved-result permission. before-agent-start establishes the guard before checking delivery deferral, so fresh jobs admitted by later handlers join that starting prompt. Native replacement/admission interleaving and first extension-origin startup have observed red-to-green regressions. These local corrections do not solve the earlier async-input or later handled-input dispatcher blockers.
 :::

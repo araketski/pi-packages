@@ -120,7 +120,7 @@ export interface JobsSessionRuntime {
     gates?: JobsGateBinding,
   ): Promise<void>;
   refresh(ctx: JobsPiContext): void;
-  userInput(ctx: JobsPiContext): void;
+  userInput(ctx: JobsPiContext, genuineUser?: boolean): void;
   naturalTurn(ctx: JobsPiContext): Promise<void>;
   userTurnStarted(ctx: JobsPiContext): void;
   idle(ctx: JobsPiContext): Promise<void>;
@@ -434,14 +434,16 @@ export function createJobsSessionRuntime(options: {
       if (active?.binding && ctx.sessionManager.getSessionId() === active.id)
         active.binding.ctx = ctx;
     },
-    userInput(ctx) {
+    userInput(ctx, genuineUser = true) {
       runtime.refresh(ctx);
       if (active && valid(active)) {
-        active.deferred = false;
-        active.inputEpoch++;
-        active.acceptedInputs.push(active.inputEpoch);
         active.starting = true;
-        for (const job of active.jobs.values()) job.deferred = false;
+        if (genuineUser) {
+          active.deferred = false;
+          active.inputEpoch++;
+          active.acceptedInputs.push(active.inputEpoch);
+          for (const job of active.jobs.values()) job.deferred = false;
+        }
         changed();
         // Native input handlers run before Pi admits the transformed input to its queue.
         // One post-dispatch notification observes admission, without polling or submitting work.
@@ -476,8 +478,9 @@ export function createJobsSessionRuntime(options: {
     async naturalTurn(ctx) {
       runtime.refresh(ctx);
       const a = active;
-      if (!a || !valid(a) || a.deferred) return;
+      if (!a || !valid(a)) return;
       a.starting = true;
+      if (a.deferred) return;
       await reconcile(a);
       const batch = (await selected(a, true)).filter((result) => eligible(a, result, true));
       if (valid(a) && batch.length)
@@ -514,7 +517,8 @@ export function createJobsSessionRuntime(options: {
       if (reserved.status !== 'ok' || !valid(a))
         return reserved.status === 'ok' ? unavailable() : reserved;
       const observed = await a.store.jobs.read(request.identity);
-      if (observed.status !== 'ok') return observed;
+      if (observed.status !== 'ok' || !valid(a))
+        return observed.status === 'ok' ? unavailable() : observed;
       a.jobs.set(key(request.identity), {
         observation: observed.value,
         reservation: reserved.value,
@@ -529,6 +533,7 @@ export function createJobsSessionRuntime(options: {
           reason: 'Required initial gate tracking failed; do not launch.',
         };
       }
+      if (!valid(a)) return unavailable();
       a.deferred = false;
       changed();
       return reserved;
@@ -826,7 +831,7 @@ export function bindJobsSessionRuntime(
     pi.on('session_shutdown', (event) => runtime.shutdown(event.reason)),
     pi.on('session_tree', (_event, ctx) => runtime.refresh(ctx)),
     pi.on('input', (event, ctx) => {
-      if ((event as { source?: string }).source !== 'extension') runtime.userInput(ctx);
+      runtime.userInput(ctx, (event as { source?: string }).source !== 'extension');
     }),
     pi.on('before_agent_start', (_event, ctx) => runtime.naturalTurn(ctx)),
     pi.on('message_start', (event, ctx) => {

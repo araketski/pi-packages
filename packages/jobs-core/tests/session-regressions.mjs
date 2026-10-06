@@ -251,6 +251,109 @@ await probe(
   },
 );
 
+await probe(
+  'native replacement cannot authorize launch after skipping admission cancellation',
+  async () => {
+    const outcomes = [];
+    for (let delay = 0; delay < 8; delay++) {
+      const c = compose();
+      let h,
+        cancellations = 0;
+      const cwd = join(root, 'admission-replacement-' + delay);
+      const factory = async (request) => {
+        h = await setup({
+          cwdOverride: request.cwd,
+          sessionManager: request.sessionManager,
+          sessionStartEvent: request.sessionStartEvent,
+          bind: false,
+          extension: (pi) => {
+            pi.on('session_shutdown', async () => {
+              for (let i = 0; i < delay; i++) await Promise.resolve();
+            });
+            core.bindJobsSessionRuntime(pi, c.runtime);
+          },
+        });
+        return h;
+      };
+      const host = await sdk.createAgentSessionRuntime(factory, {
+        cwd,
+        agentDir: cwd,
+        sessionManager: sdk.SessionManager.inMemory(cwd),
+      });
+      host.setRebindSession((session) =>
+        session.bindExtensions({ onError: (e) => h.errors.push(e) }),
+      );
+      try {
+        await host.session.bindExtensions({});
+        const job = {
+          runtimeId: 'R',
+          sessionId: h.ctx.sessionManager.getSessionId(),
+          ownerId: 'O',
+          producerId: 'external',
+          jobId: 'J',
+        };
+        const admission = c.runtime.admit(
+          {
+            identity: job,
+            authority: { runtimeId: 'R', ownerId: 'O', generation: 'owned' },
+            awaiting: true,
+            lifetime: 'managed',
+            delivery: 'automatic',
+          },
+          {
+            cancel: async () => {
+              cancellations++;
+            },
+            dispose() {},
+          },
+        );
+        const switching = host.newSession();
+        const reply = await admission;
+        await switching;
+        assert(
+          reply.status !== 'ok' || cancellations === 1,
+          'success after cancellation snapshot skipped the job authorizes unmanaged launch',
+        );
+        outcomes.push({ delay, status: reply.status, cancellations });
+        assert.equal(h.errors.length, 0);
+      } finally {
+        await host.dispose();
+      }
+    }
+    return outcomes;
+  },
+);
+
+await probe(
+  'extension-origin startup guards fresh work without lifting saved-result permission',
+  async () => {
+    const c = compose();
+    let launched = false;
+    const h = await setup({
+      extension: (pi) => {
+        core.bindJobsSessionRuntime(pi, c.runtime);
+        pi.on('before_agent_start', async (_event, ctx) => {
+          if (!launched) {
+            launched = true;
+            const final = await c.admit(ctx);
+            await c.runtime.complete(final);
+          }
+        });
+      },
+    });
+    try {
+      await h.session.prompt('extension-origin request', { source: 'extension' });
+      await h.session.waitForIdle();
+      assert.equal(c.runtime.inspect()[0].delivery.state, 'delivered');
+      assert.equal(h.errors.length, 0);
+      return { requests: h.requests.length, observations: c.runtime.inspect() };
+    } finally {
+      await c.runtime.shutdown('quit');
+      h.close();
+    }
+  },
+);
+
 function compose() {
   const inbox = core.createCompletionCoordinator();
   const runtime = core.createJobsSessionRuntime({
