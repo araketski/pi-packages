@@ -131,7 +131,7 @@ In an isolated local Herdr session on Linux, create a managed command while an e
 
 Against an isolated supported real local Herdr server, demonstrate public JSON RPC through inherited endpoint context and explicit IDs, subscription acknowledgement, bootstrap snapshot plus buffered events, a pane move and ordinary disconnect/reconnect resnapshot. Confirm UI focus does not retarget requests and unsupported capabilities fail visibly.
 
-Use controlled socket fixtures for an invalid reply and one applied mutation whose response is lost: preserve uncertainty without blind resubmission, CLI/local fallback or fabricated command completion. Do not use the private protocol or restart the user's server. Under [[ADR-WORKFLOW-MINIMAL-PROFILE]], exhaustive event/reconnect/mutation permutations, remote support and generic RPC/recovery infrastructure are deferred. CLI/schema reads alone are not working-adapter evidence. These checks have not run.
+Use controlled socket fixtures for an invalid reply and one applied mutation whose response is lost: preserve uncertainty without blind resubmission, CLI/local fallback or fabricated command completion. Do not use the private protocol or restart the user's server. Under [[ADR-WORKFLOW-MINIMAL-PROFILE]], exhaustive event/reconnect/mutation permutations, remote support and generic RPC/recovery infrastructure are deferred. CLI/schema reads alone are not working-adapter evidence. This defines the repeatable method; the bounded Linux transport execution is recorded separately in [[EVD-HERDR-JSON-LOCAL-TRANSPORT]].
 :::
 
 :::mara requirement REQ-HERDR-RESOURCE-CONTROLS
