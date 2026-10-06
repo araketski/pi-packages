@@ -359,3 +359,18 @@ With no other unresolved state, generic observers report that the abandoned wait
 
 Reload, navigate the tree and resume the same durable session without restoring the abandoned obligation as pending. Inject late snapshots and delayed acquisition reports for that same obligation; they must not undo abandonment. Acquire a genuinely new wait, including reuse of an owner-local name, and require normal blocking. Verify independent execution and final-result delivery remain intact, no process is killed, and no successful execution, cancellation or delivery receipt is invented. Require public protocol and actual user-control/consumer integration checks in addition to isolated projection tests. These are future checks for the new recovery policy, not passing runtime evidence.
 :::
+
+:::mara design DES-GATES-TRACKED-VIEWS
+:mid: 01M48583RK8NW17KBNA1G1FV9A
+:title: Retain unresolved inactive session reasons in the generic observer
+:status: accepted
+:kind: interface
+:satisfies: REQ-GATES-SCOPED-STATE
+:satisfies: REQ-GATES-RECONCILIATION
+
+The user authorized this additive generic boundary during Work 34f4436cc1b5436e86b7a083abc1b9f8. `createGateObserver().trackedViews()` returns the observer's previously tracked session views plus the current active view, each with `active: boolean`. Ordinary `view()` remains active-session only and keeps its existing fail-closed behavior.
+
+Before switching/closing the active observer subscription, retain its last known obligations. Inactive retained owners and readiness become unconfirmed when they had pending reasons or discovery uncertainty. Deactivation is not owner-confirmed clearance, termination or result delivery. There is no inactive monitor, host callback, wake, abandonment policy or persistence sidecar. Retained views are in-process history only. Consumers decide whether these generic reasons require an awake hold; they do not branch on jobs or producer names.
+
+Reopening the same native session seeds reconciliation with its retained reasons plus matching public session history. A fresh owner report may replace only that owner's state. A genuinely different/fork session receives no inherited obligations from another session ID. Failed replacement-history reads never expose the previous active view as the replacement's confirmed state. No crash recovery or cross-process tracked-session inventory is implied.
+:::

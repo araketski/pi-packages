@@ -173,9 +173,20 @@ export function createGateObserver(
   let projection: GateProjection | undefined;
   let unsubscribe: (() => void) | undefined;
   const pending = new Map<string, number>();
+  const tracked = new Map<string, SessionGateView>();
+  const retain = () => {
+    if (!projection) return;
+    const view = projection.view();
+    if (view.readiness !== 'confirmed' || view.owners.some(owner => owner.gates.length)) {
+      view.readiness = 'unconfirmed';
+      for (const owner of view.owners) owner.state = 'unconfirmed';
+    }
+    tracked.set(view.sessionId, view);
+  };
   const send = (signal: Signal) => pi.events.emit(CHANNEL, signal);
   return {
     start(ctx: GateContext): void {
+      retain();
       unsubscribe?.();
       unsubscribe = undefined;
       projection = undefined;
@@ -196,6 +207,10 @@ export function createGateObserver(
         }
       }
       projection = new GateProjection(id);
+      for (const owner of tracked.get(id)?.owners ?? []) {
+        projection.remember(owner.owner, owner.gates);
+        pending.set(owner.owner, now());
+      }
       for (const [owner, gates] of history) {
         projection.remember(owner, [...gates.values()]);
         pending.set(owner, now());
@@ -242,7 +257,14 @@ export function createGateObserver(
       }
       return result;
     },
+    /** Generic retained reasons only; not an inactive execution/liveness monitor. */
+    trackedViews(): (SessionGateView & { active: boolean })[] {
+      const views = new Map([...tracked].map(([id, view]) => [id, { ...structuredClone(view), active: false }]));
+      if (projection) views.set(projection.sessionId, { ...this.view(), active: true });
+      return [...views.values()].sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+    },
     close(): void {
+      retain();
       unsubscribe?.();
       unsubscribe = undefined;
       projection = undefined;

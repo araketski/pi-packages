@@ -52,6 +52,24 @@ function fixture() {
 // @mara checks REQ-GATES-PERSIST-BEFORE-SIGNAL
 // @mara checks REQ-GATES-HEALTH-DIAGNOSTICS
 describe('gate coordination across Pi extension instances', () => {
+  it('retains inactive unresolved reasons through the generic tracked view without transferring fork authority', () => {
+    const f = fixture();
+    const owner = createGateOwner(f.pi, 'external-owner');
+    const observer = createGateObserver(f.pi);
+    owner.start(f.ctx); owner.reconcile(f.ctx, [{ id: 'pending' }]);
+    observer.start(f.ctx); observer.finishDiscovery(); owner.close();
+    f.setSession('session-b'); observer.start(f.ctx); observer.finishDiscovery();
+    expect(observer.trackedViews()).toEqual([
+      { active: false, sessionId: 'session-a', readiness: 'unconfirmed', owners: [
+        { owner: 'external-owner', state: 'unconfirmed', gates: [{ id: 'pending' }] },
+      ] },
+      { active: true, sessionId: 'session-b', readiness: 'confirmed', owners: [] },
+    ]);
+    f.setSession('session-a'); observer.start(f.ctx); owner.start(f.ctx);
+    owner.reconcile(f.ctx, []); observer.finishDiscovery();
+    expect(observer.trackedViews().find(view => view.sessionId === 'session-a')?.owners[0].gates).toEqual([]);
+    owner.close(); observer.close();
+  });
   it('distinguishes an unfinished owner-discovery phase from confirmed no work', () => {
     const f = fixture();
     const observer = createGateObserver(f.pi);
