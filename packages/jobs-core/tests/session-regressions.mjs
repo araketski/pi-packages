@@ -373,6 +373,51 @@ await probe(
   },
 );
 
+await probe(
+  'queued owner settings preserve completed execution and valid finalized receipt snapshots',
+  async () => {
+    const c = compose();
+    let replies;
+    const h = await setup({
+      extension: (pi) => {
+        core.bindJobsSessionRuntime(pi, c.runtime);
+        pi.registerTool(
+          tool('fixture_settings_race', async (_id, _a, _s, _u, ctx) => {
+            const final = await c.admit(ctx);
+            const stale = c.runtime.inspect()[0];
+            stale.delivery = { mode: 'next-natural-turn', state: 'pending' };
+            replies = await Promise.all([c.runtime.complete(final), c.runtime.update(stale)]);
+            return result(core.jobsFinalResultText(final));
+          }),
+        );
+      },
+    });
+    try {
+      await h.call('fixture_settings_race');
+      assert(replies.every((r) => r.status === 'ok'));
+      const observation = c.runtime.inspect()[0];
+      assert.deepEqual(observation.execution, {
+        state: 'terminal',
+        outcome: { kind: 'exit', exitCode: 0 },
+      });
+      assert.equal(observation.delivery.state, 'delivered');
+      const participant = core.createJobsParticipant(h.pi, {
+        runtimeId: 'R',
+        participantId: 'O',
+        role: 'owner',
+      });
+      participant.start();
+      participant.publish(h.ctx.sessionManager.getSessionId(), [observation]);
+      participant.close();
+      assert.equal(h.errors.length, 0);
+      return { replies, observation };
+    } finally {
+      await c.runtime.shutdown('quit');
+      h.close();
+    }
+  },
+);
+
 function compose(output) {
   const inbox = core.createCompletionCoordinator();
   const runtime = core.createJobsSessionRuntime({

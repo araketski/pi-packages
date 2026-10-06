@@ -449,7 +449,8 @@ export function createJobsSessionRuntime(options: {
         }
         changed();
         // Native input handlers run before Pi admits the transformed input to its queue.
-        // One post-dispatch notification observes admission, without polling or submitting work.
+        // One tentative retry covers synchronous dispatch only; it is not admission proof.
+        // Later asynchronous handlers can outlast it (documented acceptance blocker).
         const timer = setTimeout(() => {
           inputNotifications.delete(timer);
           changed();
@@ -567,6 +568,10 @@ export function createJobsSessionRuntime(options: {
         const job = entry.job!;
         if (!valid(entry.a)) return unavailable();
         const next = structuredClone(observation);
+        if (job.result)
+          next.execution = { state: 'terminal', outcome: structuredClone(job.result.outcome) };
+        else if (job.observation.execution.state === 'terminal')
+          next.execution = structuredClone(job.observation.execution);
         next.delivery =
           next.delivery.mode === 'display-only'
             ? { mode: 'display-only', state: 'not-required' }
