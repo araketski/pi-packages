@@ -1,46 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
   "files": [],
-  "include": [],
-  "references": [
-    {
-      "path": "./tools/nx-pi"
-    },
-    {
-      "path": "./packages/angular-developer"
-    },
-    {
-      "path": "./packages/fast-mode"
-    },
-    {
-      "path": "./packages/statusline"
-    },
-    {
-      "path": "./packages/taiga-ui-docs"
-    },
-    {
-      "path": "./packages/statusline-protocol"
-    },
-    {
-      "path": "./packages/nx-developer"
-    },
-    {
-      "path": "./packages/continuation-gate-protocol"
-    },
-    {
-      "path": "./packages/tmux-bash"
-    },
-    {
-      "path": "./packages/goal"
-    },
-    {
-      "path": "./packages/continuation-gate-inspector"
-    },
-    {
-      "path": "./packages/caffeinate"
-    },
-    {
-      "path": "./packages/tmux-bash-core"
-    }
-  ]
+  "references": []
 }

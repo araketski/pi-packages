@@ -1,40 +1,14 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
-  "release": {
-    "projects": ["packages/*"],
-    "projectsRelationship": "fixed",
-    "version": {
-      "specifierSource": "conventional-commits",
-      "currentVersionResolver": "git-tag",
-      "fallbackCurrentVersionResolver": "disk"
-    },
-    "conventionalCommits": {
-      "useCommitScope": false
-    },
-    "changelog": {
-      "workspaceChangelog": {
-        "createRelease": "github"
-      },
-      "projectChangelogs": false
-    },
-    "releaseTag": {
-      "pattern": "v{version}"
-    },
-    "git": {
-      "commit": true,
-      "commitMessage": "chore(release): publish {version}",
-      "tag": true,
-      "push": true
-    }
-  },
+  "defaultBase": "master",
+  "analytics": false,
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
     "production": [
-      "default",
-      "!{projectRoot}/.eslintrc.json",
-      "!{projectRoot}/eslint.config.mjs",
-      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
-      "!{projectRoot}/tsconfig.spec.json"
+      "default"
     ],
     "sharedGlobals": []
   },
@@ -53,29 +27,6 @@
         }
       }
     },
-    {
-      "plugin": "@nx/eslint/plugin",
-      "options": {
-        "targetName": "lint"
-      }
-    },
-    {
-      "plugin": "@nx/vitest",
-      "options": {
-        "testTargetName": "test",
-        "testMode": "run"
-      }
-    }
-  ],
-  "analytics": false,
-  "targetDefaults": {
-    "@nx/js:tsc": {
-      "cache": true,
-      "dependsOn": ["^build"],
-      "inputs": ["production", "^production"]
-    },
-    "test": {
-      "dependsOn": ["^build"]
-    }
-  }
+    "@araketski/nx-pi"
+  ]
 }

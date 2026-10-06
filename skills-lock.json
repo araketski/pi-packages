@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "link-workspace-packages": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/link-workspace-packages/SKILL.md",
+      "computedHash": "28a62513af1293c1ca064203a3d6e4dcdbd08f5be6e5ce9a16acc6176bef2ca4"
+    },
+    "monitor-ci": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/monitor-ci/SKILL.md",
+      "computedHash": "edb5f75c3bab6377cdc8d82003ed01d82d58b5401ce9c8052109d83e6fb8f0ee"
+    },
+    "nx-cloud-api": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-cloud-api/SKILL.md",
+      "computedHash": "c92a661e7cdff0e9e3cfaad0d0a477840be6ecf49a77d9b2a387a6d6fcff27eb"
+    },
+    "nx-cloud-cache-investigator": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-cloud-cache-investigator/SKILL.md",
+      "computedHash": "3124122285ae3298c9aca2e41e660bd95ad5cc0d7ecd7ff0f08e6b4c3f0e8a11"
+    },
+    "nx-cloud-ci-failure-review": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-cloud-ci-failure-review/SKILL.md",
+      "computedHash": "f6ce2a4d54068475da3828e0459d75cd18fd12f1c253750d12c61498ac2d2e0d"
+    },
+    "nx-generate": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-generate/SKILL.md",
+      "computedHash": "25ec66443e8c7b3bc9da349e7a168e1071351cc14217adafe2dfab31c9860f61"
+    },
+    "nx-import": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-import/SKILL.md",
+      "computedHash": "11ada1b25edcf0164a76c310e989119c3e0431cae3b7283a6f10d392df9da200"
+    },
+    "nx-plugins": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-plugins/SKILL.md",
+      "computedHash": "e93d10328f589667d6a7cc71d134c96b3c28ab4a1468eaec7bc29420c950e4e2"
+    },
+    "nx-run-tasks": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-run-tasks/SKILL.md",
+      "computedHash": "e42dec15f588268887d88d606187b0fab9cbb3f90fd4ce41d66d2faffc9295c4"
+    },
+    "nx-workspace": {
+      "source": "nrwl/nx-ai-agents-config",
+      "sourceType": "github",
+      "skillPath": "skills/nx-workspace/SKILL.md",
+      "computedHash": "93c1a07cb550b8b85ce62ccd2481073b6ab520be86d1a910686054d8096207a7"
+    }
+  }
+}

@@ -8,10 +8,6 @@ out-tsc
 # dependencies
 node_modules
 
-# pi-lens project configuration
-/.pi-lens/*
-!/.pi-lens/lsp.json
-
 # IDEs and editors
 /.idea
 .project
@@ -44,12 +40,6 @@ Thumbs.db
 
 .nx/cache
 .nx/workspace-data
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
-
+.nx/migrate-runs
 .claude/worktrees
 .claude/settings.local.json
-.nx/polygraph
-.nx/self-healing
-.nx/migrate-runs
-vitest.config.*.timestamp*
