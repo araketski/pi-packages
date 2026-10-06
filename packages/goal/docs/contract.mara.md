@@ -1,9 +1,10 @@
 # Goal extension contract
 
 These are accepted intended behaviors for the reworked goal package, not an
-implemented extension or passing test evidence. The package now has only a typed
-no-op extension and an unfinished goal-writer skill scaffold; see
-[the scaffold boundary](./scaffold.mara.md).
+fully implemented extension or passing full-contract test evidence. The package
+has an internal fresh state/ledger seam with four Pi lifecycle observers and an
+unfinished goal-writer skill; see [the implementation boundary](./scaffold.mara.md)
+and [[DES-GOAL-FRESH-LEDGER]].
 
 ## Reference and agreed changes
 

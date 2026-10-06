@@ -8,7 +8,7 @@ import { expect, it } from 'vitest';
 const workspace = resolve(import.meta.dirname, '../../..');
 const packageRoot = resolve(import.meta.dirname, '..');
 
-it('checks a fresh archive and loads its no-op resources in independent npm and pnpm consumers', () => {
+it('checks a fresh archive and round-trips state in independent npm and pnpm consumers', () => {
   const dir = mkdtempSync(join(tmpdir(), 'goal-packed-'));
   try {
     const pack = JSON.parse(
@@ -34,6 +34,7 @@ it('checks a fresh archive and loads its no-op resources in independent npm and 
       'LICENSE',
       'README.md',
       'extensions/goal/index.ts',
+      'extensions/goal/state.ts',
       'package.json',
       'skills/goal-writer/SKILL.md',
     ]);
@@ -93,6 +94,9 @@ it('checks a fresh archive and loads its no-op resources in independent npm and 
       expect(manifest.dependencies).toBeUndefined();
       expect(readFileSync(join(installed, 'extensions/goal/index.ts'), 'utf8')).toBe(
         readFileSync(join(packageRoot, 'extensions/goal/index.ts'), 'utf8'),
+      );
+      expect(readFileSync(join(installed, 'extensions/goal/state.ts'), 'utf8')).toBe(
+        readFileSync(join(packageRoot, 'extensions/goal/state.ts'), 'utf8'),
       );
       expect(readFileSync(join(installed, 'skills/goal-writer/SKILL.md'), 'utf8')).toBe(
         readFileSync(join(packageRoot, 'skills/goal-writer/SKILL.md'), 'utf8'),

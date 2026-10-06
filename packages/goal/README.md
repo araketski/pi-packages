@@ -1,11 +1,12 @@
 # @araketski/pi-goal
 
-**Scaffold only. Not a working Goal extension or goal-writing skill.**
+**Internal state slice only. Not a complete Goal workflow or goal-writing skill.**
 
-The typed extension loads but does nothing. The generated `goal-writer` skill
-is discoverable and retains its explicit TODOs; replace them before use or
-publication. No Goal tools, commands, hooks, startup flag, persistence,
-classifiers, budgets, scheduling, or Herdr integration are implemented.
+The extension registers four Pi state lifecycle observers and supplies an internal
+fresh-namespace state/ledger seam. Startup/reload pauses restored active goals by
+default. No Goal tools, commands, startup flag, classifier calls, budget runtime,
+scheduling, or Herdr integration are implemented. The discoverable `goal-writer`
+skill retains its explicit TODOs; replace them before use or publication.
 
 The package distributes extension TypeScript source and skill Markdown, not a
 compiled library. Pi supplies the host API through a peer dependency. There is
@@ -17,7 +18,8 @@ Repository-only intended behavior and historical evidence:
 - [Classifier policy and historical synthetic pilot](docs/classifiers.mara.md)
 - [Retained synthetic records](docs/classifier-evaluation-data.mara.md)
 - [Jobs consumer integration contract](docs/jobs-integration.mara.md)
-- [Scaffold boundary and verification](docs/scaffold.mara.md)
+- [Fresh state and evidence design](docs/state.mara.md)
+- [Scaffold/implementation boundary and verification](docs/scaffold.mara.md)
 
 The publication allowlist selects the extension, skill, README, and MIT license.
 Mara specifications, synthetic datasets, tests, and tooling configuration stay
@@ -37,4 +39,6 @@ pnpm nx run @araketski/pi-goal:pi-check-package --tarball=<archive-path>
 
 The test target checks source loading and fresh packed npm/pnpm consumers with
 Pi 0.99.1 in isolated agent directories, without model inference. These checks
-verify discovery and the no-op boundary, not the future Goal contract.
+verify discovery and the internal state/lifecycle seam, not the full Goal contract.
+Stored evidence remains supplied claims/references; these checks do not prove its
+contents satisfy an objective or establish classifier accuracy.
