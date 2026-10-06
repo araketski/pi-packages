@@ -88,7 +88,7 @@ interface Active {
   deferred: boolean;
   inputEpoch: number;
   startedEpoch: number;
-  acceptedInputs: number[];
+  acceptedInputs: (number | null)[];
   wake?: WakeReservation;
   submitting: boolean;
   starting: boolean;
@@ -443,6 +443,9 @@ export function createJobsSessionRuntime(options: {
           active.inputEpoch++;
           active.acceptedInputs.push(active.inputEpoch);
           for (const job of active.jobs.values()) job.deferred = false;
+        } else {
+          // Non-user queued input still occupies a native message position, not user permission.
+          active.acceptedInputs.push(null);
         }
         changed();
         // Native input handlers run before Pi admits the transformed input to its queue.

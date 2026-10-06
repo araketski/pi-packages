@@ -128,78 +128,87 @@ await probe(
     }
   },
 );
-await probe(
-  'one-at-a-time queued user turns retain their individual accepted generation',
-  async () => {
-    const c = compose();
-    let entered, release;
-    const runningTool = new Promise((resolve) => {
-      entered = resolve;
-    });
-    const held = new Promise((resolve) => {
-      release = resolve;
-    });
-    const h = await setup({
-      extension: (pi) => {
-        core.bindJobsSessionRuntime(pi, c.runtime);
-        pi.registerTool(
-          tool('fixture_hold', async () => {
-            entered();
-            await held;
-            return result('hold released');
-          }),
-        );
-        pi.registerTool(
-          tool('fixture_next_final', async (_id, _a, _s, _u, ctx) => {
-            const final = await c.admit(ctx, 'next-natural-turn');
-            await c.runtime.complete(final);
-            return result('final saved, not returned here');
-          }),
-        );
-      },
-    });
-    let running;
-    try {
-      h.session.setFollowUpMode('one-at-a-time');
-      running = h.call('fixture_hold');
-      await runningTool;
-      await h.session.followUp('second queued user');
-      await h.session.followUp('third queued user');
-      h.queue.push(
-        { content: [{ type: 'text', text: 'first turn finished' }] },
-        {
-          content: [
-            {
-              type: 'toolCall',
-              id: 'queued-next-final',
-              name: 'fixture_next_final',
-              arguments: {},
-            },
-          ],
+for (const extensionFirst of [false, true])
+  await probe(
+    'one-at-a-time queued turns retain accepted generations (extension first: ' +
+      extensionFirst +
+      ')',
+    async () => {
+      const c = compose();
+      let entered, release;
+      const runningTool = new Promise((resolve) => {
+        entered = resolve;
+      });
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
+      const h = await setup({
+        extension: (pi) => {
+          core.bindJobsSessionRuntime(pi, c.runtime);
+          pi.registerTool(
+            tool('fixture_hold', async () => {
+              entered();
+              await held;
+              return result('hold released');
+            }),
+          );
+          pi.registerTool(
+            tool('fixture_next_final', async (_id, _a, _s, _u, ctx) => {
+              const final = await c.admit(ctx, 'next-natural-turn');
+              await c.runtime.complete(final);
+              return result('final saved, not returned here');
+            }),
+          );
         },
-      );
-      release();
-      await running;
-      await h.session.waitForIdle();
-      assert.equal(c.runtime.inspect()[0].delivery.state, 'delivered');
-      const receiving = h.requests.find((r) =>
-        r.context.messages.some(
-          (m) => m.role === 'user' && JSON.stringify(m).includes('third queued user'),
-        ),
-      );
-      assert(
-        receiving && JSON.stringify(receiving.context.messages).includes('required-final-content'),
-      );
-      assert.equal(h.errors.length, 0);
-      return { requests: h.requests.length, observation: c.runtime.inspect()[0] };
-    } finally {
-      release();
-      await running?.catch(() => {});
-      await c.runtime.shutdown('quit');
-      h.close();
-    }
-  },
-);
+      });
+      let running;
+      try {
+        h.session.setFollowUpMode('one-at-a-time');
+        running = h.call('fixture_hold');
+        await runningTool;
+        if (extensionFirst)
+          await h.session.prompt('second queued extension input', {
+            source: 'extension',
+            streamingBehavior: 'followUp',
+          });
+        else await h.session.followUp('second queued user');
+        await h.session.followUp('third queued user');
+        h.queue.push(
+          { content: [{ type: 'text', text: 'first turn finished' }] },
+          {
+            content: [
+              {
+                type: 'toolCall',
+                id: 'queued-next-final',
+                name: 'fixture_next_final',
+                arguments: {},
+              },
+            ],
+          },
+        );
+        release();
+        await running;
+        await h.session.waitForIdle();
+        assert.equal(c.runtime.inspect()[0].delivery.state, 'delivered');
+        const receiving = h.requests.find((r) =>
+          r.context.messages.some(
+            (m) => m.role === 'user' && JSON.stringify(m).includes('third queued user'),
+          ),
+        );
+        assert(
+          receiving &&
+            JSON.stringify(receiving.context.messages).includes('required-final-content'),
+        );
+        assert.equal(h.errors.length, 0);
+        return { requests: h.requests.length, observation: c.runtime.inspect()[0] };
+      } finally {
+        release();
+        await running?.catch(() => {});
+        await c.runtime.shutdown('quit');
+        h.close();
+      }
+    },
+  );
 
 await probe(
   'successful display-only override excludes a still-capturing natural-turn batch',
@@ -256,7 +265,17 @@ await probe(
   async () => {
     const outcomes = [];
     for (let delay = 0; delay < 8; delay++) {
-      const c = compose();
+      const c = compose({
+        create: async () => 'memory',
+        write: async () => {},
+        read: async () => ({
+          bytes: new Uint8Array(),
+          totalBytes: 0,
+          headBytes: 0,
+          finished: true,
+        }),
+        remove: async () => {},
+      });
       let h,
         cancellations = 0;
       const cwd = join(root, 'admission-replacement-' + delay);
@@ -354,13 +373,13 @@ await probe(
   },
 );
 
-function compose() {
+function compose(output) {
   const inbox = core.createCompletionCoordinator();
   const runtime = core.createJobsSessionRuntime({
     runtimeId: 'R',
     participantId: 'P',
     inbox,
-    output: core.createJobsFileOutput(join(root, 'review-regression-' + ++sequence)),
+    output: output ?? core.createJobsFileOutput(join(root, 'review-regression-' + ++sequence)),
     diagnose() {},
   });
   const admit = async (ctx, delivery = 'automatic', awaiting = false) => {
