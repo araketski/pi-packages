@@ -43,12 +43,18 @@ it.each(['npm', 'pnpm'] as const)(
       const members = run('tar', ['-tzf', tarball], root).trim().split('\n').sort();
       expect(members).toEqual([
         'package/README.md',
+        'package/dist/delivery.d.ts',
+        'package/dist/delivery.d.ts.map',
+        'package/dist/delivery.js',
         'package/dist/index.d.ts',
         'package/dist/index.d.ts.map',
         'package/dist/index.js',
         'package/dist/lifecycle.d.ts',
         'package/dist/lifecycle.d.ts.map',
         'package/dist/lifecycle.js',
+        'package/dist/session.d.ts',
+        'package/dist/session.d.ts.map',
+        'package/dist/session.js',
         'package/dist/storage-files.d.ts',
         'package/dist/storage-files.d.ts.map',
         'package/dist/storage-files.js',

@@ -22,7 +22,13 @@ it('proves Pi 0.99.1 atomic native registrations and conservative nested-result 
         join(root, `${name}.mjs`),
         readFileSync(new URL('../dist/index.js', import.meta.url)),
       );
-    for (const name of ['lifecycle.js', 'storage.js', 'storage-files.js'])
+    for (const name of [
+      'lifecycle.js',
+      'storage.js',
+      'storage-files.js',
+      'delivery.js',
+      'session.js',
+    ])
       writeFileSync(join(root, name), readFileSync(new URL(`../dist/${name}`, import.meta.url)));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     mkdirSync(join(root, 'home'));

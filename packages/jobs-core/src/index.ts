@@ -1,4 +1,24 @@
 export {
+  createCompletionCoordinator,
+  jobsFinalResultText,
+  jobsFinalResultDigest,
+  findJobsFinalReceipts,
+  JOBS_RESULTS_MESSAGE_TYPE,
+} from './delivery.js';
+export type { JobsRecordedProjection } from './delivery.js';
+export { createJobsSessionRuntime, bindJobsSessionRuntime } from './session.js';
+export type {
+  JobsSessionRuntime,
+  JobsPiContext,
+  JobsPiCallbacks,
+  JobsPiEvents,
+  JobsOwnedExecution,
+  JobsGateBinding,
+  JobsBoundaryEvent,
+  JobsBoundaryDraft,
+} from './session.js';
+
+export {
   createJobLifecycle,
   createJobsLifecycleRouter,
   resolveJobsLifecycleSettings,

@@ -95,3 +95,33 @@ Inject one ambiguous receipt/submission case: keep stable saved identity and hon
 
 Define the concrete public Pi queue/receipt mapping and report unsupported suppression honestly. Preserve ordinary foreground/retrieval/automatic arbitration and one/any/all wait semantics without a second scheduler. Exhaustive five-job permutations, every wake/retrieval/cancellation fault ordering, randomized stress and recovery services are deferred; normal overlapping arrivals and the named safety boundaries remain required. These are future checks, not passing implementation evidence.
 :::
+
+:::mara design DES-JOBS-PI-COMPOSITION
+:mid: 01M484PDAAX5EZARPVVV7QGM20
+:title: Bind one shared delivery inbox to fresh public Pi session capabilities
+:status: accepted
+:kind: behavior
+:satisfies: REQ-JOBS-COMPLETION-INBOX
+:satisfies: REQ-JOBS-DELIVERY-RECEIPTS
+:satisfies: REQ-JOBS-SESSION-CONTINUITY
+:satisfies: REQ-PI-NONUI-AWAIT
+
+## Concrete mapping and order
+
+The application supplies one explicit CompletionCoordinator and one retained Jobs runtime to all participating producers/core copies. The compiled core injects structural public Pi capabilities; it imports no Pi SDK at runtime, registers no model tools/UI and owns no executor. Owners register their already-owned cancellation/monitor-disposal callbacks after startup tracking succeeds. They serialize same-job updates and capture/final submission.
+
+1. `session_start` binds the native session ID, current ExtensionAPI and read-only context. A same-ID reload rebinds the retained runtime/store through these fresh callbacks, preserving executions and inbox; reload shutdown suspends callbacks, not jobs. Same-session tree navigation refreshes context without replaying execution. A genuine new/resume/fork/quit shutdown requests owned managed cancellation, bounds the whole best-effort attempt, records known facts while the original callback is valid, then invalidates it and disposes monitoring. Persistent lifetime is excluded. No inactive result writer or survivor adoption is created.
+2. Startup metadata and generic awaited gate acquisition precede successful admission. Completion saves the stable final result before inbox admission. Awaited gates remain until observed execution is terminal and required final content is recorded; display-only requires no model receipt. Reading status/output/capturing a batch does not release a wait.
+3. Reserve the single session wake before public `sendMessage` admission. Idle automatic submission uses full identifiable result content with `deliverAs: followUp`, never steering. While working/starting, arrivals only join the inbox. At actionable `turn_end`/`agent_before_settle`, reconcile finalized records and native pending messages, capture eligible results, and return public custom-message boundary drafts with guarded continuation. Later arrivals remain for the next boundary. No empty wake message or second scheduler is added. Pi 0.99.1 cannot selectively retract an already-admitted custom follow-up; do not clear unrelated queues. Rechecking before submission suppresses consumed results where supported, but already admitted content can repeat.
+4. A final-result text block is an explicit canonical envelope containing the entire stable identity, outcome and final content. Inspect finalized public session projection entries, after native message/tool transformations, and match the complete canonical envelope before creating a digest-bound receipt. Native tool_result events, nestedCalls and queue admission do not qualify. An outer tool must forward the complete identifiable text block; discarded/filtered content stays pending. Ambiguous admission/receipt keeps the saved result eligible for stable-identity redelivery at the next actionable boundary, never command replay.
+5. Public cancellable `turn_end` keeps non-UI progression pending for current awaited execution plus required receipt. Use the current run signal; abort cancels only waiting, not already-managed work. Known responsive execution remains a normal wait. Historical/unknown ownership gets a bounded reconciliation diagnostic and stops autonomy using supported abort, preserving gates. Print/JSON awaited plus next-natural-turn is rejected before admission/settings mutation. No extension-controlled exit-code mapping is claimed.
+6. Reopen saved compact data only. Saved running observations remain historical/unknown with no owner control. Saved pending results are deferred until user input. Forked entries with another originating session confer neither delivery nor wait authority. Persistence remains best effort under DES-JOBS-SESSION-STORE, not fsync or a retry/recovery framework.
+
+## Generic gates
+
+Use injected generic owner reconciliation, never consumer-purpose/producer switches. The user authorized an additive gates-protocol all-tracked-session observer view: retain unresolved inactive projections as unconfirmed, and do not turn deactivation into confirmed empty. This view is not inactive execution monitoring or abandonment recovery.
+
+## Acceptance boundary
+
+Exercise real isolated persistent/in-memory Pi 0.99.1 sessions, finite controlled execution, native direct/nested finalized receipts, shared overlapping arrivals, selected retrieval, ambiguous saved-result redelivery, reload/replacement and non-UI model consumption. Strict packed declarations and independent npm/pnpm runtime consumers check the new composition. Intended mapping is not passing evidence; execution identities remain in Work.
+:::
