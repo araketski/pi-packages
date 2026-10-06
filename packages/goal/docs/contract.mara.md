@@ -1,8 +1,9 @@
-# Planned goal extension
+# Goal extension contract
 
 These are accepted intended behaviors for the reworked goal package, not an
-implemented extension or passing test evidence. The package remains staged here
-until scaffolding; move its knowledge with Mara when that happens.
+implemented extension or passing test evidence. The package now has only a typed
+no-op extension and an unfinished goal-writer skill scaffold; see
+[the scaffold boundary](./scaffold.mara.md).
 
 ## Reference and agreed changes
 
@@ -36,7 +37,7 @@ evaluated profiles, automatic pauses for consistent stuck/blocked findings, and
 completion refusal on insufficient or uncertain ledger reviews.
 [[DES-GOAL-CLASSIFIER-POLICY]] records model-specific provisional thresholds,
 observation scope, bounded review policy and timeout. Monetary classifier limits
-were subsequently removed. The [planned-contract review](../../planned-review.mara.md)
+were subsequently removed. The [planned-contract review](../../../docs/planned-review.mara.md)
 clarifies transport-failure/profile fallback while retaining applicable review
 vetoes, and records explicit user recovery for abandoned wait obligations.
 [[EVD-GOAL-CLASSIFIER-PILOT]] records actual synthetic calls, not an implemented goal

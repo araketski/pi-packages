@@ -31,7 +31,7 @@ point and supply adequate evidence: usage
 guidance is assistance, not an enforcement guarantee. Confidence is not evidence,
 acceptance, authorization or proof of correctness.
 
-The goal extension's [classifier policy](../../../docs/planned/goal/classifiers.mara.md) is a separate
+The goal extension's [classifier policy](../../goal/docs/classifiers.mara.md) is a separate
 contract. Its per-active-goal cadence, pause behavior, cutoffs and reference model
 are not inherited by this on-demand assistant.
 

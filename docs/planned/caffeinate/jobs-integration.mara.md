@@ -1,6 +1,6 @@
 # Planned caffeinate integration with jobs
 
-Caffeinate and [goal](../goal/jobs-integration.mara.md) consume the same generic
+Caffeinate and [goal](../../../packages/goal/docs/jobs-integration.mara.md) consume the same generic
 [gates protocol](../../../packages/gates-protocol/docs/contract.mara.md). Job owners
 decide what remains gated; neither consumer needs the jobs API or job-phase filters.
 The [caffeinate contract](./contract.mara.md) defines automatic holding across tracked

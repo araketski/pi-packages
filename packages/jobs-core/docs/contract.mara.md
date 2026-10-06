@@ -79,7 +79,7 @@ Shared contracts cover [active-session lifetime and best-effort cleanup](./lifec
 [persistence and bounded output](./storage.mara.md). Consumer-specific knowledge lives
 in each owning plan: [pi-jobs execution](../../jobs/docs/execution.mara.md) and
 [controls](../../jobs/docs/controls.mara.md),
-[goal continuation](../../../docs/planned/goal/jobs-integration.mara.md),
+[goal continuation](../../goal/docs/jobs-integration.mara.md),
 [caffeinate sleep inhibition](../../../docs/planned/caffeinate/jobs-integration.mara.md), and
 [Herdr integration](../../herdr/docs/scope.mara.md). The [interface checkpoint](./interface.mara.md) defines the minimum envelopes,
 participant diagnostics and explicit coordination ports. Minimal storage is

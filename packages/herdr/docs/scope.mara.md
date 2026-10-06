@@ -44,7 +44,7 @@ best-effort cancellation of owned managed commands on genuine session deactivati
 or orderly Pi exit, while retaining explicitly persistent Herdr terminals.
 Continued inactive-session job tracking/delivery is not guaranteed. Job cleanup must not close parent workspaces or delete
 worktrees. Shared [delivery behavior](../../jobs-core/docs/delivery.mara.md) is specified
-separately from consumer-owned [goal](../../../docs/planned/goal/jobs-integration.mara.md) and
+separately from consumer-owned [goal](../../goal/docs/jobs-integration.mara.md) and
 [caffeinate](../../../docs/planned/caffeinate/jobs-integration.mara.md) policies. The originating-session
 completion inbox ([[REQ-JOBS-COMPLETION-INBOX]]) belongs to shared jobs delivery:
 results can accumulate while the owner works, with one pending wake rather than

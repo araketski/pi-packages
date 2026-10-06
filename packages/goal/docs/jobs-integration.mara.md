@@ -1,4 +1,4 @@
-# Planned goal integration with jobs
+# Goal integration with jobs
 
 The [goal contract](./contract.mara.md) owns continuation and explicit pauses.
 Required work and result delivery keep an active goal waiting through gates;
@@ -9,7 +9,7 @@ Use the [shared jobs lifecycle](../../../packages/jobs-core/docs/lifecycle.mara.
 [gates contract](../../../packages/gates-protocol/docs/contract.mara.md).
 
 This defines intended behavior, not a migrated goal extension or verified
-integration. Keep it under `docs/planned/goal/` until goal is scaffolded.
+integration. The Goal package currently contains only no-op resource scaffolds.
 
 ## Agreed knowledge
 

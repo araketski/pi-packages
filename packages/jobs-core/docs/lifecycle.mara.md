@@ -25,7 +25,7 @@ Saved metadata/results may be read on return; saved running state is not livenes
 ## Implementation and verification boundary
 
 The [delivery policy](./delivery.mara.md) defines shared modes and receipt/retry
-semantics. Consumer decisions live in the [goal plan](../../../docs/planned/goal/jobs-integration.mara.md)
+semantics. Consumer decisions live in the [goal plan](../../goal/docs/jobs-integration.mara.md)
 and [caffeinate plan](../../../docs/planned/caffeinate/jobs-integration.mara.md); replacement-bash
 behavior lives in the [pi-jobs plan](../../jobs/docs/execution.mara.md). Orderly
 shutdown cancellation is best-effort. Crash/forced-kill cleanup and survivor

@@ -9,10 +9,11 @@ start turns or redeliver them.
 ## Consumer-owned decisions
 
 Job owners project their awaited execution and required result delivery into the
-same generic gates consumed by [goal](../../../docs/planned/goal/jobs-integration.mara.md) and
+same generic gates consumed by [goal](../../goal/docs/jobs-integration.mara.md) and
 [caffeinate](../../../docs/planned/caffeinate/jobs-integration.mara.md). Neither consumer inspects job
 phases through a jobs API or requires gate-purpose distinctions. Their canonical
-requirements and verification live in their own planned folders.
+requirements and verification live in their owning package documentation, or staged
+plans before scaffolding.
 
 ## Pi scheduling and receipt boundaries
 
