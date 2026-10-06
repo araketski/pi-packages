@@ -88,6 +88,7 @@ interface Active {
   deferred: boolean;
   inputEpoch: number;
   startedEpoch: number;
+  acceptedInputs: number[];
   wake?: WakeReservation;
   submitting: boolean;
   starting: boolean;
@@ -362,6 +363,7 @@ export function createJobsSessionRuntime(options: {
         deferred: true,
         inputEpoch: 0,
         startedEpoch: 0,
+        acceptedInputs: [],
         wake: heldWakes.get(id),
         submitting: false,
         starting: false,
@@ -435,6 +437,7 @@ export function createJobsSessionRuntime(options: {
       if (active && valid(active)) {
         active.deferred = false;
         active.inputEpoch++;
+        active.acceptedInputs.push(active.inputEpoch);
         active.starting = true;
         for (const job of active.jobs.values()) job.deferred = false;
         changed();
@@ -450,7 +453,7 @@ export function createJobsSessionRuntime(options: {
     userTurnStarted(ctx) {
       runtime.refresh(ctx);
       if (active && valid(active)) {
-        active.startedEpoch = active.inputEpoch;
+        active.startedEpoch = active.acceptedInputs.shift() ?? active.startedEpoch;
         active.starting = false;
       }
     },

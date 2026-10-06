@@ -140,4 +140,13 @@ The public input and before-agent-start phases guard starting prompts even while
 Saved pending results retain per-job next-user-input deferral. Admitting/completing fresh work may enable its own delivery but does not authorize resumed results. A genuine accepted user input lifts the historical deferrals; extension-origin input does not.
 
 This retained runtime orders its own same-job capture, completion, owner observation updates and receipt persistence. Queued actions use the latest settings and verified receipt facts rather than saving stale pre-await observations. This is the integration's local store-ordering responsibility, not a new executor, external lock, retry/durability service or authority-transfer mechanism. Best-effort write failures remain diagnostic; no fsync or cross-runtime ordering is promised.
+
+
+## Verified public input-dispatch gap — delivery blocked
+
+Independent native Pi 0.99.1 review at `d80b7d2084632b59ae4a83bf21dfd1fad66272b2` demonstrated that an earlier asynchronous input handler runs before this binding can establish its startup guard. A concurrent idle wake can start a competing run and cause the real SDK prompt to reject. Conversely, a later input handler returning handled starts no native run and supplies neither message-start nor settled notification to release this binding's tentative guard; subsequent automatic results remain pending while Pi is idle. The currently injected public extension surface has no before-all-input-dispatch or after-handled-dispatch event to close both gaps. Private Pi state, runtime imports, timers presented as ordering proof and a speculative recovery framework are not substitutes.
+
+The user explicitly chose to retain the contract and report this blocker, not approve a cooperative adapter or narrow acceptance. Therefore this composition is not accepted for delivery and these current-contract defects are not backlog waivers. Fresh execution/consumer checks cover the stated normal workflows but cannot establish full input-phase arbitration. A supported host/public input-phase integration boundary or separately authorized Pi capability change is needed before acceptance. The intended startup behavior above remains required, not a claim that these edges pass.
+
+The independent one-at-a-time queued-input regression is fixed within the current composition: user-message start consumes one observed input generation, not all generations already queued. Its native test demonstrates final content consumption by the following already-queued user turn without another user input or automatic promotion. Full arbitrary input-handler consumption/transformation/source ordering still falls under the unresolved dispatcher boundary above.
 :::
