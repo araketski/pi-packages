@@ -74,6 +74,8 @@ interface Tracked {
   reservation?: StorageReservation;
   execution?: JobsOwnedExecution;
   result?: FinalResult;
+  arrivalEpoch?: number;
+  receipt?: FinalResultReceipt;
 }
 interface Active {
   id: string;
@@ -82,6 +84,8 @@ interface Active {
   jobs: Map<string, Tracked>;
   binding?: Binding;
   deferred: boolean;
+  inputEpoch: number;
+  startedEpoch: number;
   wake?: WakeReservation;
   submitting: boolean;
   closing: boolean;
@@ -114,6 +118,8 @@ export interface JobsSessionRuntime {
   refresh(ctx: JobsPiContext): void;
   userInput(ctx: JobsPiContext): void;
   naturalTurn(ctx: JobsPiContext): Promise<void>;
+  userTurnStarted(ctx: JobsPiContext): void;
+  idle(ctx: JobsPiContext): Promise<void>;
   admit(
     request: LaunchRequest,
     execution: JobsOwnedExecution,
@@ -153,6 +159,7 @@ export function createJobsSessionRuntime(options: {
   let active: Active | undefined;
   const heldWakes = new Map<string, WakeReservation>();
   const listeners = new Set<() => void>();
+  const inputNotifications = new Set<ReturnType<typeof setTimeout>>();
   const changed = () => {
     for (const resolve of listeners) resolve();
   };
@@ -192,7 +199,10 @@ export function createJobsSessionRuntime(options: {
     if (!valid(a)) return;
     const receipts = findJobsFinalReceipts(
       a.id,
-      results(a),
+      results(a).filter(
+        (result) =>
+          a.jobs.get(key(result.identity.job))?.observation.delivery.mode !== 'display-only',
+      ),
       a.binding!.ctx.sessionManager.buildSessionProjection(),
     );
     if (!receipts.length) return;
@@ -205,6 +215,7 @@ export function createJobsSessionRuntime(options: {
     for (const receipt of receipts) {
       const j = a.jobs.get(key(receipt.result.job));
       if (!j || j.observation.delivery.state === 'delivered') continue;
+      j.receipt = receipt;
       j.observation.delivery = { mode: j.observation.delivery.mode, state: 'delivered', receipt };
       if (j.reservation) {
         const saved = await a.store.jobs.save(j.reservation, j.observation);
@@ -240,7 +251,8 @@ export function createJobsSessionRuntime(options: {
         j &&
         j.observation.delivery.state !== 'delivered' &&
         j.observation.delivery.mode !== 'display-only' &&
-        (natural || j.observation.delivery.mode === 'automatic')
+        (j.observation.delivery.mode === 'automatic' ||
+          (natural && a.inputEpoch > (j.arrivalEpoch ?? -1)))
       );
     });
     const batch: FinalResult[] = [];
@@ -315,6 +327,8 @@ export function createJobsSessionRuntime(options: {
         scope: { runtimeId: options.runtimeId, sessionId: id },
         jobs: new Map(),
         deferred: true,
+        inputEpoch: 0,
+        startedEpoch: 0,
         wake: heldWakes.get(id),
         submitting: false,
         closing: false,
@@ -344,12 +358,15 @@ export function createJobsSessionRuntime(options: {
         const observed = await a.store.jobs.read(identity);
         if (observed.status !== 'ok') continue;
         const j: Tracked = { observation: observed.value };
+        if (data?.observation?.delivery.state === 'delivered')
+          j.receipt = data.observation.delivery.receipt;
         if (data?.result) {
           const result = await a.store.results.read(data.result.identity);
           if (result.status === 'ok') j.result = result.value;
         }
         const prior = a.jobs.get(key(identity));
         if (prior?.result && !j.result) j.result = prior.result;
+        j.receipt ??= prior?.receipt;
         a.jobs.set(key(identity), j);
       }
       for (const entry of ctx.sessionManager.getEntries()) {
@@ -362,7 +379,9 @@ export function createJobsSessionRuntime(options: {
           jobsResultKey(j.result.identity) === jobsResultKey(receipt.result) &&
           jobsFinalResultDigest(j.result) === receipt.contentDigest
         ) {
-          j.observation.delivery = { ...j.observation.delivery, state: 'delivered', receipt };
+          j.receipt = receipt;
+          if (j.observation.delivery.mode !== 'display-only')
+            j.observation.delivery = { ...j.observation.delivery, state: 'delivered', receipt };
           await options.inbox.confirm([receipt]);
         }
       }
@@ -381,8 +400,32 @@ export function createJobsSessionRuntime(options: {
       runtime.refresh(ctx);
       if (active && valid(active)) {
         active.deferred = false;
+        active.inputEpoch++;
         changed();
+        // Native input handlers run before Pi admits the transformed input to its queue.
+        // One post-dispatch notification observes admission, without polling or submitting work.
+        const timer = setTimeout(() => {
+          inputNotifications.delete(timer);
+          changed();
+        }, 0);
+        inputNotifications.add(timer);
       }
+    },
+    userTurnStarted(ctx) {
+      runtime.refresh(ctx);
+      if (active && valid(active)) active.startedEpoch = active.inputEpoch;
+    },
+    async idle(ctx) {
+      runtime.refresh(ctx);
+      const a = active;
+      if (!a || !valid(a) || a.deferred) return;
+      await reconcile(a);
+      if (a.wake && valid(a) && !ctx.hasPendingMessages()) {
+        await options.inbox.finishWake(a.wake);
+        a.wake = undefined;
+        heldWakes.delete(a.id);
+      }
+      await idleWake(a);
     },
     async naturalTurn(ctx) {
       runtime.refresh(ctx);
@@ -465,11 +508,24 @@ export function createJobsSessionRuntime(options: {
           status: 'invalid',
           reason: 'One-shot awaited next-natural-turn delivery is incompatible.',
         };
-      const saved = await entry.a.store.jobs.save(entry.job.reservation, observation);
+      const next = structuredClone(observation);
+      next.delivery =
+        next.delivery.mode === 'display-only'
+          ? { mode: 'display-only', state: 'not-required' }
+          : entry.job.receipt
+            ? { mode: next.delivery.mode, state: 'delivered', receipt: entry.job.receipt }
+            : {
+                mode: next.delivery.mode,
+                state: next.delivery.state === 'unknown' ? 'unknown' : 'pending',
+              };
+      const saved = await entry.a.store.jobs.save(entry.job.reservation, next);
       if (!valid(entry.a)) return unavailable();
-      entry.job.observation = structuredClone(observation);
+      entry.job.observation = next;
+      if (entry.job.result)
+        await options.inbox.enqueue(entry.job.result, observation.delivery.mode);
       gates(entry.a);
       changed();
+      await idleWake(entry.a);
       return saved;
     },
     async capture(job, bytes) {
@@ -490,6 +546,7 @@ export function createJobsSessionRuntime(options: {
         if (retained.status !== 'ok') return saved;
       }
       entry.job.result = structuredClone(result);
+      entry.job.arrivalEpoch = entry.a.startedEpoch;
       if (entry.a.closing) return saved;
       const enqueued = await options.inbox.enqueue(result, entry.job.observation.delivery.mode);
       gates(entry.a);
@@ -525,7 +582,11 @@ export function createJobsSessionRuntime(options: {
           usable() &&
           !signal?.aborted &&
           [...a.jobs.values()].some(
-            (j) => outstanding(j) && j.observation.execution.state !== 'terminal',
+            (j) =>
+              outstanding(j) &&
+              (j.observation.execution.state !== 'terminal' ||
+                (j.observation.delivery.mode === 'next-natural-turn' &&
+                  !(ctx.hasPendingMessages() && a.inputEpoch > (j.arrivalEpoch ?? -1)))),
           )
         ) {
           const unknown = [...a.jobs.values()].some(
@@ -566,8 +627,12 @@ export function createJobsSessionRuntime(options: {
         if (ctx.mode !== 'tui') ctx.abort();
         return {};
       }
-      const batch = await selected(a, false);
-      if (!batch.length || ctx.hasPendingMessages() || event.context.pendingMessages.length)
+      const naturalPending = ctx.hasPendingMessages() && a.inputEpoch > a.startedEpoch;
+      const batch = await selected(a, naturalPending);
+      if (
+        !batch.length ||
+        (!naturalPending && (ctx.hasPendingMessages() || event.context.pendingMessages.length))
+      )
         return {};
       return {
         entries: [
@@ -610,6 +675,8 @@ export function createJobsSessionRuntime(options: {
           }
       }
       a.closing = true;
+      for (const timer of inputNotifications) clearTimeout(timer);
+      inputNotifications.clear();
       changed();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const cancellation = Promise.allSettled(
@@ -666,8 +733,12 @@ export interface JobsPiEvents extends JobsPiCallbacks {
     ) => Promise<void>,
   ): () => void;
   on(
-    event: 'session_tree' | 'input',
+    event: 'session_tree' | 'input' | 'message_start',
     handler: (event: unknown, ctx: JobsPiContext) => void,
+  ): () => void;
+  on(
+    event: 'agent_settled',
+    handler: (event: unknown, ctx: JobsPiContext) => Promise<void>,
   ): () => void;
   on(
     event: 'before_agent_start',
@@ -698,6 +769,11 @@ export function bindJobsSessionRuntime(
       if ((event as { source?: string }).source !== 'extension') runtime.userInput(ctx);
     }),
     pi.on('before_agent_start', (_event, ctx) => runtime.naturalTurn(ctx)),
+    pi.on('message_start', (event, ctx) => {
+      if ((event as { message?: { role?: string } }).message?.role === 'user')
+        runtime.userTurnStarted(ctx);
+    }),
+    pi.on('agent_settled', (_event, ctx) => runtime.idle(ctx)),
     pi.on('turn_end', (event, ctx) => runtime.boundary(event, ctx, true)),
     pi.on('agent_before_settle', (event, ctx) => runtime.boundary(event, ctx)),
   ];

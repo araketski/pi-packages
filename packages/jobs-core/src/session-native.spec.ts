@@ -25,7 +25,12 @@ it('exercises actual Pi session delivery composition offline', () => {
     );
     cpSync(new URL('../dist/', import.meta.url), join(root, 'separate-copy'), { recursive: true });
     writeFileSync(join(root, 'core-b.mjs'), "export * from './separate-copy/index.js';");
-    for (const name of ['pi-harness.mjs', 'session-delivery.mjs', 'session-cases.mjs'])
+    for (const name of [
+      'pi-harness.mjs',
+      'session-delivery.mjs',
+      'session-cases.mjs',
+      'session-regressions.mjs',
+    ])
       writeFileSync(join(root, name), readFileSync(new URL('../tests/' + name, import.meta.url)));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     const run = spawnSync(

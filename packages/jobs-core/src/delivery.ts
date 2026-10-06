@@ -62,7 +62,11 @@ export function createCompletionCoordinator(): CompletionCoordinator {
   return {
     async enqueue(result, mode) {
       const key = jobsResultKey(result.identity);
-      if (confirmed.has(key) || mode === 'display-only') return ok(undefined);
+      if (mode === 'display-only') {
+        results.delete(key);
+        return ok(undefined);
+      }
+      if (confirmed.has(key)) return ok(undefined);
       const prior = results.get(key);
       if (prior && jobsFinalResultText(prior.result) !== jobsFinalResultText(result))
         return { status: 'invalid', reason: 'Stable result identity has different final content.' };

@@ -222,7 +222,12 @@ it.each(['npm', 'pnpm'] as const)(
         console.log(JSON.stringify(await exerciseStorage(core,sdk,'${join(consumer, 'storage')}',copy)));
       `,
       );
-      for (const name of ['pi-harness.mjs', 'session-delivery.mjs', 'session-cases.mjs'])
+      for (const name of [
+        'pi-harness.mjs',
+        'session-delivery.mjs',
+        'session-cases.mjs',
+        'session-regressions.mjs',
+      ])
         writeFileSync(
           join(consumer, name),
           readFileSync(new URL('../tests/' + name, import.meta.url)),

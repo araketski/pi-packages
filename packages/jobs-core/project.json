@@ -8,7 +8,11 @@
   "targets": {
     "test": {
       "cache": false,
-      "dependsOn": ["build", "^build"]
+      "dependsOn": [
+        "build",
+        "^build",
+        { "target": "build", "projects": ["@araketski/pi-gates-protocol"] }
+      ]
     }
   }
 }

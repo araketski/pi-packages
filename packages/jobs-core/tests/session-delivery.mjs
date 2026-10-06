@@ -143,3 +143,4 @@ await probe(
 );
 
 await import('./session-cases.mjs');
+await import('./session-regressions.mjs');
