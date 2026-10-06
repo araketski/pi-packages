@@ -82,13 +82,27 @@ it.skipIf(process.env.PI_HERDR_REAL_TEST !== '1')(
         'transport-owned-b',
         '--no-focus',
       ]).result;
+      // Capture the real environment injected into our owned pane, not a guessed caller ID.
+      const callerFile = join(bulk, 'caller-env.txt');
+      run([
+        'pane',
+        'run',
+        a.root_pane.pane_id,
+        `printf '%s\\n' "$HERDR_ENV" "$HERDR_SOCKET_PATH" "$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID" "$HERDR_PANE_ID" > '${callerFile}'`,
+      ]);
+      for (let i = 0; i < 100 && !existsSync(callerFile); i++)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      const [HERDR_ENV, HERDR_SOCKET_PATH, HERDR_WORKSPACE_ID, HERDR_TAB_ID, HERDR_PANE_ID] =
+        readFileSync(callerFile, 'utf8').trim().split('\n');
       const context = resolveLocalContext({
-        HERDR_ENV: '1',
-        HERDR_SOCKET_PATH: socketPath,
-        HERDR_WORKSPACE_ID: a.workspace.workspace_id,
-        HERDR_TAB_ID: a.tab.tab_id,
-        HERDR_PANE_ID: a.root_pane.pane_id,
+        HERDR_ENV,
+        HERDR_SOCKET_PATH,
+        HERDR_WORKSPACE_ID,
+        HERDR_TAB_ID,
+        HERDR_PANE_ID,
       });
+      expect(context.socketPath).toBe(socketPath);
+      expect(context.paneId).toBe(a.root_pane.pane_id);
       adapter = new HerdrTransport(context);
       await adapter.connect();
       expect(adapter.view().version).toBe('0.9.1');
