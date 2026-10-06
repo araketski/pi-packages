@@ -10,7 +10,7 @@ start turns or redeliver them.
 
 Job owners project their awaited execution and required result delivery into the
 same generic gates consumed by [goal](../../goal/docs/jobs-integration.mara.md) and
-[caffeinate](../../../docs/planned/caffeinate/jobs-integration.mara.md). Neither consumer inspects job
+[caffeinate](../../caffeinate/docs/jobs-integration.mara.md). Neither consumer inspects job
 phases through a jobs API or requires gate-purpose distinctions. Their canonical
 requirements and verification live in their owning package documentation, or staged
 plans before scaffolding.

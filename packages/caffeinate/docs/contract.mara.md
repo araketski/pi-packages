@@ -1,8 +1,8 @@
-# Planned caffeinate extension
+# Caffeinate extension contract
 
 This is accepted intended behavior, not an implemented extension or verified
-power-management integration. Keep it here until package scaffolding and relocate
-its items with Mara without changing identity.
+power-management integration. The package is a typed no-op scaffold;
+see [the scaffold boundary](./scaffold.mara.md). Runtime work remains future.
 
 ## Reference and agreed changes
 
