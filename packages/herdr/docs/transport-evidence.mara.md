@@ -20,4 +20,10 @@ Strict source lint/typecheck and source `pi-check` passed. nx-pi tooling was fre
 The 0.1.0 archive SHA-256 was `9658456dadc3eed073ba41e959b549298e5d57c7893e49638d93fd26dfdc9854`; transport source SHA-256 was `1d52bc1523da173b1f668d9dfb1042098d631c53298f07b693125f2fb61eeb36`. Runtime archive members were only `package.json`, `README.md`, `LICENSE`, `extensions/herdr/index.ts` and `extensions/herdr/transport.ts`.
 
 Retained receipts, exact archives, red/green logs, schema/documentation inputs, real server transcript and cleanup proof are under `/home/araketski/.local/state/pi/verification/01a11039-9ffa-7315-bd0c-f47ff9eabbac/`: `tested-identity.txt`, `full-test.log`, `source-checks.log`, `npm-0.1.0.json`, `pnpm-0.1.0.json`, `real-herdr.json` and `real-herdr-cleanup.json`. Disposable install/build caches are owned by that worker session and removed at handoff. Independent review, scope integration, final main checks and publication are separate gates; this execution record does not claim them.
+
+### Follow-up provenance
+
+This is the historical test execution at the stated revision, not a claim of clean review. Review 1 (`pi-review.vMr2Id`) subsequently demonstrated late-reply cache reversal and overflowing configured timeouts. Both received focused failing regressions and narrow fixes; their fresh checks and final review are recorded in the owning Work item.
+
+Initial follow-up runs reused top-level consumer/cleanup receipt filenames. The baseline test logs, revision, real-server receipt and captured cleanup observation are preserved under `baseline-ec760/`. Its archive was reconstructed from the recorded Git source and matches the original SHA-256 byte-for-byte; reconstruction is not another claimed test execution. New follow-up receipts and archives use separate `after-review-1/` and final-verification directories. The original passing test outcome and its source revision remain unchanged; newer receipts do not verify that historical revision.
 :::

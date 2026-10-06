@@ -260,6 +260,78 @@ it('does not repeat an applied mutation whose reply is lost', async () => {
   expect(f.requests.filter((r) => r.method === 'pane.rename')).toHaveLength(1);
 });
 
+it.each(['query-move', 'query-close', 'rename-close', 'move-close'])(
+  'preserves observed lifecycle changes over a late %s reply',
+  async (scenario) => {
+    let reply: (() => void) | undefined;
+    const method = scenario.startsWith('query')
+      ? 'pane.get'
+      : scenario.startsWith('rename')
+        ? 'pane.rename'
+        : 'pane.move';
+    const f = await fixture((request, socket) => {
+      if (request.method !== method) return false;
+      const result =
+        method === 'pane.move'
+          ? {
+              type: 'pane_move',
+              move_result: {
+                changed: true,
+                previous_pane_id: original.pane_id,
+                previous_workspace_id: 'w1',
+                previous_tab_id: 'w1:t1',
+                focused_pane_id: moved.pane_id,
+                pane: moved,
+                target_layout: {},
+              },
+            }
+          : { type: 'pane_info', pane: original };
+      reply = () => socket.write(JSON.stringify({ id: request.id, result }) + '\n');
+      return true;
+    });
+    await f.adapter.connect();
+    const pending =
+      method === 'pane.get'
+        ? f.adapter.getPane(original.pane_id)
+        : method === 'pane.rename'
+          ? f.adapter.renamePane(original.pane_id, 'late')
+          : f.adapter.movePane(original.pane_id, { type: 'new_workspace' });
+    await eventually(() => !!reply);
+    if (scenario === 'query-move') {
+      f.event('pane.moved', {
+        type: 'pane_moved',
+        previous_pane_id: original.pane_id,
+        previous_workspace_id: 'w1',
+        previous_tab_id: 'w1:t1',
+        pane: moved,
+      });
+      await eventually(() => f.adapter.view().panes[0]?.pane_id === moved.pane_id);
+    } else {
+      f.event('pane.closed', {
+        type: 'pane_closed',
+        pane_id: original.pane_id,
+        workspace_id: 'w1',
+      });
+      await eventually(() => f.adapter.view().panes.length === 0);
+    }
+    reply!();
+    await pending;
+    expect(f.adapter.view().state).toBe('ready');
+    expect(f.adapter.view().panes).toEqual(scenario === 'query-move' ? [moved] : []);
+  },
+);
+
+it('rejects deadlines outside the supported Node timer range', () => {
+  const context = resolveLocalContext({
+    HERDR_ENV: '1',
+    HERDR_SOCKET_PATH: '/owned/api.sock',
+    HERDR_WORKSPACE_ID: 'w1',
+    HERDR_TAB_ID: 'w1:t1',
+    HERDR_PANE_ID: 'w1:p1',
+  });
+  expect(() => new HerdrTransport(context, { timeoutMs: 2147483648 })).toThrow();
+});
+
 it('bounds request waits and validates events', async () => {
   const f = await fixture((request) => request.method === 'pane.rename');
   await f.adapter.connect();

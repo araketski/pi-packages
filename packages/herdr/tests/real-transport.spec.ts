@@ -88,7 +88,7 @@ it.skipIf(process.env.PI_HERDR_REAL_TEST !== '1')(
         'pane',
         'run',
         a.root_pane.pane_id,
-        `printf '%s\\n' "$HERDR_ENV" "$HERDR_SOCKET_PATH" "$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID" "$HERDR_PANE_ID" > '${callerFile}'`,
+        `printf '%s\\n' "$HERDR_ENV" "$HERDR_SOCKET_PATH" "$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID" "$HERDR_PANE_ID" > '${callerFile}.part' && mv '${callerFile}.part' '${callerFile}'`,
       ]);
       for (let i = 0; i < 100 && !existsSync(callerFile); i++)
         await new Promise((resolve) => setTimeout(resolve, 10));

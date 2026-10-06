@@ -264,6 +264,7 @@ export class HerdrTransport {
   private protocol?: number;
   private buffered: PaneEvent[] = [];
   private generation = 0;
+  private eventRevision = 0;
   constructor(context: LocalContext, options: TransportOptions = {}) {
     this.context = Object.freeze(
       resolveLocalContext({
@@ -279,10 +280,13 @@ export class HerdrTransport {
       maxLineBytes: options.maxLineBytes ?? 1024 * 1024,
       maxBufferedEvents: options.maxBufferedEvents ?? 256,
     };
-    if (!Object.values(this.options).every((value) => Number.isSafeInteger(value) && value > 0))
+    if (
+      this.options.timeoutMs > 2147483647 ||
+      !Object.values(this.options).every((value) => Number.isSafeInteger(value) && value > 0)
+    )
       throw new HerdrError(
         'invalid_context',
-        'Transport limits must be positive safe integers',
+        'Transport limits must be positive safe integers; timeoutMs must not exceed 2147483647',
         false,
         'context',
       );
@@ -302,7 +306,20 @@ export class HerdrTransport {
     this.subscription?.stop();
     this.buffered = [];
   }
+  private observe() {
+    return { panes: new Map(this.panes), events: this.eventRevision };
+  }
+  private cacheReply(p: PaneInfo, before: { panes: Map<string, PaneInfo>; events: number }) {
+    // A reply describes state at server evaluation time, not necessarily at arrival time.
+    // Never replace a record changed/removed since the request began. For an unknown
+    // terminal, any intervening lifecycle event prevents inserting a potentially closed pane.
+    const unchanged = before.panes.has(p.terminal_id)
+      ? before.panes.get(p.terminal_id) === this.panes.get(p.terminal_id)
+      : before.events === this.eventRevision;
+    if (this.state === 'ready' && unchanged) this.panes.set(p.terminal_id, p);
+  }
   private apply(e: PaneEvent) {
+    ++this.eventRevision;
     if (e.event === 'pane.created' || e.event === 'pane.updated' || e.event === 'pane.moved') {
       const p = pane(e.data.pane);
       this.panes.set(p.terminal_id, p);
@@ -430,6 +447,7 @@ export class HerdrTransport {
   }
   private async query(method: 'pane.current' | 'pane.get', params: object) {
     this.ready();
+    const before = this.observe();
     const result = await this.request(
       method,
       params,
@@ -441,7 +459,7 @@ export class HerdrTransport {
       },
     );
     const p = pane(result.pane);
-    if (this.state === 'ready') this.panes.set(p.terminal_id, p);
+    this.cacheReply(p, before);
     return structuredClone(p);
   }
   async currentPane() {
@@ -456,6 +474,7 @@ export class HerdrTransport {
     this.ready();
     if (label !== null && typeof label !== 'string')
       throw new HerdrError('invalid_context', 'Label must be a string or null', false, 'context');
+    const before = this.observe();
     const result = await this.request(
       'pane.rename',
       { pane_id: paneId, label },
@@ -466,7 +485,7 @@ export class HerdrTransport {
       true,
     );
     const p = pane(result.pane);
-    if (this.state === 'ready') this.panes.set(p.terminal_id, p);
+    this.cacheReply(p, before);
     return { acknowledged: true as const, pane: structuredClone(p) };
   }
   async movePane(paneId: string, destination: MoveDestination) {
@@ -484,6 +503,7 @@ export class HerdrTransport {
         throw new HerdrError('invalid_context', 'Invalid split destination', false, 'context');
     } else if (destination.type !== 'new_workspace')
       throw new HerdrError('invalid_context', 'Invalid move destination', false, 'context');
+    const before = this.observe();
     const result = await this.request(
       'pane.move',
       { pane_id: paneId, destination, focus: false },
@@ -507,7 +527,7 @@ export class HerdrTransport {
     );
     const move = record(result.move_result),
       p = pane(move.pane);
-    if (this.state === 'ready') this.panes.set(p.terminal_id, p);
+    this.cacheReply(p, before);
     return structuredClone(move) as Record<string, unknown> & {
       changed: boolean;
       pane: PaneInfo;
