@@ -1,0 +1,16 @@
+{
+  "name": "@araketski/pi-advisor",
+  "version": "0.1.0",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./extensions/advisor/index.ts"
+    ],
+    "skills": [
+      "./skills/advisor"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
