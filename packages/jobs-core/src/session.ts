@@ -257,6 +257,18 @@ export function createJobsSessionRuntime(options: {
     gates(a);
     changed();
   }
+  function eligible(a: Active, result: FinalResult, natural: boolean) {
+    const job = a.jobs.get(key(result.identity.job));
+    return (
+      !!job &&
+      !job.deferred &&
+      job.observation.delivery.state !== 'delivered' &&
+      (job.observation.delivery.mode === 'automatic' ||
+        (natural &&
+          job.observation.delivery.mode === 'next-natural-turn' &&
+          a.inputEpoch > (job.arrivalEpoch ?? -1)))
+    );
+  }
   async function selected(a: Active, natural: boolean) {
     const scopes = new Map<string, SessionScope>();
     scopes.set(a.scope.runtimeId, a.scope);
@@ -271,26 +283,16 @@ export function createJobsSessionRuntime(options: {
       if (reply.status === 'ok') pending.push(...reply.value);
       else options.diagnose(reply.reason);
     }
-    const eligible = pending.filter((result) => {
-      const j = a.jobs.get(key(result.identity.job));
-      return (
-        j &&
-        !j.deferred &&
-        j.observation.delivery.state !== 'delivered' &&
-        j.observation.delivery.mode !== 'display-only' &&
-        (j.observation.delivery.mode === 'automatic' ||
-          (natural && a.inputEpoch > (j.arrivalEpoch ?? -1)))
-      );
-    });
+    const candidates = pending.filter((result) => eligible(a, result, natural));
     const batch: FinalResult[] = [];
     for (const scope of scopes.values()) {
       const captured = await options.inbox.capture(
         scope,
-        eligible.map((r) => r.identity),
+        candidates.map((r) => r.identity),
       );
       if (captured.status === 'ok') batch.push(...captured.value);
     }
-    return valid(a) ? batch : [];
+    return valid(a) ? batch.filter((result) => eligible(a, result, natural)) : [];
   }
   async function idleWake(a: Active) {
     if (
@@ -314,7 +316,7 @@ export function createJobsSessionRuntime(options: {
       if (wake.state !== 'reserved') return;
       a.wake = wake.reservation;
       heldWakes.set(a.id, wake.reservation);
-      const batch = await selected(a, false);
+      const batch = (await selected(a, false)).filter((result) => eligible(a, result, false));
       if (
         !valid(a) ||
         a.starting ||
@@ -477,7 +479,7 @@ export function createJobsSessionRuntime(options: {
       if (!a || !valid(a) || a.deferred) return;
       a.starting = true;
       await reconcile(a);
-      const batch = await selected(a, true);
+      const batch = (await selected(a, true)).filter((result) => eligible(a, result, true));
       if (valid(a) && batch.length)
         a.binding!.pi.sendMessage(
           {
@@ -684,7 +686,9 @@ export function createJobsSessionRuntime(options: {
         return {};
       }
       const naturalPending = ctx.hasPendingMessages() && a.inputEpoch > a.startedEpoch;
-      const batch = await selected(a, naturalPending);
+      const batch = (await selected(a, naturalPending)).filter((result) =>
+        eligible(a, result, naturalPending),
+      );
       if (
         !batch.length ||
         (!naturalPending && (ctx.hasPendingMessages() || event.context.pendingMessages.length))

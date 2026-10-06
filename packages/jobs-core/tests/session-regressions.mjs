@@ -201,6 +201,56 @@ await probe(
   },
 );
 
+await probe(
+  'successful display-only override excludes a still-capturing natural-turn batch',
+  async () => {
+    const c = compose();
+    let entered, release;
+    const captured = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+    const capture = c.inbox.capture.bind(c.inbox);
+    c.inbox.capture = async (...args) => {
+      const batch = await capture(...args);
+      if (batch.status === 'ok' && batch.value.length) {
+        entered();
+        await held;
+      }
+      return batch;
+    };
+    const h = await setup({ extension: (pi) => core.bindJobsSessionRuntime(pi, c.runtime) });
+    let running;
+    try {
+      const final = await c.admit(h.ctx, 'next-natural-turn');
+      await c.runtime.complete(final);
+      running = h.session.prompt('next real input');
+      await captured;
+      const observation = c.runtime.inspect()[0];
+      observation.delivery = { mode: 'display-only', state: 'not-required' };
+      assert.equal((await c.runtime.update(observation)).status, 'ok');
+      release();
+      await running;
+      assert.equal(
+        h.requests.some((r) =>
+          JSON.stringify(r.context.messages).includes('required-final-content'),
+        ),
+        false,
+      );
+      assert.equal(c.runtime.inspect()[0].delivery.state, 'not-required');
+      assert.equal(h.errors.length, 0);
+      return c.runtime.inspect()[0];
+    } finally {
+      release();
+      await running?.catch(() => {});
+      await c.runtime.shutdown('quit');
+      h.close();
+    }
+  },
+);
+
 function compose() {
   const inbox = core.createCompletionCoordinator();
   const runtime = core.createJobsSessionRuntime({
