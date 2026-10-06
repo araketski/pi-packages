@@ -27,3 +27,29 @@ This is the historical test execution at the stated revision, not a claim of cle
 
 Initial follow-up runs reused top-level consumer/cleanup receipt filenames. The baseline test logs, revision, real-server receipt and captured cleanup observation are preserved under `baseline-ec760/`. Its archive was reconstructed from the recorded Git source and matches the original SHA-256 byte-for-byte; reconstruction is not another claimed test execution. New follow-up receipts and archives use separate `after-review-1/` and final-verification directories. The original passing test outcome and its source revision remain unchanged; newer receipts do not verify that historical revision.
 :::
+
+:::mara evidence EVD-HERDR-JSON-REVIEWED-TRANSPORT
+:mid: 01M487JNBKNDXFEVVZ2SFXTS2J
+:title: Verify and independently review the corrected bounded local transport
+:status: accepted
+:result: passed
+:captured_at: 2026-10-06T09:08:25Z
+:subject_revision: f73a72434c946b3e90d6d2b8e729e055e975dcc7
+:evidences: VER-HERDR-JSON-TRANSPORT
+
+Final bounded transport verification ran on `f73a72434c946b3e90d6d2b8e729e055e975dcc7`, tree `d133ab3fb31f048abef6106472c78abdb8a9408e`, branch `w-9770e3f3-herdr-transport`. This supersedes neither the bytes nor the recorded test outcomes of [[EVD-HERDR-JSON-LOCAL-TRANSPORT]]; it records the corrected source after independent findings were addressed.
+
+The complete Nx test target passed 22 tests: 17 focused controlled transport tests, one isolated real Linux Herdr 0.9.1 workflow and four fresh npm/pnpm archive consumers (manifest and copied alternate versions). Source lint/typecheck/pi-check passed uncached; fresh archives were explicitly supplied to pi-check-package. Consumers verified source-resource no-op loading on Pi 0.99.1, installed transport runtime through host Jiti, source typechecking, independently emitted/consumed declarations, metadata-only exports, exact selected files and host-provided SDK dependencies.
+
+The real run used owned server PID `4065111` and captured actual inherited caller environment from its owned pane. Stable terminal `term_65d284385f6161` followed `w1:p1` → `w3:p1` through an external move observed on the stream, then `w4:p1` through adapter movement and reconnect/resnapshot. Explicit IDs and inherited caller alias resolved independently of another focused workspace. The owned server exited; its bulk fixture and short private IPC/config directory were proven absent. Focused intentional early-failure and log-write-failure runs separately verified stopped-server fixture cleanup; their test commands intentionally exited 1 and are not misreported as passing real-workflow runs.
+
+Five fresh read-only reviews used exactly openai/gpt-6.1-sol / xhigh / --fast --no-approve. The first four reported six concrete findings, all fixed within this interface/verification boundary with observed failing regressions: late replies reversing newer lifecycle changes, oversized Node deadlines, newer replies for initially uncached panes, old-generation cache contamination, a shared bootstrap deadline, and failure-path fixture cleanup. No finding was deferred or dismissed. Raw incorrect verdicts remain unchanged with supported fix-now dispositions. Review 5 (`pi-review.MlvTBx`, reviewer session `01a11073-d3ce-71b7-b685-811a073cab5c`) completed with `findings: []` and `overall_correctness: patch is correct`.
+
+For review 5, logical local `rework` resolved to supplied SHA `7e88f5a90de27d2fad0825d55a966432099b3070`; the actual merge/diff base was `1ec4c672f21e1f27dab38a575fb1fcba1e2da596`. Reviewed HEAD was the stated subject revision. Process exit 0, agent_settled, final message_end stopReason stop, actual model/effort/flags/session identity, empty stderr and identical before/after source/runtime/generated hashes were verified. The reviewer reran controlled tests and uncached source checks, not the real-server/distribution tests; those passed in the implementing session on this exact SHA. This establishes a clean final review, not combined-scope or main integration.
+
+The final 0.1.0 archive SHA-256 is `dee0c998b2ad31902e908766dad2b77b7c322ecc62b57696578b3309f0c5dc50`; transport source SHA-256 is `b109bdcaf1981ffabed309f38b35e5fcbf2501dd8d04a7ce45f3a00d90303705`. Only metadata/README/license and the factory/transport runtime source are published by the existing allowlist. Versions, catalog/lockfile, metadata exports and no-op registration remain unchanged.
+
+Retained evidence root: `/home/araketski/.local/state/pi/verification/01a11039-9ffa-7315-bd0c-f47ff9eabbac/`. Exact tested identities, fresh archives/consumer receipts and real-server cleanup are in `final-f73a/`; raw reviews and completion/profile evidence are in the five `pi-review.*` directories; finding dispositions are in `review-1-triage.md` through `review-4-triage.md`. Final handoff records and cleanup proof remain outside publication and in the owning Work item.
+
+Scope remains current-local Linux, pane topology with query-refreshed information, explicit reconnect/resnapshot and honest ambiguous mutation errors. External field changes not present in the selected stream require explicit query/resnapshot. No managed-command results, jobs composition, Pi-facing tools, agent delegation, remote support, total-order/replay guarantee, CLI/local fallback, mutation retry or server restart is claimed. The Work item stays open for separately authorized local rework integration.
+:::
