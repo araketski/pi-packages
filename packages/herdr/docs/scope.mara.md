@@ -1,8 +1,9 @@
 # Planned Herdr integration and separate jobs module
 
 This records the agreed runtime direction, not an implemented integration or a
-complete behavioral contract. The package is now scaffolded as a typed no-op;
-see [the scaffold boundary and checks](./scaffold.mara.md).
+complete behavioral contract. The Pi factory remains a typed no-op; a bounded
+internal public JSON transport seam now exists. See
+[the implementation boundary and checks](./scaffold.mara.md).
 
 ## Workflow and responsibility boundary
 

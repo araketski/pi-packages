@@ -10,20 +10,23 @@ with its implementation TODO intact.
 
 [Scope](./scope.mara.md) and [execution/transport](./contract.mara.md) retain their
 stable item identities and intended runtime meaning. [[REQ-HERDR-JOBS-MODULE]],
-[[REQ-HERDR-LOCAL-SCOPE]] and [[DES-HERDR-PUBLIC-JSON-ADAPTER]] are not implemented
-by this scaffold. There is no RPC connection, backend process, tool, command,
-event handler, hook, UI, job tracking or agent messaging. No live Herdr endpoint
-is needed for loading and none should be accessed by scaffold verification.
-Linux/current-local-only remains intended scope, not runtime proof.
+[[REQ-HERDR-LOCAL-SCOPE]] and [[DES-HERDR-PUBLIC-JSON-ADAPTER]] were not implemented
+by the original scaffold. The subsequent thin transport increment adds
+`extensions/herdr/transport.ts` with the bounded pane-view interface specified
+in that design. The factory remains no-op: no automatic connection, tool, command,
+hook, UI, job tracking or agent messaging. Transport checks explicitly opt into
+an isolated Linux Herdr 0.9.1 server; factory-loading checks never access a live
+endpoint. Other runtime contracts remain future work.
 
 [[DES-JOBS-PACKAGE-BOUNDARY]] and [[DES-JOBS-INTERFACE-CHECKPOINT]] govern later
 consumer integration. No runtime dependency on jobs-core or sibling unintegrated
-APIs is added. Existing authority/storage/launch/reconnect race obligations in
-the runtime contracts remain future work; this factory introduces none.
+APIs is added. Managed-command authority/storage/launch and jobs integration
+remain future work; transport observations do not claim command outcomes.
 
 ## Publication selection
 
-The explicit `files` allowlist selects `extensions/herdr` and `LICENSE`; the
+The explicit `files` allowlist selects `extensions/herdr` (the no-op factory and
+its transport runtime source only) and `LICENSE`; the
 manifest and consumer README are also packed by pnpm. Pi loads source TypeScript,
 so there is no resource compilation or build target. The only npm export is
 `./package.json`, not a root library API. Repository-only Mara knowledge, tests,
@@ -41,8 +44,12 @@ source `pi-check`. Fresh-build the compiled nx-pi tooling before checking/packin
 the extension itself has no compiled resource output. Distribution tests pack
 current source, assert exact archive members and pass each explicit fresh archive
 to `pi-check-package --tarball`. Independent npm and pnpm consumers install the
-archive alongside Pi 0.99.1 and verify metadata-only exports, extension byte
-provenance, fixture-project package discovery and no registrations. Approval is
+archive alongside Pi 0.99.1 and verify metadata-only exports, factory/transport
+byte provenance, fixture-project package discovery and no registrations. Each
+consumer also typechecks installed transport source with TypeScript 6.0.3 and
+Node types, and uses the host's Jiti loader to exercise connect/query/rename/
+reconnect through a controlled socket. These are source-module checks, not a
+published library API or real-server proof. Approval is
 fixture-local; no global settings, credentials, model inference, MCP or Herdr
 server is used. Test both the current manifest version and a copied disposable
 alternate-version source fixture; never mutate pnpm-hardlinked installed files.

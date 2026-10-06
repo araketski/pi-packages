@@ -44,6 +44,7 @@ for (const { manager, version } of [
         'LICENSE',
         'README.md',
         'extensions/herdr/index.ts',
+        'extensions/herdr/transport.ts',
         'package.json',
       ]);
       execFileSync(
@@ -70,6 +71,8 @@ for (const { manager, version } of [
           dependencies: {
             '@araketski/pi-herdr': `file:${pack.filename}`,
             '@earendil-works/pi-coding-agent': '0.99.1',
+            '@types/node': '24.19.0',
+            typescript: '6.0.3',
           },
         }),
       );
@@ -115,7 +118,87 @@ for (const { manager, version } of [
       const digest = createHash('sha256')
         .update(readFileSync(join(packageRoot, 'extensions/herdr/index.ts')))
         .digest('hex');
-      const output = execFileSync(process.execPath, [smoke, digest, version], {
+      const transportDigest = createHash('sha256')
+        .update(readFileSync(join(packageRoot, 'extensions/herdr/transport.ts')))
+        .digest('hex');
+      const declarationConsumer = join(consumer, 'types.mts');
+      writeFileSync(
+        declarationConsumer,
+        `import { HerdrTransport, resolveLocalContext, type PaneInfo, type MoveDestination } from './node_modules/@araketski/pi-herdr/extensions/herdr/transport.ts';
+const context = resolveLocalContext({});
+const transport = new HerdrTransport(context);
+const destination: MoveDestination = { type: 'new_tab', workspace_id: 'w1' };
+const pane: Promise<PaneInfo> = transport.getPane('w1:p1');
+void pane; void transport.movePane('w1:p1', destination);\n`,
+      );
+      execFileSync(
+        process.execPath,
+        [
+          join(consumer, 'node_modules/typescript/bin/tsc'),
+          '--noEmit',
+          '--strict',
+          '--skipLibCheck',
+          '--target',
+          'es2022',
+          '--module',
+          'nodenext',
+          '--allowImportingTsExtensions',
+          '--types',
+          'node',
+          declarationConsumer,
+        ],
+        { cwd: consumer, env, encoding: 'utf8', timeout: 60_000, stdio: 'inherit' },
+      );
+      // Emit declarations from the fresh installed runtime source into owned fixture storage,
+      // then independently consume those declarations. Never write into installed packages.
+      const declarations = join(consumer, 'declarations');
+      const compiler = join(consumer, 'node_modules/typescript/bin/tsc');
+      execFileSync(
+        process.execPath,
+        [
+          compiler,
+          '--declaration',
+          '--emitDeclarationOnly',
+          '--strict',
+          '--skipLibCheck',
+          '--target',
+          'es2022',
+          '--module',
+          'nodenext',
+          '--types',
+          'node',
+          '--outDir',
+          declarations,
+          join(consumer, 'node_modules/@araketski/pi-herdr/extensions/herdr/transport.ts'),
+        ],
+        { cwd: consumer, env, encoding: 'utf8', timeout: 60_000, stdio: 'inherit' },
+      );
+      const declaredConsumer = join(consumer, 'declarations.mts');
+      writeFileSync(
+        declaredConsumer,
+        readFileSync(declarationConsumer, 'utf8').replace(
+          './node_modules/@araketski/pi-herdr/extensions/herdr/transport.ts',
+          './declarations/transport.js',
+        ),
+      );
+      execFileSync(
+        process.execPath,
+        [
+          compiler,
+          '--noEmit',
+          '--strict',
+          '--skipLibCheck',
+          '--target',
+          'es2022',
+          '--module',
+          'nodenext',
+          '--types',
+          'node',
+          declaredConsumer,
+        ],
+        { cwd: consumer, env, encoding: 'utf8', timeout: 60_000, stdio: 'inherit' },
+      );
+      const output = execFileSync(process.execPath, [smoke, digest, version, transportDigest], {
         cwd: consumer,
         env,
         encoding: 'utf8',
@@ -127,10 +210,14 @@ for (const { manager, version } of [
         version,
         archiveMembers: pack.files.map(({ path }) => path).sort(),
         archiveSha256: createHash('sha256').update(readFileSync(pack.filename)).digest('hex'),
+        transportDigest,
+        installedSourceTypes: 'passed',
+        installedDeclarations: 'passed',
         ...JSON.parse(output),
       };
       if (process.env.PI_TEST_EVIDENCE_DIR) {
         mkdirSync(process.env.PI_TEST_EVIDENCE_DIR, { recursive: true });
+        cpSync(pack.filename, join(process.env.PI_TEST_EVIDENCE_DIR, `${manager}-${version}.tgz`));
         writeFileSync(
           join(process.env.PI_TEST_EVIDENCE_DIR, `${manager}-${version}.json`),
           JSON.stringify(receipt, null, 2) + '\n',
