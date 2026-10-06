@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { createJobsSessionRuntime, type JobsPiContext } from './session.js';
-import { createCompletionCoordinator } from './delivery.js';
+import { createCompletionCoordinator, jobsFinalResultText } from './delivery.js';
 import type { FinalResult, LaunchRequest } from './index.js';
 
 function fixture() {
@@ -57,6 +57,51 @@ function fixture() {
 }
 
 describe('session binding safety', () => {
+  it('orders receipt persistence with concurrent owner delivery settings', async () => {
+    const f = fixture();
+    await f.runtime.start(f.pi, f.ctx, 'startup');
+    await f.runtime.admit(f.request, { cancel: async () => {}, dispose() {} });
+    await f.runtime.complete(f.final);
+    f.manager.appendMessage({
+      role: 'toolResult',
+      toolCallId: 'read',
+      toolName: 'read',
+      content: [{ type: 'text', text: jobsFinalResultText(f.final) }],
+      details: undefined,
+      isError: false,
+      timestamp: Date.now(),
+    });
+    const observation = structuredClone(f.runtime.inspect()[0]);
+    observation.delivery = { mode: 'display-only', state: 'not-required' };
+    await Promise.all([
+      f.runtime.update(observation),
+      f.runtime.boundary(
+        { outcome: 'completed', context: { canContinue: true, pendingMessages: [] } },
+        f.ctx,
+      ),
+    ]);
+    const saved = f.manager
+      .getEntries()
+      .filter(
+        (entry) => entry.type === 'custom' && entry.customType === 'araketski.pi-jobs/storage',
+      )
+      .at(-1) as { data: { observation: typeof observation } };
+    expect(saved.data.observation.delivery).toEqual({
+      mode: 'display-only',
+      state: 'not-required',
+    });
+    expect(f.runtime.inspect()[0].delivery).toEqual({
+      mode: 'display-only',
+      state: 'not-required',
+    });
+    await f.runtime.shutdown('quit');
+    await f.runtime.start(f.pi, f.ctx, 'resume');
+    expect(f.runtime.inspect()[0].delivery).toEqual({
+      mode: 'display-only',
+      state: 'not-required',
+    });
+    await f.runtime.shutdown('quit');
+  });
   it('preserves an actual completion racing shutdown while the original append boundary remains valid', async () => {
     const f = fixture();
     let finalReply;

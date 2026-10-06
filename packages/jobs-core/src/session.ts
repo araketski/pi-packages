@@ -76,6 +76,8 @@ interface Tracked {
   result?: FinalResult;
   arrivalEpoch?: number;
   receipt?: FinalResultReceipt;
+  deferred?: boolean;
+  ordering?: Promise<void>;
 }
 interface Active {
   id: string;
@@ -88,6 +90,7 @@ interface Active {
   startedEpoch: number;
   wake?: WakeReservation;
   submitting: boolean;
+  starting: boolean;
   closing: boolean;
 }
 interface Binding {
@@ -194,6 +197,19 @@ export function createJobsSessionRuntime(options: {
     if (!writable(a)) throw Error('Origin callback unavailable.');
     return a.binding!;
   }
+  async function ordered<T>(job: Tracked, action: () => Promise<T>): Promise<T> {
+    const preceding = job.ordering;
+    let release!: () => void;
+    job.ordering = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await preceding;
+    try {
+      return await action();
+    } finally {
+      release();
+    }
+  }
   const results = (a: Active) => [...a.jobs.values()].flatMap((j) => (j.result ? [j.result] : []));
   async function reconcile(a: Active) {
     if (!valid(a)) return;
@@ -214,19 +230,28 @@ export function createJobsSessionRuntime(options: {
     if (!valid(a)) return;
     for (const receipt of receipts) {
       const j = a.jobs.get(key(receipt.result.job));
-      if (!j || j.observation.delivery.state === 'delivered') continue;
-      j.receipt = receipt;
-      j.observation.delivery = { mode: j.observation.delivery.mode, state: 'delivered', receipt };
-      if (j.reservation) {
-        const saved = await a.store.jobs.save(j.reservation, j.observation);
-        if (saved.status !== 'ok') options.diagnose(saved.reason);
-      } else {
-        try {
-          a.binding!.pi.appendEntry('araketski.pi-jobs/receipt', receipt);
-        } catch (error) {
-          options.diagnose(`Receipt append unavailable: ${String(error)}`);
+      if (!j) continue;
+      await ordered(j, async () => {
+        if (!valid(a) || j.observation.delivery.state === 'delivered') return;
+        j.receipt = receipt;
+        if (j.observation.delivery.mode !== 'display-only')
+          j.observation.delivery = {
+            mode: j.observation.delivery.mode,
+            state: 'delivered',
+            receipt,
+          };
+        if (j.reservation) {
+          const saved = await a.store.jobs.save(j.reservation, j.observation);
+          if (saved.status !== 'ok') options.diagnose(saved.reason);
         }
-      }
+        if (!j.reservation || j.observation.delivery.mode === 'display-only') {
+          try {
+            a.binding!.pi.appendEntry('araketski.pi-jobs/receipt', receipt);
+          } catch (error) {
+            options.diagnose(`Receipt append unavailable: ${String(error)}`);
+          }
+        }
+      });
     }
     gates(a);
     changed();
@@ -249,6 +274,7 @@ export function createJobsSessionRuntime(options: {
       const j = a.jobs.get(key(result.identity.job));
       return (
         j &&
+        !j.deferred &&
         j.observation.delivery.state !== 'delivered' &&
         j.observation.delivery.mode !== 'display-only' &&
         (j.observation.delivery.mode === 'automatic' ||
@@ -269,6 +295,7 @@ export function createJobsSessionRuntime(options: {
     if (
       !valid(a) ||
       a.deferred ||
+      a.starting ||
       a.submitting ||
       !a.binding!.ctx.isIdle() ||
       a.binding!.ctx.hasPendingMessages()
@@ -287,10 +314,16 @@ export function createJobsSessionRuntime(options: {
       a.wake = wake.reservation;
       heldWakes.set(a.id, wake.reservation);
       const batch = await selected(a, false);
-      if (!valid(a)) return;
-      if (!batch.length) {
+      if (
+        !valid(a) ||
+        a.starting ||
+        !a.binding!.ctx.isIdle() ||
+        a.binding!.ctx.hasPendingMessages() ||
+        !batch.length
+      ) {
         await options.inbox.reportWake(wake.reservation, 'failed');
         a.wake = undefined;
+        heldWakes.delete(a.id);
         return;
       }
       try {
@@ -331,6 +364,7 @@ export function createJobsSessionRuntime(options: {
         startedEpoch: 0,
         wake: heldWakes.get(id),
         submitting: false,
+        starting: false,
         closing: false,
         binding: { pi, ctx, gates: gateBinding },
         store: undefined!,
@@ -357,7 +391,7 @@ export function createJobsSessionRuntime(options: {
         if (!identity || identity.sessionId !== id) continue;
         const observed = await a.store.jobs.read(identity);
         if (observed.status !== 'ok') continue;
-        const j: Tracked = { observation: observed.value };
+        const j: Tracked = { observation: observed.value, deferred: true };
         if (data?.observation?.delivery.state === 'delivered')
           j.receipt = data.observation.delivery.receipt;
         if (data?.result) {
@@ -401,6 +435,8 @@ export function createJobsSessionRuntime(options: {
       if (active && valid(active)) {
         active.deferred = false;
         active.inputEpoch++;
+        active.starting = true;
+        for (const job of active.jobs.values()) job.deferred = false;
         changed();
         // Native input handlers run before Pi admits the transformed input to its queue.
         // One post-dispatch notification observes admission, without polling or submitting work.
@@ -413,12 +449,17 @@ export function createJobsSessionRuntime(options: {
     },
     userTurnStarted(ctx) {
       runtime.refresh(ctx);
-      if (active && valid(active)) active.startedEpoch = active.inputEpoch;
+      if (active && valid(active)) {
+        active.startedEpoch = active.inputEpoch;
+        active.starting = false;
+      }
     },
     async idle(ctx) {
       runtime.refresh(ctx);
       const a = active;
-      if (!a || !valid(a) || a.deferred) return;
+      if (!a || !valid(a)) return;
+      a.starting = false;
+      if (a.deferred) return;
       await reconcile(a);
       if (a.wake && valid(a) && !ctx.hasPendingMessages()) {
         await options.inbox.finishWake(a.wake);
@@ -431,6 +472,7 @@ export function createJobsSessionRuntime(options: {
       runtime.refresh(ctx);
       const a = active;
       if (!a || !valid(a) || a.deferred) return;
+      a.starting = true;
       await reconcile(a);
       const batch = await selected(a, true);
       if (valid(a) && batch.length)
@@ -508,21 +550,25 @@ export function createJobsSessionRuntime(options: {
           status: 'invalid',
           reason: 'One-shot awaited next-natural-turn delivery is incompatible.',
         };
-      const next = structuredClone(observation);
-      next.delivery =
-        next.delivery.mode === 'display-only'
-          ? { mode: 'display-only', state: 'not-required' }
-          : entry.job.receipt
-            ? { mode: next.delivery.mode, state: 'delivered', receipt: entry.job.receipt }
-            : {
-                mode: next.delivery.mode,
-                state: next.delivery.state === 'unknown' ? 'unknown' : 'pending',
-              };
-      const saved = await entry.a.store.jobs.save(entry.job.reservation, next);
-      if (!valid(entry.a)) return unavailable();
-      entry.job.observation = next;
-      if (entry.job.result)
-        await options.inbox.enqueue(entry.job.result, observation.delivery.mode);
+      const saved = await ordered(entry.job, async () => {
+        const job = entry.job!;
+        if (!valid(entry.a)) return unavailable();
+        const next = structuredClone(observation);
+        next.delivery =
+          next.delivery.mode === 'display-only'
+            ? { mode: 'display-only', state: 'not-required' }
+            : job.receipt
+              ? { mode: next.delivery.mode, state: 'delivered', receipt: job.receipt }
+              : {
+                  mode: next.delivery.mode,
+                  state: next.delivery.state === 'unknown' ? 'unknown' : 'pending',
+                };
+        const saved = await entry.a.store.jobs.save(job.reservation!, next);
+        if (!valid(entry.a)) return unavailable();
+        job.observation = next;
+        if (job.result) await options.inbox.enqueue(job.result, next.delivery.mode);
+        return saved;
+      });
       gates(entry.a);
       changed();
       await idleWake(entry.a);
@@ -530,25 +576,32 @@ export function createJobsSessionRuntime(options: {
     },
     async capture(job, bytes) {
       const entry = current(job);
-      return entry?.job ? entry.a.store.capture(job, { stream: 'combined', bytes }) : unavailable();
+      return entry?.job
+        ? ordered(entry.job, () => entry.a.store.capture(job, { stream: 'combined', bytes }))
+        : unavailable();
     },
     async complete(result) {
       const entry = current(result.identity.job);
       if (!entry?.job) return unavailable();
-      const saved = await entry.a.store.results.save(result);
-      if (!writable(entry.a)) return unavailable();
-      const observed = await entry.a.store.jobs.read(result.identity.job);
-      if (observed.status === 'ok') entry.job.observation = observed.value;
-      // A failed best-effort append is diagnostic; live capture/result still carries its actual outcome.
-      if (saved.status !== 'ok') {
-        options.diagnose(saved.reason);
-        const retained = await entry.a.store.results.read(result.identity);
-        if (retained.status !== 'ok') return saved;
-      }
-      entry.job.result = structuredClone(result);
-      entry.job.arrivalEpoch = entry.a.startedEpoch;
-      if (entry.a.closing) return saved;
-      const enqueued = await options.inbox.enqueue(result, entry.job.observation.delivery.mode);
+      const enqueued = await ordered(entry.job, async () => {
+        const job = entry.job!;
+        if (active !== entry.a) return unavailable();
+        // The captured store's append port waits for a same-origin reload binding.
+        const saved = await entry.a.store.results.save(result);
+        if (!writable(entry.a)) return unavailable();
+        const observed = await entry.a.store.jobs.read(result.identity.job);
+        if (observed.status === 'ok') job.observation = observed.value;
+        // A failed best-effort append is diagnostic; live capture/result still carries its actual outcome.
+        if (saved.status !== 'ok') {
+          options.diagnose(saved.reason);
+          const retained = await entry.a.store.results.read(result.identity);
+          if (retained.status !== 'ok') return saved;
+        }
+        job.result = structuredClone(result);
+        job.arrivalEpoch = entry.a.startedEpoch;
+        if (entry.a.closing) return saved;
+        return await options.inbox.enqueue(result, job.observation.delivery.mode);
+      });
       gates(entry.a);
       changed();
       await idleWake(entry.a);

@@ -131,4 +131,13 @@ Exercise real isolated persistent/in-memory Pi 0.99.1 sessions, finite controlle
 Awaited RPC/SDK next-natural-turn results keep the native cancellable turn pending for the required receipt; they do not gain an automatic wake. Track accepted user-input and user-message-start generations locally. When a genuinely subsequent user input is admitted to Pi's native queue, include its eligible next-turn results at the actionable boundary and let normal queued input run. A single post-input notification observes queue admission after public input handlers finish; it neither polls nor submits execution/model work. Programmatic extension input does not lift resume deferral. Abort cancels the boundary wait only.
 
 A supported post-completion delivery override updates the saved observation and the same inbox before wake eligibility is rechecked. Display-only removes pending model-delivery membership, without consuming a model-directed receipt. Explicit retrieval of display-only final content retains not-required display-only state; it must remain a valid participant snapshot. Native/installed tests have an explicit gates-protocol build prerequisite so clean-checkout execution does not rely on old dist files.
+
+
+## Startup and same-job ordering
+
+The public input and before-agent-start phases guard starting prompts even while Pi 0.99.1 reports idle. A user message start or settled notification ends this guard. Recheck current binding, starting/idle state and native pending messages after capture and before void sendMessage admission; a starting prompt receives arrivals through its ordinary actionable boundaries, not a competing jobs-only prompt.
+
+Saved pending results retain per-job next-user-input deferral. Admitting/completing fresh work may enable its own delivery but does not authorize resumed results. A genuine accepted user input lifts the historical deferrals; extension-origin input does not.
+
+This retained runtime orders its own same-job capture, completion, owner observation updates and receipt persistence. Queued actions use the latest settings and verified receipt facts rather than saving stale pre-await observations. This is the integration's local store-ordering responsibility, not a new executor, external lock, retry/durability service or authority-transfer mechanism. Best-effort write failures remain diagnostic; no fsync or cross-runtime ordering is promised.
 :::

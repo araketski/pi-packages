@@ -1,7 +1,133 @@
-import { assert, probe, setup, tool, result, root } from './pi-harness.mjs';
+import { assert, probe, setup, tool, result, root, sdk } from './pi-harness.mjs';
 import { join } from 'node:path';
 import * as core from './core-a.mjs';
 let sequence = 0;
+
+for (const first of [true, false])
+  await probe(
+    'automatic arrival joins asynchronous prompt startup (binding first: ' + first + ')',
+    async () => {
+      const c = compose();
+      let entered, release;
+      let blocked = false;
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
+      const starting = new Promise((resolve) => {
+        entered = resolve;
+      });
+      const h = await setup({
+        extension: (pi) => {
+          const block = () =>
+            pi.on('before_agent_start', async () => {
+              if (!blocked) {
+                blocked = true;
+                entered();
+                await held;
+              }
+            });
+          if (!first) block();
+          core.bindJobsSessionRuntime(pi, c.runtime);
+          if (first) block();
+        },
+      });
+      let running;
+      try {
+        const final = await c.admit(h.ctx);
+        running = h.session.prompt('real user request');
+        await starting;
+        await c.runtime.complete(final);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(h.requests.length, 0, 'no competing jobs-only run during user startup');
+        release();
+        await running;
+        await h.session.waitForIdle();
+        assert.equal(c.runtime.inspect()[0].delivery.state, 'delivered');
+        assert(
+          h.requests.some((r) =>
+            r.context.messages.some(
+              (m) => m.role === 'user' && JSON.stringify(m).includes('real user request'),
+            ),
+          ),
+        );
+        assert.equal(h.errors.length, 0);
+        return { requests: h.requests.length };
+      } finally {
+        release();
+        await running?.catch(() => {});
+        await c.runtime.shutdown('quit');
+        h.close();
+      }
+    },
+  );
+
+await probe(
+  'fresh admission cannot lift saved automatic results next-user-input deferral',
+  async () => {
+    const cwd = join(root, 'saved-admission');
+    const manager = sdk.SessionManager.create(cwd, join(cwd, 'sessions'));
+    let h = await setup({ sessionManager: manager });
+    const c = compose();
+    try {
+      await h.session.prompt('persist native history');
+      const job = {
+        runtimeId: 'R',
+        sessionId: manager.getSessionId(),
+        ownerId: 'old',
+        producerId: 'external',
+        jobId: 'saved',
+      };
+      const store = core.createSessionJobStore({
+        session: {
+          sessionId: manager.getSessionId(),
+          persistent: true,
+          getEntries: () => manager.getEntries(),
+          appendEntry: (type, data) => h.pi.appendEntry(type, data),
+        },
+        output: core.createJobsFileOutput(join(root, 'saved-admission-output')),
+      });
+      const reserved = await store.jobs.reserve({
+        identity: job,
+        authority: { runtimeId: 'R', ownerId: 'old', generation: 'old' },
+        awaiting: false,
+        lifetime: 'managed',
+        delivery: 'automatic',
+      });
+      assert.equal(reserved.status, 'ok');
+      await store.results.save({
+        identity: { job, resultId: 'old-final' },
+        outcome: { kind: 'exit', exitCode: 0 },
+        content: 'saved automatic final',
+      });
+      store.invalidateOrigin();
+      await store.dispose();
+      h.close();
+      h = await setup({
+        sessionManager: sdk.SessionManager.open(manager.getSessionFile()),
+        sessionStartEvent: { type: 'session_start', reason: 'resume' },
+        extension: (pi) => core.bindJobsSessionRuntime(pi, c.runtime),
+      });
+      const fresh = await c.admit(h.ctx, 'display-only');
+      await c.runtime.complete(fresh);
+      await h.session.waitForIdle();
+      assert.equal(h.requests.length, 0);
+      assert.equal(
+        c.runtime.inspect().find((j) => j.identity.jobId === 'saved').delivery.state,
+        'pending',
+      );
+      await h.session.prompt('next real user input');
+      assert.equal(
+        c.runtime.inspect().find((j) => j.identity.jobId === 'saved').delivery.state,
+        'delivered',
+      );
+      assert.equal(h.errors.length, 0);
+      return c.runtime.inspect();
+    } finally {
+      await c.runtime.shutdown('quit');
+      h.close();
+    }
+  },
+);
 function compose() {
   const inbox = core.createCompletionCoordinator();
   const runtime = core.createJobsSessionRuntime({
