@@ -91,7 +91,14 @@ it.each(['npm', 'pnpm'] as const)(
           private: true,
           type: 'module',
           dependencies: { [manifest.name]: `file:${tarball}` },
-          devDependencies: { typescript: typescriptVersion },
+          devDependencies: {
+            typescript: typescriptVersion,
+            '@earendil-works/pi-coding-agent': '0.99.1',
+            '@earendil-works/pi-ai': '0.99.1',
+            '@types/node': JSON.parse(
+              readFileSync(join(workspaceRoot, 'node_modules/@types/node/package.json'), 'utf8'),
+            ).version,
+          },
         }),
       );
       run(
@@ -209,18 +216,41 @@ it.each(['npm', 'pnpm'] as const)(
         join(consumer, 'storage-installed.mjs'),
         `
         import * as core from '${manifest.name}';
-        import * as sdk from '${import.meta.resolve('@earendil-works/pi-coding-agent')}';
+        import * as sdk from '@earendil-works/pi-coding-agent';
         import * as copy from './separate-copy/index.js';
         import {exerciseStorage} from './storage-smoke.mjs';
         console.log(JSON.stringify(await exerciseStorage(core,sdk,'${join(consumer, 'storage')}',copy)));
       `,
       );
+      for (const name of ['pi-harness.mjs', 'session-delivery.mjs', 'session-cases.mjs'])
+        writeFileSync(
+          join(consumer, name),
+          readFileSync(new URL('../tests/' + name, import.meta.url)),
+        );
+      writeFileSync(
+        join(consumer, 'installed-composition.mjs'),
+        `
+        import {writeFileSync} from 'node:fs';
+        import {createRequire} from 'node:module';
+        const sdk = import.meta.resolve('@earendil-works/pi-coding-agent');
+        writeFileSync('imports.json', JSON.stringify({sdk, ai:import.meta.resolve('@earendil-works/pi-ai'),
+          typebox:createRequire(sdk).resolve('@sinclair/typebox'), gates:'${new URL('../../gates-protocol/dist/index.js', import.meta.url).href}'}));
+        await import('./session-delivery.mjs');
+      `,
+      );
+      writeFileSync(join(consumer, 'core-a.mjs'), `export * from '${manifest.name}';`);
+      writeFileSync(join(consumer, 'core-b.mjs'), `export * from './separate-copy/index.js';`);
       const smoke = run(process.execPath, ['smoke.mjs'], consumer);
       const storageSmoke = run(process.execPath, ['storage-installed.mjs'], consumer);
+      const composition = run(
+        'unshare',
+        ['--user', '--map-root-user', '--net', process.execPath, 'installed-composition.mjs'],
+        consumer,
+      );
       writeFileSync(
         join(consumer, 'consumer.ts'),
         `
-        import { createJobsParticipant, type CompletionCoordinator, type ExecutionAdapter,
+        import { createJobsSessionRuntime, createCompletionCoordinator, bindJobsSessionRuntime, type JobsPiContext, createJobsParticipant, type CompletionCoordinator, type ExecutionAdapter,
           type JobStore, type ResultSink, type FinalResultReceipt, type JobOwnerPort,
           type JobsPiHost, type JobObservation, createJobLifecycle, resolveJobsLifecycleSettings,
           waitForJobs, type JobsClock, type JobsWaitResult, type JobLifecycle,
@@ -240,6 +270,10 @@ it.each(['npm', 'pnpm'] as const)(
         export const store: SessionJobStore = createSessionJobStore({session,output,maxBytes:100});
         export type Captured = JobsCapturedOutput;
         export const captured = store.capture({runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'opaque'}, {stream:'stdout',bytes:new Uint8Array(1)});
+        const composed = createJobsSessionRuntime({runtimeId:'R',participantId:'P',inbox:createCompletionCoordinator(),output,diagnose:()=>{}});
+        export const composedRuntime = composed;
+        export type HostContext = JobsPiContext;
+        export const publicBinder = bindJobsSessionRuntime;
         const events = createJobsTestBus();
         const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
         export const job: JobObservation = createUnknownJobFixture({runtimeId:'R', ownerId:'O', sessionId:'S', jobId:'J', producerId:'unknown'});
@@ -264,8 +298,34 @@ it.each(['npm', 'pnpm'] as const)(
         ],
         consumer,
       );
+      writeFileSync(
+        join(consumer, 'pi-compatibility.ts'),
+        `
+        import type {ExtensionAPI, ExtensionContext} from '@earendil-works/pi-coding-agent';
+        import {createJobsSessionRuntime, createCompletionCoordinator, createJobsFileOutput, bindJobsSessionRuntime, type JobsPiContext} from '${manifest.name}';
+        const runtime = createJobsSessionRuntime({runtimeId:'R',participantId:'P',inbox:createCompletionCoordinator(),output:createJobsFileOutput('/isolated/output'),diagnose:()=>{}});
+        export function nativeCompatibility(pi: ExtensionAPI, ctx: ExtensionContext) { bindJobsSessionRuntime(pi,runtime); const context: JobsPiContext = ctx; return context; }
+      `,
+      );
+      run(
+        process.execPath,
+        [
+          'node_modules/typescript/bin/tsc',
+          'pi-compatibility.ts',
+          '--strict',
+          '--skipLibCheck',
+          '--noEmit',
+          '--module',
+          'nodenext',
+          '--moduleResolution',
+          'nodenext',
+          '--target',
+          'es2022',
+        ],
+        consumer,
+      );
       console.log(
-        `${manager} consumer passed: ${smoke.trim()}; storage ${storageSmoke.trim()}; TypeScript ${typescriptVersion}; archive sha256 ${createHash('sha256').update(readFileSync(tarball)).digest('hex')}`,
+        `${manager} consumer passed: ${smoke.trim()}; storage ${storageSmoke.trim()}; composition ${composition.trim()}; TypeScript ${typescriptVersion}; archive sha256 ${createHash('sha256').update(readFileSync(tarball)).digest('hex')}`,
       );
     } finally {
       rmSync(root, { recursive: true, force: true });

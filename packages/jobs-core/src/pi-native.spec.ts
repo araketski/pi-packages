@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -86,10 +94,13 @@ it('proves the registration seams in real credential-free print JSON RPC and int
       join(root, 'imports.json'),
       JSON.stringify({
         sdk,
+        core: new URL('index.js', 'file://' + root + '/').href,
         ai: new URL('../../pi-ai/dist/index.js', sdk).href,
         typebox: createRequire(sdk).resolve('@sinclair/typebox'),
       }),
     );
+    cpSync(new URL('../dist/', import.meta.url), root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     for (const name of ['pi-cli-extension.mjs', 'pi-cli-driver.py'])
       writeFileSync(join(root, name), readFileSync(new URL(`../tests/${name}`, import.meta.url)));
     const cli = new URL('./cli.js', sdk).pathname;
@@ -137,7 +148,7 @@ it('proves the registration seams in real credential-free print JSON RPC and int
     expect(result.status, `${result.stdout}\n${result.stderr}\n${String(result.error ?? '')}`).toBe(
       0,
     );
-    expect(JSON.parse(readFileSync(join(root, 'cli-results.json'), 'utf8'))).toHaveLength(16);
+    expect(JSON.parse(readFileSync(join(root, 'cli-results.json'), 'utf8'))).toHaveLength(20);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -11,7 +11,7 @@
 
 ## Checkpoint versus later runtime
 
-This checkpoint supplies exported envelopes and minimal participant discovery/contract metadata behavior, not execution, lifecycle reconciliation, quota accounting, storage persistence, owner control routing or concrete Pi delivery. Read [the delivery contract](./delivery.mara.md) and [the Pi 0.99.1 reconciliation](../../../docs/pi-0991-reconciliation.mara.md#nested-tools-and-delivery). Full delivery implementation and VER-JOBS-DELIVERY belong to Work item `34f4436cc1b5436e86b7a083abc1b9f8`; it is not started here. Narrow test fixtures do not prove local/Herdr or goal/caffeinate runtime integration.
+This checkpoint supplies exported envelopes and minimal participant discovery/contract metadata behavior, not execution, lifecycle reconciliation, quota accounting, storage persistence, owner control routing or concrete Pi delivery. Read [the delivery contract](./delivery.mara.md) and [the Pi 0.99.1 reconciliation](../../../docs/pi-0991-reconciliation.mara.md#nested-tools-and-delivery). The additive public Pi composition is specified in [[DES-JOBS-PI-COMPOSITION]] and implemented in delivery.ts/session.ts. Its observed checks, reviewed identities and limitations belong to Work item `34f4436cc1b5436e86b7a083abc1b9f8`; the original checkpoint alone is not delivery evidence. Narrow test fixtures do not prove local/Herdr or goal/caffeinate runtime integration.
 
 ## Identity and authority
 

@@ -1,11 +1,14 @@
 import { assert, probe, setup, tool, result, root } from './pi-harness.mjs';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as core from './core-a.mjs';
 
 const outputRoot = join(root, 'output');
 mkdirSync(outputRoot);
+const genericGates = await import(
+  JSON.parse(readFileSync(join(root, 'imports.json'), 'utf8')).gates
+);
 const diagnostics = [];
 const runtime = core.createJobsSessionRuntime({
   runtimeId: 'fixture-runtime',
@@ -23,13 +26,21 @@ await probe(
     const gates = new Set();
     const h = await setup({
       extension: (pi) => {
-        core.bindJobsSessionRuntime(pi, runtime, () => ({
-          reconcile: (ids) => {
-            gates.clear();
-            for (const id of ids) gates.add(id);
-          },
-          close() {},
-        }));
+        core.bindJobsSessionRuntime(pi, runtime, (_pi, ctx) => {
+          const owner = genericGates.createGateOwner(pi, 'finite-owner');
+          owner.start(ctx);
+          return {
+            reconcile(ids) {
+              owner.reconcile(
+                ctx,
+                ids.map((id) => ({ id })),
+              );
+              gates.clear();
+              for (const id of ids) gates.add(id);
+            },
+            close: () => owner.close(),
+          };
+        });
         pi.registerTool(
           tool('fixture_launch', async (_id, _args, _signal, _update, ctx) => {
             const identity = {
@@ -130,3 +141,5 @@ await probe(
     }
   },
 );
+
+await import('./session-cases.mjs');

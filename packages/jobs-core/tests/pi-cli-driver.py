@@ -13,7 +13,7 @@ root = pathlib.Path(sys.argv[1])
 node, cli = sys.argv[2:4]
 results = []
 for mode in ('print', 'json', 'rpc', 'interactive'):
-    for scenario in ('direct', 'discovery', 'disabled', 'excluded'):
+    for scenario in ('direct', 'discovery', 'disabled', 'excluded', 'delivery'):
         case = root / (mode + '-' + scenario)
         case.mkdir()
         (case / 'home').mkdir()
@@ -99,6 +99,9 @@ for mode in ('print', 'json', 'rpc', 'interactive'):
             settled = json.loads((case / 'settled.json').read_text())
             assert settled['phase'] >= 2, settled
             assert b'CLI-SEAM-PASS' in output, (mode, scenario, output)
+            if scenario == 'delivery':
+                assert settled['jobs'][0]['delivery']['state'] == 'delivered', settled
+                assert settled['jobs'][0]['execution']['outcome'] == {'kind': 'exit', 'exitCode': 0}, settled
             if mode in ('json', 'rpc'):
                 records = [json.loads(line) for line in output.split(b'\n') if line.strip()]
                 assert any(r.get('type') == 'agent_settled' for r in records), records

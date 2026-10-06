@@ -5,6 +5,7 @@ import type {
   JobIdentity,
   JobObservation,
   JobReply,
+  FinalResultReceipt,
   LaunchRequest,
   SessionScope,
   StorageReservation,
@@ -19,6 +20,8 @@ import {
   findJobsFinalReceipts,
   JOBS_RESULTS_MESSAGE_TYPE,
   jobsFinalResultText,
+  jobsFinalResultDigest,
+  jobsResultKey,
   type JobsRecordedProjection,
 } from './delivery.js';
 
@@ -52,6 +55,8 @@ export interface JobsBoundaryDraft {
 export interface JobsBoundaryEvent {
   outcome: 'completed' | 'aborted' | 'error';
   context: { canContinue: boolean; pendingMessages: readonly unknown[] };
+  /** Preserve preceding handlers' native drafts verbatim. */
+  entries?: readonly unknown[];
 }
 export interface JobsOwnedExecution {
   /** Already ownership-checked cancellation using the unchanged executor policy. */
@@ -146,15 +151,14 @@ export function createJobsSessionRuntime(options: {
   )
     throw Error('Invalid cleanup/reconciliation bound.');
   let active: Active | undefined;
+  const heldWakes = new Map<string, WakeReservation>();
   const listeners = new Set<() => void>();
   const changed = () => {
     for (const resolve of listeners) resolve();
   };
-  const valid = (a: Active) =>
-    active === a &&
-    !!a.binding &&
-    !a.closing &&
-    a.binding.ctx.sessionManager.getSessionId() === a.id;
+  const writable = (a: Active) =>
+    active === a && !!a.binding && a.binding.ctx.sessionManager.getSessionId() === a.id;
+  const valid = (a: Active) => writable(a) && !a.closing;
   const gates = (a: Active) => {
     if (!valid(a)) return;
     try {
@@ -168,8 +172,21 @@ export function createJobsSessionRuntime(options: {
   };
   const current = (job: JobIdentity) => {
     const a = active;
-    return a && valid(a) && a.id === job.sessionId ? { a, job: a.jobs.get(key(job)) } : undefined;
+    return a && a.id === job.sessionId ? { a, job: a.jobs.get(key(job)) } : undefined;
   };
+  async function bound(a: Active) {
+    while (active === a && !a.closing && !a.binding) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          listeners.delete(finish);
+          resolve();
+        };
+        listeners.add(finish);
+      });
+    }
+    if (!writable(a)) throw Error('Origin callback unavailable.');
+    return a.binding!;
+  }
   const results = (a: Active) => [...a.jobs.values()].flatMap((j) => (j.result ? [j.result] : []));
   async function reconcile(a: Active) {
     if (!valid(a)) return;
@@ -192,18 +209,32 @@ export function createJobsSessionRuntime(options: {
       if (j.reservation) {
         const saved = await a.store.jobs.save(j.reservation, j.observation);
         if (saved.status !== 'ok') options.diagnose(saved.reason);
+      } else {
+        try {
+          a.binding!.pi.appendEntry('araketski.pi-jobs/receipt', receipt);
+        } catch (error) {
+          options.diagnose(`Receipt append unavailable: ${String(error)}`);
+        }
       }
     }
     gates(a);
     changed();
   }
   async function selected(a: Active, natural: boolean) {
-    const pending = await options.inbox.inspect(a.scope);
-    if (pending.status !== 'ok') {
-      options.diagnose(pending.reason);
-      return [];
+    const scopes = new Map<string, SessionScope>();
+    scopes.set(a.scope.runtimeId, a.scope);
+    for (const result of results(a))
+      scopes.set(result.identity.job.runtimeId, {
+        runtimeId: result.identity.job.runtimeId,
+        sessionId: a.id,
+      });
+    const pending: FinalResult[] = [];
+    for (const scope of scopes.values()) {
+      const reply = await options.inbox.inspect(scope);
+      if (reply.status === 'ok') pending.push(...reply.value);
+      else options.diagnose(reply.reason);
     }
-    const eligible = pending.value.filter((result) => {
+    const eligible = pending.filter((result) => {
       const j = a.jobs.get(key(result.identity.job));
       return (
         j &&
@@ -212,11 +243,15 @@ export function createJobsSessionRuntime(options: {
         (natural || j.observation.delivery.mode === 'automatic')
       );
     });
-    const batch = await options.inbox.capture(
-      a.scope,
-      eligible.map((r) => r.identity),
-    );
-    return batch.status === 'ok' && valid(a) ? batch.value : [];
+    const batch: FinalResult[] = [];
+    for (const scope of scopes.values()) {
+      const captured = await options.inbox.capture(
+        scope,
+        eligible.map((r) => r.identity),
+      );
+      if (captured.status === 'ok') batch.push(...captured.value);
+    }
+    return valid(a) ? batch : [];
   }
   async function idleWake(a: Active) {
     if (
@@ -238,6 +273,7 @@ export function createJobsSessionRuntime(options: {
       );
       if (wake.state !== 'reserved') return;
       a.wake = wake.reservation;
+      heldWakes.set(a.id, wake.reservation);
       const batch = await selected(a, false);
       if (!valid(a)) return;
       if (!batch.length) {
@@ -279,6 +315,7 @@ export function createJobsSessionRuntime(options: {
         scope: { runtimeId: options.runtimeId, sessionId: id },
         jobs: new Map(),
         deferred: true,
+        wake: heldWakes.get(id),
         submitting: false,
         closing: false,
         binding: { pi, ctx, gates: gateBinding },
@@ -289,9 +326,10 @@ export function createJobsSessionRuntime(options: {
         session: {
           sessionId: id,
           persistent: !!ctx.sessionManager.getSessionFile(),
-          appendEntry(type, data) {
-            if (!valid(a)) throw Error('Origin callback unavailable.');
-            a.binding!.pi.appendEntry(type, data);
+          async appendEntry(type, data) {
+            const binding = await bound(a);
+            if (a.binding !== binding || !writable(a)) throw Error('Origin callback unavailable.');
+            binding.pi.appendEntry(type, data);
           },
           getEntries: () => (valid(a) ? a.binding!.ctx.sessionManager.getEntries() : []),
         },
@@ -314,10 +352,23 @@ export function createJobsSessionRuntime(options: {
         if (prior?.result && !j.result) j.result = prior.result;
         a.jobs.set(key(identity), j);
       }
+      for (const entry of ctx.sessionManager.getEntries()) {
+        if (entry.type !== 'custom' || entry.customType !== 'araketski.pi-jobs/receipt') continue;
+        const receipt = entry.data as FinalResultReceipt;
+        const j = receipt?.result?.job && a.jobs.get(key(receipt.result.job));
+        if (
+          j?.result &&
+          receipt.record?.sessionId === id &&
+          jobsResultKey(j.result.identity) === jobsResultKey(receipt.result) &&
+          jobsFinalResultDigest(j.result) === receipt.contentDigest
+        ) {
+          j.observation.delivery = { ...j.observation.delivery, state: 'delivered', receipt };
+          await options.inbox.confirm([receipt]);
+        }
+      }
       for (const j of a.jobs.values())
         if (j.result && ['pending', 'unknown'].includes(j.observation.delivery.state)) {
           // Historical runtime identity is correlation, not ownership. Inbox scope follows the saved result.
-          a.scope.runtimeId = j.result.identity.job.runtimeId;
           await options.inbox.enqueue(j.result, j.observation.delivery.mode);
         }
       gates(a);
@@ -394,9 +445,19 @@ export function createJobsSessionRuntime(options: {
     },
     async update(observation) {
       const entry = current(observation.identity);
-      if (!entry?.job?.reservation) return unavailable();
+      if (!entry?.job?.reservation || entry.a.closing) return unavailable();
       if (
-        ['print', 'json'].includes(entry.a.binding!.ctx.mode) &&
+        observation.delivery.state === 'delivered' &&
+        (entry.job.observation.delivery.state !== 'delivered' ||
+          JSON.stringify(observation.delivery.receipt) !==
+            JSON.stringify(entry.job.observation.delivery.receipt))
+      )
+        return {
+          status: 'denied',
+          reason: 'Only finalized native receipt reconciliation may establish delivery.',
+        };
+      if (
+        ['print', 'json'].includes((await bound(entry.a)).ctx.mode) &&
         observation.awaiting &&
         observation.delivery.mode === 'next-natural-turn'
       )
@@ -419,15 +480,17 @@ export function createJobsSessionRuntime(options: {
       const entry = current(result.identity.job);
       if (!entry?.job) return unavailable();
       const saved = await entry.a.store.results.save(result);
-      if (!valid(entry.a)) return unavailable();
+      if (!writable(entry.a)) return unavailable();
       const observed = await entry.a.store.jobs.read(result.identity.job);
       if (observed.status === 'ok') entry.job.observation = observed.value;
       // A failed best-effort append is diagnostic; live capture/result still carries its actual outcome.
       if (saved.status !== 'ok') {
         options.diagnose(saved.reason);
-        return saved;
+        const retained = await entry.a.store.results.read(result.identity);
+        if (retained.status !== 'ok') return saved;
       }
       entry.job.result = structuredClone(result);
+      if (entry.a.closing) return saved;
       const enqueued = await options.inbox.enqueue(result, entry.job.observation.delivery.mode);
       gates(entry.a);
       changed();
@@ -446,22 +509,30 @@ export function createJobsSessionRuntime(options: {
       runtime.refresh(ctx);
       const a = active;
       if (!a || !valid(a) || a.deferred) return {};
+      const binding = a.binding;
+      const signal = ctx.signal;
+      const usable = () => valid(a) && a.binding === binding;
       await reconcile(a);
-      if (!valid(a) || event.outcome !== 'completed' || ctx.signal?.aborted) return {};
+      if (!usable() || event.outcome !== 'completed' || signal?.aborted) return {};
       if (a.wake && !ctx.hasPendingMessages() && !event.context.pendingMessages.length) {
         await options.inbox.finishWake(a.wake);
+        heldWakes.delete(a.id);
         a.wake = undefined;
       }
       if (wait && ctx.mode !== 'tui') {
-        const deadline = performance.now() + reconciliationMs;
+        let unknownSince: number | undefined;
         while (
-          valid(a) &&
-          !ctx.signal?.aborted &&
+          usable() &&
+          !signal?.aborted &&
           [...a.jobs.values()].some(
             (j) => outstanding(j) && j.observation.execution.state !== 'terminal',
           )
         ) {
-          const unknown = [...a.jobs.values()].some((j) => outstanding(j) && !j.execution);
+          const unknown = [...a.jobs.values()].some(
+            (j) => outstanding(j) && (!j.execution || j.observation.execution.state === 'unknown'),
+          );
+          unknownSince = unknown ? (unknownSince ?? performance.now()) : undefined;
+          const deadline = (unknownSince ?? performance.now()) + reconciliationMs;
           if (unknown && performance.now() >= deadline) {
             options.diagnose(
               'needs-attention: awaited owner remains historical/unconfirmed; gates retained.',
@@ -474,21 +545,33 @@ export function createJobsSessionRuntime(options: {
             const finish = () => {
               if (timer) clearTimeout(timer);
               listeners.delete(finish);
-              ctx.signal?.removeEventListener('abort', finish);
+              signal?.removeEventListener('abort', finish);
               resolve();
             };
             listeners.add(finish);
-            ctx.signal?.addEventListener('abort', finish, { once: true });
+            signal?.addEventListener('abort', finish, { once: true });
             if (unknown) timer = setTimeout(finish, Math.max(1, deadline - performance.now()));
           });
         }
       }
-      if (!valid(a) || ctx.signal?.aborted) return {};
+      if (!usable() || signal?.aborted) return {};
+      if (
+        [...a.jobs.values()].some(
+          (j) => outstanding(j) && j.observation.execution.state === 'terminal' && !j.result,
+        )
+      ) {
+        options.diagnose(
+          'needs-attention: terminal awaited work has no available final result; gates retained.',
+        );
+        if (ctx.mode !== 'tui') ctx.abort();
+        return {};
+      }
       const batch = await selected(a, false);
       if (!batch.length || ctx.hasPendingMessages() || event.context.pendingMessages.length)
         return {};
       return {
         entries: [
+          ...((event.entries ?? []) as JobsBoundaryDraft[]),
           {
             type: 'custom_message',
             customType: JOBS_RESULTS_MESSAGE_TYPE,
@@ -507,6 +590,24 @@ export function createJobsSessionRuntime(options: {
         a.binding = undefined;
         changed();
         return;
+      }
+      if (a.binding) {
+        for (const j of a.jobs.values())
+          if (
+            j.execution &&
+            j.observation.lifetime === 'managed' &&
+            j.observation.execution.state !== 'terminal'
+          ) {
+            try {
+              a.binding.pi.appendEntry('araketski.pi-jobs/cleanup', {
+                identity: j.observation.identity,
+                stop: 'requested-unconfirmed',
+                reason,
+              });
+            } catch (error) {
+              options.diagnose(`Cleanup intent append unavailable: ${String(error)}`);
+            }
+          }
       }
       a.closing = true;
       changed();
@@ -593,7 +694,9 @@ export function bindJobsSessionRuntime(
     ),
     pi.on('session_shutdown', (event) => runtime.shutdown(event.reason)),
     pi.on('session_tree', (_event, ctx) => runtime.refresh(ctx)),
-    pi.on('input', (_event, ctx) => runtime.userInput(ctx)),
+    pi.on('input', (event, ctx) => {
+      if ((event as { source?: string }).source !== 'extension') runtime.userInput(ctx);
+    }),
     pi.on('before_agent_start', (_event, ctx) => runtime.naturalTurn(ctx)),
     pi.on('turn_end', (event, ctx) => runtime.boundary(event, ctx, true)),
     pi.on('agent_before_settle', (event, ctx) => runtime.boundary(event, ctx)),

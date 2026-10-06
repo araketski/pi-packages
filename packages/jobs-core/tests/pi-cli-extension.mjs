@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 const root = process.env.JOBS_CLI_FIXTURE_ROOT;
 const paths = JSON.parse(readFileSync(join(root, 'imports.json'), 'utf8'));
 const ai = await import(paths.ai);
+const core = paths.core ? await import(paths.core) : undefined;
 const { Type } = await import(paths.typebox);
 const namespaces = ['jobs', 'goal', 'herdr'];
 const names = ['bash', ...namespaces.map((n) => `${n}_inspect`)];
@@ -13,6 +15,67 @@ export default function (pi) {
   const scenario = process.env.JOBS_CLI_SCENARIO;
   let phase = 0;
   const observations = [];
+  let runtime;
+  if (scenario === 'delivery') {
+    const outputRoot = join(root, 'output');
+    runtime = core.createJobsSessionRuntime({
+      runtimeId: 'CLI',
+      participantId: 'shared',
+      inbox: core.createCompletionCoordinator(),
+      output: core.createJobsFileOutput(outputRoot),
+      diagnose: (message) => observations.push({ diagnostic: message }),
+    });
+    core.bindJobsSessionRuntime(pi, runtime);
+    pi.registerTool({
+      name: 'fixture_command',
+      label: 'finite',
+      description: 'Real finite isolated command',
+      parameters: Type.Object({}),
+      async execute(_id, _a, _s, _u, ctx) {
+        const identity = {
+          runtimeId: 'CLI',
+          ownerId: 'controlled-owner',
+          producerId: 'fixture',
+          jobId: 'finite',
+          sessionId: ctx.sessionManager.getSessionId(),
+        };
+        let child;
+        const admission = await runtime.admit(
+          {
+            identity,
+            authority: { runtimeId: 'CLI', ownerId: 'controlled-owner', generation: 'owned' },
+            awaiting: true,
+            delivery: 'automatic',
+            lifetime: 'managed',
+          },
+          {
+            cancel: async () => {
+              child?.kill('SIGTERM');
+            },
+            dispose() {},
+          },
+        );
+        assert.equal(admission.status, 'ok');
+        child = spawn('sh', ['-c', 'sleep 0.04; printf CLI-FINAL-CONTENT'], {
+          stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        let content = '';
+        child.stdout.on('data', (bytes) => {
+          content += bytes;
+          void runtime.capture(identity, bytes);
+        });
+        child.on('close', (exitCode, signal) => {
+          assert.equal(signal, null);
+          void runtime.complete({
+            identity: { job: identity, resultId: 'finite-final' },
+            outcome: { kind: 'exit', exitCode },
+            content,
+          });
+        });
+        return text('background work admitted');
+      },
+    });
+  }
   // The fixture selects declared exposure from its explicit test configuration at load time.
   // Consumer registration/fallback implementation remains outside jobs-core.
   const discovery = scenario === 'discovery';
@@ -68,7 +131,10 @@ export default function (pi) {
       for (const name of names) assert(!pi.getActiveTools().includes(name));
   });
   pi.on('agent_settled', () =>
-    writeFileSync(join(root, 'settled.json'), JSON.stringify({ observations, phase })),
+    writeFileSync(
+      join(root, 'settled.json'),
+      JSON.stringify({ observations, phase, jobs: runtime?.inspect() }),
+    ),
   );
   pi.registerProvider('fixture', {
     api: 'fixture-api',
@@ -88,7 +154,19 @@ export default function (pi) {
     streamSimple(model, context) {
       const previous = context.messages.filter((m) => m.role === 'toolResult');
       let content;
-      if (scenario === 'discovery' && phase === 0)
+      if (scenario === 'delivery') {
+        if (phase === 0)
+          content = [
+            { type: 'toolCall', id: 'finite-launch', name: 'fixture_command', arguments: {} },
+          ];
+        else {
+          assert(
+            JSON.stringify(context.messages).includes('CLI-FINAL-CONTENT'),
+            'native run must consume required final result before finishing',
+          );
+          content = [{ type: 'text', text: 'CLI-SEAM-PASS consumed CLI-FINAL-CONTENT' }];
+        }
+      } else if (scenario === 'discovery' && phase === 0)
         content = [
           { type: 'toolCall', id: 'search', name: 'tool_search', arguments: { query: 'inspect' } },
         ];
