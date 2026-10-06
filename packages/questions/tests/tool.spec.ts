@@ -76,10 +76,11 @@ function harness(
   } as unknown as ExtensionAPI;
   const signal = new AbortController();
   const terminal = { rows: 40, columns: 80 };
+  const requestRender = vi.fn();
   const tui = {
     terminal,
     mode: options.tuiMode ?? 'regular',
-    requestRender: vi.fn(),
+    requestRender,
   } as unknown as TUI;
   const colors: Record<string, string> = {
     success: '\x1b[32m',
@@ -91,6 +92,7 @@ function harness(
   const theme = {
     fg: (color: string, text: string) => `${colors[color] ?? '\x1b[39m'}${text}\x1b[39m`,
     bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+    italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
   } as Theme;
   const kb = new KeybindingsManager(
     { ...TUI_KEYBINDINGS, 'app.interrupt': { defaultKeys: 'escape' } },
@@ -144,6 +146,7 @@ function harness(
     abort,
     signal,
     tui,
+    requestRender,
     terminal,
     theme,
     kb,
@@ -173,6 +176,131 @@ afterEach(() => {
 
 // @mara implements VER-QUESTIONS-INTERACTION
 describe('Questions tool contract', () => {
+  it.each(['regular', 'fullscreen'] as const)(
+    'collapses options and review without processing hidden input in %s',
+    async (tuiMode) => {
+      const h = harness({ tuiMode, interrupt: 'ctrl+x' });
+      const pending = h.start(two);
+      h.key(up);
+      const original = h.screen().render(80);
+      h.key('c');
+      const collapsed = h.screen().render(80);
+      expect(collapsed.map(stripAnsi)).toEqual(['─'.repeat(80), ' Question', '─'.repeat(80)]);
+      expect(collapsed[1]).toContain(h.theme.fg('dim', h.theme.italic(h.theme.bold('Question'))));
+      const renders = h.requestRender;
+      const before = renders.mock.calls.length;
+      for (const key of [
+        up,
+        down,
+        left,
+        pageUp,
+        pageDown,
+        'h',
+        'j',
+        'k',
+        'l',
+        '1',
+        '3',
+        enter,
+        escape,
+        '\x03',
+        '\x18',
+        'C',
+        '\x1b[200~c\x1b[201~',
+      ]) {
+        h.key(key);
+      }
+      expect(renders).toHaveBeenCalledTimes(before);
+      expect(h.screen().render(80)).toEqual(collapsed);
+      expect(h.completions).toBe(0);
+      expect(h.abort).not.toHaveBeenCalled();
+      h.key('c');
+      expect(h.screen().render(80)).toEqual(original);
+      h.key(enter);
+      h.key('2');
+      expect(h.text()).toContain('Review answers');
+      const review = h.screen().render(80);
+      h.key('c');
+      h.key(enter);
+      h.key(left);
+      h.key(escape);
+      expect(h.completions).toBe(0);
+      expect(h.text()).toBe(collapsed.map(stripAnsi).join('\n'));
+      h.key('c');
+      expect(h.screen().render(80)).toEqual(review);
+      h.key(enter);
+      expect(expectPayload(await pending, h)).toMatchObject({
+        status: 'answered',
+        answers: [{ answer: 'Files' }, { answer: 'Web' }],
+      });
+    },
+  );
+
+  it('preserves scroll position across collapse and ignores paging while hidden', async () => {
+    const h = harness();
+    h.terminal.rows = 18;
+    const pending = h.start({
+      questions: [{ ...input.questions[0], question: 'Long content '.repeat(60) }],
+    });
+    h.text();
+    h.key(pageUp);
+    const scrolled = h.screen().render(40);
+    expect(scrolled.map(stripAnsi).join('\n')).toContain('Long content');
+    h.key('c');
+    h.key(pageDown);
+    h.key(down);
+    h.key('c');
+    expect(h.screen().render(40)).toEqual(scrolled);
+    h.key(escape);
+    await pending;
+  });
+
+  it('keeps c as editor text and preserves the draft across options collapse', async () => {
+    const h = harness();
+    const pending = h.start();
+    h.key('3');
+    h.key('c');
+    h.key('at');
+    expect(h.text()).toContain('cat');
+    expect(h.text()).toContain('Enter save');
+    h.key(escape);
+    expect(h.text()).toContain('Draft: cat');
+    h.key('c');
+    h.key('1');
+    h.key('c');
+    expect(h.text()).toContain('Draft: cat');
+    expect(h.text()).toContain('> 3. Write your own answer');
+    h.key(enter);
+    h.key(enter);
+    expect(expectPayload(await pending, h)).toMatchObject({
+      status: 'answered',
+      answers: [{ kind: 'custom', answer: 'cat' }],
+    });
+  });
+
+  it('bounds collapsed output and recomputes theme styles without changing state', async () => {
+    const h = harness();
+    const pending = h.start();
+    h.key('c');
+    h.terminal.rows = 8;
+    for (const width of [1, 4, 12, 80]) {
+      h.screen().invalidate();
+      const lines = h.screen().render(width);
+      expect(lines).toHaveLength(3);
+      expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
+    }
+    h.theme.fg = (color, text) => `<${color}>${text}</${color}>`;
+    h.screen().invalidate();
+    expect(h.screen().render(80)[1]).toContain('<dim>');
+    h.signal.abort();
+    expect(expectPayload(await pending, h)).toMatchObject({
+      status: 'cancelled',
+      reason: 'aborted',
+      answers: [],
+    });
+    expect(h.screen().render(80)).toEqual([]);
+  });
+
   it('registers exactly the model-only sequential tool with optional recommendation guidance', () => {
     const h = harness();
     expect(h.definition()).toMatchObject({
@@ -283,7 +411,7 @@ describe('Questions tool contract', () => {
       '  3. Write your own answer',
       '   Type a custom answer.',
       '',
-      ' ↑↓/j/k move • 1–3 pick • Enter/l choose • Esc cancel',
+      ' ↑↓/j/k move • 1–3 pick • Enter/l choose • c collapse • Esc cancel',
       '─'.repeat(80),
     ]);
     expect(raw[0]).toBe(h.theme.fg('accent', '─'.repeat(80)));

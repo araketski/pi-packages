@@ -354,10 +354,10 @@ sequences or executing hyperlinks/control actions.
 
 Forward the custom component's Focusable state to the child editor when editing
 and respect the host cursor marker/IME protocol. Do not capture unrelated Pi
-shortcuts indiscriminately. Pi's configured interrupt must reach the tool-abort
-path rather than insert literal control data or leave the prompt waiting; verify
-its actual dispatch with the selected host. Restore the original main-editor text
-and focus on completion without committing unsent drafts to chat.
+shortcuts indiscriminately. When expanded, Pi's configured interrupt must reach
+the tool-abort path rather than insert literal control data or leave the prompt
+waiting; verify its actual dispatch with the selected host. Restore the original
+main-editor text and focus on completion without committing unsent drafts to chat.
 
 Invalidate layout on width/height/content/theme changes. Cache only correctly
 keyed layout; do not retain theme-styled strings across invalidation. Mouse
@@ -376,10 +376,33 @@ or replace Pi's layout root. Actual regular/fullscreen page dispatch and binding
 restoration have deterministic and controlled PTY checks.
 
 The explicit Escape editor-back/dialog-dismiss rule takes precedence over the
-host's default Escape interrupt collision. Other configured interrupts and Ctrl+C
-reach host abort before editor input; the selected-host PTY checks Ctrl+X and
-Ctrl+C. Host edit/paste processing supplies the editor value; Questions trims only
-its boundary whitespace, not internal text/line breaks in that submitted value.
+host's default Escape interrupt collision. While expanded, other configured
+interrupts and Ctrl+C reach host abort before editor input; the selected-host
+PTY checks Ctrl+X and Ctrl+C. Host edit/paste processing supplies the editor value;
+Questions trims only its boundary whitespace, not internal text/line breaks in
+that submitted value.
+
+## Collapsed presentation and input lock
+
+Keep collapse as invocation-local presentation state, separate from flow state.
+Outside custom editing, `c` toggles options/review between expanded and collapsed.
+The collapsed render is exactly two full-width accent rules around a single
+lightly indented `Question` label, styled with the active theme's dim foreground,
+italic and bold helpers. No title, progress, options, answers or footer is shown.
+Clamp/truncate to available columns; retain these three rows even when expanded
+presentation normally drops decoration in a short terminal.
+
+Check collapse input before Escape, interrupts, paging, navigation and confirmation.
+While collapsed ignore every widget input except unmodified `c`; no dismiss,
+submit, abort request, editor forwarding or scrolling can occur through this
+handler. External abort signals, host actions and disposal still own lifetime
+cleanup. Expanded interrupt semantics remain unchanged. In custom editing, `c`
+is ordinary editor text; Escape back permits collapse with the draft retained.
+
+Do not reset the flow or viewport when toggling. Expanding restores the same
+scroll position at unchanged dimensions; an actual resize or theme invalidation
+still follows normal expanded layout/focus rules. Show `c collapse` in expanded
+options/review help where space permits. No collapsed footer is added.
 :::
 
 :::mara design DES-QUESTIONS-LIFECYCLE

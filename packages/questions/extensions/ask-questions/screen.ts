@@ -35,6 +35,7 @@ interface Actions {
 // @mara implements DES-QUESTIONS-TUI
 export class QuestionScreen implements Component, Focusable {
   private live = true;
+  private collapsed = false;
   private hasFocus = false;
   private editor?: Editor;
   private actions?: Actions;
@@ -156,6 +157,14 @@ export class QuestionScreen implements Component, Focusable {
   handleInput(data: string) {
     if (!this.live) return;
     try {
+      if (matchesKey(data, 'c') && this.flow.stage !== 'editor') {
+        this.collapsed = !this.collapsed;
+        this.redraw(false);
+        return;
+      }
+      // Lock hidden state before navigation, confirmation, dismissal or abort.
+      // External lifecycle cancellation remains owned by the invocation.
+      if (this.collapsed) return;
       // Escape retains the accepted editor-back/dialog-dismiss semantics, even
       // when it is also the host's default interrupt key.
       if (matchesKey(data, 'escape')) {
@@ -322,25 +331,27 @@ export class QuestionScreen implements Component, Focusable {
       this.flow.stage === 'editor'
         ? ['Enter save', 'Shift+Enter newline', 'Esc back', 'Ctrl+C abort']
         : this.flow.stage === 'review'
-          ? ['Enter submit', '←/h back', '↑↓/PgUp/PgDn scroll', 'Esc cancel']
+          ? ['Enter submit', '←/h back', '↑↓/PgUp/PgDn scroll', 'c collapse', 'Esc cancel']
           : [
               '↑↓/j/k move',
               `1–${choices} pick`,
               'Enter/l choose',
               ...(back ? ['←/h back'] : []),
               ...(scrollable ? ['PgUp/PgDn scroll'] : []),
+              'c collapse',
               'Esc cancel',
             ];
     const compact =
       this.flow.stage === 'editor'
         ? 'Enter save • Esc back'
         : this.flow.stage === 'review'
-          ? 'Enter submit • ←/h • PgUp/Dn • Esc'
+          ? 'Enter submit • ←/h • PgUp/Dn • c collapse • Esc'
           : [
               `↑↓/jk 1–${choices}`,
               'Enter/l',
               ...(back ? ['←/h'] : []),
               ...(scrollable ? ['PgUp/Dn'] : []),
+              'c collapse',
               'Esc',
             ].join(' • ');
     const minimal =
@@ -358,6 +369,11 @@ export class QuestionScreen implements Component, Focusable {
     if (!this.live) return [];
     try {
       width = Math.max(1, Math.floor(width));
+      if (this.collapsed) {
+        const rule = this.theme.fg('accent', '─'.repeat(width));
+        const label = this.theme.fg('dim', this.theme.italic(this.theme.bold('Question')));
+        return [rule, ` ${label}`, rule].map((line) => truncateToWidth(line, width, ''));
+      }
       const budget = Math.max(1, this.tui.terminal.rows - 6);
       // Decorative framing yields first: keep usable content in tiny viewports.
       const decorated = budget >= 10;

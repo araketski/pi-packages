@@ -223,6 +223,83 @@ async function stop(child: ChildProcessWithoutNullStreams) {
 // @mara implements VER-QUESTIONS-HERDR-ATTENTION
 describe('actual Pi 0.99.1 TUI, controlled Faux provider and no live Herdr backend', () => {
   it.each(['regular', 'fullscreen'])(
+    'collapses and locks the live questionnaire then resumes unchanged in %s',
+    async (mode) => {
+      const h = await native(mode);
+      try {
+        await h.open();
+        h.key('\x1b[A');
+        await h.wait(() => h.text().includes('> 1. Files'), 'initial focus');
+        const original = h.frame()!.lines!;
+        h.key('c');
+        await h.wait(
+          () => h.text() === `${'─'.repeat(80)}\n Question\n${'─'.repeat(80)}`,
+          'collapsed panel',
+        );
+        expect(h.frame()!.lines![1]).toContain('\x1b[3m');
+        expect(h.frame()!.lines![1]).toContain('\x1b[1m');
+        const collapsed = h.frame()!.lines!;
+        for (const data of ['\x1b[B', '\x1b[6~', '2', '\r', '\x1b', '\x03', '\x18']) {
+          const before = h.records().filter((record) => record.type === 'key').length;
+          h.key(data);
+          await h.wait(
+            (records) => records.filter((record) => record.type === 'key').length > before,
+            'ignored key reached component',
+          );
+        }
+        expect(h.frame()!.lines!).toEqual(collapsed);
+        expect(h.records().filter((record) => record.type === 'returned')).toHaveLength(0);
+        h.key('c');
+        await h.wait(() => h.text().includes('> 1. Files'), 'restore focus');
+        expect(h.frame()!.lines!).toEqual(original);
+        h.key('3');
+        await h.wait(() => h.text().includes('Enter save'), 'custom editor');
+        h.key('cat');
+        await h.wait(() => h.text().includes('cat'), 'c types normally in editor');
+        h.key('\x1b');
+        await h.wait(() => h.text().includes('Draft: cat'), 'retained draft');
+        h.key('c');
+        await h.wait(
+          () => h.text().includes('Question') && !h.text().includes('Draft:'),
+          'collapse draft preview',
+        );
+        h.key('c');
+        await h.wait(() => h.text().includes('Draft: cat'), 'restore draft preview');
+        h.key('1');
+        await h.wait(() => h.text().includes('Pick interface?'), 'advance');
+        h.key('2');
+        await h.wait(() => h.text().includes('Review answers'), 'review');
+        h.key('c');
+        await h.wait(
+          () => h.text().includes('Question') && !h.text().includes('Review'),
+          'collapse review',
+        );
+        const before = h.records().filter((record) => record.type === 'key').length;
+        h.key('\r');
+        await h.wait(
+          (records) => records.filter((record) => record.type === 'key').length > before,
+          'ignored review submit',
+        );
+        expect(h.records().filter((record) => record.type === 'returned')).toHaveLength(0);
+        h.key('c');
+        await h.wait(() => h.text().includes('Review answers'), 'restore review');
+        h.key('\r');
+        await h.wait(
+          (records) => records.some((record) => record.type === 'settled'),
+          'final submission',
+        );
+        expect(h.records().find((record) => record.type === 'returned')!.payload).toMatchObject({
+          status: 'answered',
+          answers: [{ answer: 'Files' }, { answer: 'Web' }],
+        });
+      } finally {
+        await h.close();
+      }
+    },
+    45_000,
+  );
+
+  it.each(['regular', 'fullscreen'])(
     'selects, edits, backtracks and submits through the model-issued tool in %s mode',
     async (mode) => {
       const h = await native(mode);

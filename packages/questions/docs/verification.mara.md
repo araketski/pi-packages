@@ -230,6 +230,14 @@ without confirming it, short/narrow nonblank feedback with cursor visibility,
 responsive decorative-frame removal, and ordinary review/lifecycle/attention
 contracts. Synchronize native observations to the current invocation rather than
 matching a previous inline editor's recommendation text.
+
+For collapse, check the exact three-row border/label rendering and active-theme
+dim/italic/bold attributes. Exercise options and review, ignore navigation,
+paging, number/confirmation, Escape, Ctrl+C and configured interrupt inputs while
+collapsed, and verify unchanged state/scroll after expansion. Confirm retained
+custom drafts/answers, ordinary editor `c` typing, narrow/short rendering, theme
+invalidation and external abort/disposal cleanup. Use controlled native Pi
+regular/fullscreen tests to confirm actual key dispatch and resumed submission.
 :::
 
 :::mara verification VER-QUESTIONS-LIFETIME

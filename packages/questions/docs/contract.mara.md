@@ -95,6 +95,13 @@ Let a Pi user answer concise clarification questions through a keyboard-first qu
 :contributes_to: GOAL-QUESTIONS-USER-INPUT
 
 Expose ask_questions for one to six ordered questions, each with one to eight suggested options. Each question always permits a user-written answer. Support keyboard navigation, direct option shortcuts and backtracking; a single question submits on explicit answer confirmation, while multiple questions require a final review/submission step. Return the submitted answers associated with their original questions. Merely displaying or focusing an option is not an answer. Dismissal and lack of interactive TUI yield normal cancelled or unavailable outcomes, never fabricated answers.
+
+Outside custom text entry, `c` toggles a collapsed questionnaire. The collapsed
+panel retains its top/bottom borders and contains only the dimmed, italic, bold
+word `Question`. It handles no other widget keys, so hidden question/answer state
+cannot change. Expanding restores the prior question or review and all retained
+state. In the custom editor, `c` remains ordinary text input. Collapse does not
+complete the tool or suppress external lifecycle cancellation.
 :::
 
 :::mara requirement REQ-QUESTIONS-RECOMMENDATION
