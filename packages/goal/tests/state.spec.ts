@@ -12,8 +12,7 @@ function fixture() {
   return { state, session };
 }
 function binding(state: GoalState) {
-  const goal = state.inspect().goal!;
-  return { goalId: goal.id, revision: goal.revision };
+  return state.binding();
 }
 function evidenced(state: GoalState) {
   state.create('Ship an observable outcome');
@@ -326,6 +325,60 @@ describe('ordinary replay and audit safety', () => {
     ).toBe(false);
     state.restore(session, 'tree');
     expect(state.inspect().goal?.ledger).toEqual([]);
+  });
+
+  it.each(['fork', 'tree', 'reload'] as const)(
+    'rejects an ordinary mutation binding captured before %s restoration',
+    (reason) => {
+      const dir = mkdtempSync(join(tmpdir(), 'goal-binding-'));
+      try {
+        const session = SessionManager.create(dir, join(dir, 'sessions'));
+        session.appendMessage({ role: 'user', content: 'Native branch fixture', timestamp: 1 });
+        let state = new GoalState((data) => session.appendCustomEntry(STATE_ENTRY, data));
+        state.restore(session, 'new');
+        evidenced(state);
+        state.updateSettings(binding(state), { restorePolicy: 'resume' });
+        const stale = binding(state);
+        const expected = state.inspect();
+        if (reason === 'fork') session.createBranchedSession(session.getLeafId()!);
+        if (reason === 'reload')
+          state = new GoalState((data) => session.appendCustomEntry(STATE_ENTRY, data));
+        state.restore(session, reason);
+        expect(state.inspect()).toEqual(expected);
+        const history = JSON.stringify(session.getEntries());
+        expect(() => state.resetLedger(stale)).toThrow(/binding|session|generation/);
+        expect(state.inspect()).toEqual(expected);
+        expect(JSON.stringify(session.getEntries())).toBe(history);
+        state.resetLedger(binding(state));
+        expect(state.inspect().goal?.ledger).toEqual([]);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('preserves the native append-failure diagnostic while restoring a startup pause', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'goal-pause-failure-'));
+    try {
+      const session = SessionManager.create(dir, join(dir, 'sessions'));
+      session.appendMessage({ role: 'user', content: 'Persistent pause fixture', timestamp: 1 });
+      const state = new GoalState((data) => session.appendCustomEntry(STATE_ENTRY, data));
+      state.restore(session, 'new');
+      evidenced(state);
+      const file = session.getSessionFile()!;
+      const bytes = readFileSync(file);
+      renameSync(file, file + '.saved');
+      mkdirSync(file);
+      expect(() => state.restore(session, 'startup')).toThrow();
+      expect(state.inspect().goal).toBeNull();
+      expect(state.diagnostic).toMatch(/failed append/);
+      expect(() => state.create('Bypass failed restore')).toThrow(/session/);
+      rmdirSync(file);
+      renameSync(file + '.saved', file);
+      expect(readFileSync(file)).toEqual(bytes);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('quarantines the real Pi branch left by a failed disk append until safe reopen', () => {

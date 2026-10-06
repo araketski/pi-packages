@@ -108,10 +108,7 @@ export async function exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime
     };
     let host = await start(manager);
     let session = host.session;
-    const bind = () => ({
-      goalId: state.inspect().goal.id,
-      revision: state.inspect().goal.revision,
-    });
+    const bind = () => state.binding();
     try {
       assert.equal(state.inspect().goal, null);
       assert.equal(JSON.stringify(session.sessionManager.getEntries()[0]), legacyEntry);
@@ -159,6 +156,21 @@ export async function exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime
         assert.equal(state.hasApplicableRefusal(), true);
         assert.throws(() => state.recordTerminal(bind(), 'complete'), /review/);
       }
+      // An active native fork preserves goal UUID/revision, but not mutation authority.
+      const preForkBinding = bind();
+      const preForkGoal = state.inspect();
+      const activeForkPoint = session.sessionManager.appendMessage({
+        role: 'user',
+        content: 'Fork active branch without transferring mutation bindings',
+        timestamp: 4,
+      });
+      assert.equal((await host.fork(activeForkPoint, { position: 'at' })).cancelled, false);
+      session = host.session;
+      assert.deepEqual(state.inspect(), preForkGoal);
+      const forkHistory = JSON.stringify(session.sessionManager.getEntries());
+      assert.throws(() => state.resetLedger(preForkBinding), /binding|session|generation/);
+      assert.deepEqual(state.inspect(), preForkGoal);
+      assert.equal(JSON.stringify(session.sessionManager.getEntries()), forkHistory);
       const activeEntry = session.sessionManager.getLeafId();
       const late = state.beginReview('evidence', 'evidence-key', 'profile-key');
       await session.reload();
@@ -253,6 +265,7 @@ export async function exerciseState(sdk, sdkPath, packageRoot, agentDir, runtime
         malformed: true,
         refusalRetained: true,
         failedAppendQuarantined: mode === 'persistent',
+        staleMutationBindingRejected: true,
         legacyBytePreserved: true,
         lifecycleReasons: [...new Set(reasons)],
       });

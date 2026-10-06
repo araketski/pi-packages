@@ -70,10 +70,10 @@ export interface GoalSnapshot {
 export interface Binding {
   goalId: string;
   revision: number;
+  sessionId: string;
+  generation: string;
 }
 export interface ReviewTicket extends Binding {
-  sessionId: string;
-  generation: number;
   kind: ReviewKind;
   inputKey: string;
   configurationKey: string;
@@ -232,7 +232,7 @@ export class GoalState {
   private session?: ReadonlySessionManager;
   private sessionId?: string;
   private stateEntryId?: string;
-  private generation = 0;
+  private generation = randomUUID();
   private tickets: Partial<Record<ReviewKind, ReviewTicket>> = {};
   diagnostic: string | null = null;
   private readonly append: (snapshot: GoalSnapshot) => void;
@@ -245,8 +245,21 @@ export class GoalState {
     return structuredClone(this.snapshot);
   }
 
+  /** Capture transient mutation authority for this selected session binding. */
+  binding(): Binding {
+    this.assertSession();
+    const goal = this.snapshot.goal;
+    demand(goal, 'No current goal');
+    return {
+      goalId: goal.id,
+      revision: goal.revision,
+      sessionId: this.sessionId!,
+      generation: this.generation,
+    };
+  }
+
   detach(): void {
-    this.generation++;
+    this.generation = randomUUID();
     this.session = undefined;
     this.sessionId = undefined;
     this.stateEntryId = undefined;
@@ -295,7 +308,8 @@ export class GoalState {
       try {
         this.commit(next);
       } catch (error) {
-        this.detach();
+        // commit already detached and diagnosed an append failure.
+        if (this.session) this.detach();
         throw error;
       }
     }
@@ -332,6 +346,10 @@ export class GoalState {
   }
   private assertGoal(binding: Binding, active = true): Goal {
     this.assertSession();
+    demand(
+      binding.sessionId === this.sessionId && binding.generation === this.generation,
+      'Stale mutation binding: session or generation changed',
+    );
     const goal = this.snapshot.goal;
     demand(goal && goal.id === binding.goalId, 'Wrong current goal identity');
     demand(goal.revision === binding.revision, 'Stale expected revision');
