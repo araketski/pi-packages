@@ -21,7 +21,10 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-async function fixture(handle?: (request: any, socket: Socket) => boolean) {
+async function fixture(
+  handle?: (request: any, socket: Socket) => boolean,
+  options: { timeoutMs?: number } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), 'ht-'));
   const path = join(dir, 'api.sock');
   const sockets = new Set<Socket>();
@@ -87,7 +90,7 @@ async function fixture(handle?: (request: any, socket: Socket) => boolean) {
     HERDR_TAB_ID: 'w1:t1',
     HERDR_PANE_ID: 'w1:p1',
   });
-  const adapter = new HerdrTransport(context, { timeoutMs: 250 });
+  const adapter = new HerdrTransport(context, { timeoutMs: 250, ...options });
   cleanups.push(() => adapter.close());
   return {
     adapter,
@@ -351,6 +354,58 @@ it('preserves a newer reply for a terminal absent from the snapshot', async () =
   reply!();
   await pending;
   expect(f.adapter.view()).toMatchObject({ state: 'ready', panes: [{ label: 'newer-reply' }] });
+});
+
+it('does not populate a new bootstrap with an old-generation reply', async () => {
+  let reply: (() => void) | undefined;
+  const f = await fixture((request, socket) => {
+    if (request.method !== 'pane.get') return false;
+    reply = () =>
+      socket.write(
+        JSON.stringify({ id: request.id, result: { type: 'pane_info', pane: original } }) + '\n',
+      );
+    return true;
+  });
+  f.setPanes([]);
+  await f.adapter.connect();
+  const pending = f.adapter.getPane(original.pane_id);
+  await eventually(() => !!reply);
+  f.disconnect();
+  await eventually(() => f.adapter.view().state === 'stale');
+  await f.adapter.connect();
+  expect(f.adapter.view().panes).toEqual([]);
+  reply!();
+  await pending;
+  expect(f.adapter.view()).toMatchObject({ state: 'ready', panes: [] });
+});
+
+it('uses one bounded deadline for acknowledgement plus snapshot', async () => {
+  const f = await fixture(
+    (request, socket) => {
+      const result =
+        request.method === 'events.subscribe'
+          ? { type: 'subscription_started' }
+          : {
+              type: 'session_snapshot',
+              snapshot: {
+                version: '0.9.1',
+                protocol: 22,
+                panes: [],
+                workspaces: [],
+                tabs: [],
+                layouts: [],
+                agents: [],
+              },
+            };
+      setTimeout(() => {
+        if (!socket.destroyed) socket.write(JSON.stringify({ id: request.id, result }) + '\n');
+      }, 120);
+      return true;
+    },
+    { timeoutMs: 180 },
+  );
+  await expect(f.adapter.connect()).rejects.toMatchObject({ code: 'timeout' });
+  expect(f.adapter.view().state).toBe('stale');
 });
 
 it('rejects deadlines outside the supported Node timer range', () => {

@@ -307,16 +307,20 @@ export class HerdrTransport {
     this.buffered = [];
   }
   private observe() {
-    return { panes: new Map(this.panes), events: this.eventRevision };
+    return { panes: new Map(this.panes), events: this.eventRevision, generation: this.generation };
   }
-  private cacheReply(p: PaneInfo, before: { panes: Map<string, PaneInfo>; events: number }) {
+  private cacheReply(
+    p: PaneInfo,
+    before: { panes: Map<string, PaneInfo>; events: number; generation: number },
+  ) {
     // A reply describes state at server evaluation time, not necessarily at arrival time.
     // Never replace a record changed/removed since the request began. For an unknown
     // terminal, any intervening lifecycle event prevents inserting a potentially closed pane.
     const unchanged = before.panes.has(p.terminal_id)
       ? before.panes.get(p.terminal_id) === this.panes.get(p.terminal_id)
       : before.events === this.eventRevision && !this.panes.has(p.terminal_id);
-    if (this.state === 'ready' && unchanged) this.panes.set(p.terminal_id, p);
+    if (this.state === 'ready' && before.generation === this.generation && unchanged)
+      this.panes.set(p.terminal_id, p);
   }
   private apply(e: PaneEvent) {
     ++this.eventRevision;
@@ -337,13 +341,14 @@ export class HerdrTransport {
     tag: string,
     validate: (result: Record<string, unknown>) => void = () => {},
     mutation = false,
+    timeoutMs = this.options.timeoutMs,
   ) {
     const generation = this.generation;
     const request = new JsonRequest(
       this.context,
       method,
       params,
-      this.options,
+      { ...this.options, timeoutMs },
       (result) => {
         if (result.type !== tag)
           throw invalid(`Unexpected ${method} result type: ${String(result.type)}`);
@@ -371,6 +376,7 @@ export class HerdrTransport {
     if (this.state === 'connecting' || this.state === 'ready')
       throw new HerdrError('not_ready', 'Close or reconnect before connecting again');
     const generation = ++this.generation;
+    const deadline = performance.now() + this.options.timeoutMs;
     this.state = 'connecting';
     this.error = undefined;
     this.buffered = [];
@@ -400,17 +406,28 @@ export class HerdrTransport {
       await this.subscription.reply;
       if (this.state !== 'connecting')
         throw this.error ?? new HerdrError('disconnected', 'Bootstrap interrupted');
-      const response = await this.request('session.snapshot', {}, 'session_snapshot', (result) => {
-        const snapshot = record(result.snapshot);
-        if (
-          !nonempty(snapshot.version) ||
-          !Number.isSafeInteger(snapshot.protocol) ||
-          (snapshot.protocol as number) < 0 ||
-          !Array.isArray(snapshot.panes)
-        )
-          throw invalid('Invalid session snapshot');
-        snapshot.panes.forEach(pane);
-      });
+      const remainingMs = Math.ceil(deadline - performance.now());
+      if (remainingMs <= 0) throw new HerdrError('timeout', 'Connect bootstrap deadline exceeded');
+      const response = await this.request(
+        'session.snapshot',
+        {},
+        'session_snapshot',
+        (result) => {
+          const snapshot = record(result.snapshot);
+          if (
+            !nonempty(snapshot.version) ||
+            !Number.isSafeInteger(snapshot.protocol) ||
+            (snapshot.protocol as number) < 0 ||
+            !Array.isArray(snapshot.panes)
+          )
+            throw invalid('Invalid session snapshot');
+          snapshot.panes.forEach(pane);
+        },
+        false,
+        remainingMs,
+      );
+      if (performance.now() >= deadline)
+        throw new HerdrError('timeout', 'Connect bootstrap deadline exceeded');
       if (generation !== this.generation || this.state !== 'connecting')
         throw this.error ?? new HerdrError('disconnected', 'Bootstrap interrupted');
       const snapshot = record(response.snapshot);
