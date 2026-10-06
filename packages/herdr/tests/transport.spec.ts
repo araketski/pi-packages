@@ -321,6 +321,38 @@ it.each(['query-move', 'query-close', 'rename-close', 'move-close'])(
   },
 );
 
+it('preserves a newer reply for a terminal absent from the snapshot', async () => {
+  let reply: (() => void) | undefined;
+  const f = await fixture((request, socket) => {
+    if (request.method === 'pane.get') {
+      reply = () =>
+        socket.write(
+          JSON.stringify({ id: request.id, result: { type: 'pane_info', pane: original } }) + '\n',
+        );
+      return true;
+    }
+    if (request.method === 'pane.rename') {
+      socket.write(
+        JSON.stringify({
+          id: request.id,
+          result: { type: 'pane_info', pane: { ...original, label: request.params.label } },
+        }) + '\n',
+      );
+      return true;
+    }
+    return false;
+  });
+  f.setPanes([]);
+  await f.adapter.connect();
+  const pending = f.adapter.getPane(original.pane_id);
+  await eventually(() => !!reply);
+  await f.adapter.renamePane(original.pane_id, 'newer-reply');
+  expect(f.adapter.view().panes[0].label).toBe('newer-reply');
+  reply!();
+  await pending;
+  expect(f.adapter.view()).toMatchObject({ state: 'ready', panes: [{ label: 'newer-reply' }] });
+});
+
 it('rejects deadlines outside the supported Node timer range', () => {
   const context = resolveLocalContext({
     HERDR_ENV: '1',

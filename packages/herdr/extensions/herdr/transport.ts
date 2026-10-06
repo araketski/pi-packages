@@ -315,7 +315,7 @@ export class HerdrTransport {
     // terminal, any intervening lifecycle event prevents inserting a potentially closed pane.
     const unchanged = before.panes.has(p.terminal_id)
       ? before.panes.get(p.terminal_id) === this.panes.get(p.terminal_id)
-      : before.events === this.eventRevision;
+      : before.events === this.eventRevision && !this.panes.has(p.terminal_id);
     if (this.state === 'ready' && unchanged) this.panes.set(p.terminal_id, p);
   }
   private apply(e: PaneEvent) {
