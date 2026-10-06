@@ -49,6 +49,12 @@ it.each(['npm', 'pnpm'] as const)(
         'package/dist/lifecycle.d.ts',
         'package/dist/lifecycle.d.ts.map',
         'package/dist/lifecycle.js',
+        'package/dist/storage-files.d.ts',
+        'package/dist/storage-files.d.ts.map',
+        'package/dist/storage-files.js',
+        'package/dist/storage.d.ts',
+        'package/dist/storage.d.ts.map',
+        'package/dist/storage.js',
         'package/dist/testing.d.ts',
         'package/dist/testing.d.ts.map',
         'package/dist/testing.js',
@@ -189,14 +195,31 @@ it.each(['npm', 'pnpm'] as const)(
         console.log('installed artifact:', local);
       `,
       );
+      writeFileSync(
+        join(consumer, 'storage-smoke.mjs'),
+        readFileSync(new URL('../tests/storage-smoke.mjs', import.meta.url)),
+      );
+      writeFileSync(
+        join(consumer, 'storage-installed.mjs'),
+        `
+        import * as core from '${manifest.name}';
+        import * as sdk from '${import.meta.resolve('@earendil-works/pi-coding-agent')}';
+        import * as copy from './separate-copy/index.js';
+        import {exerciseStorage} from './storage-smoke.mjs';
+        console.log(JSON.stringify(await exerciseStorage(core,sdk,'${join(consumer, 'storage')}',copy)));
+      `,
+      );
       const smoke = run(process.execPath, ['smoke.mjs'], consumer);
+      const storageSmoke = run(process.execPath, ['storage-installed.mjs'], consumer);
       writeFileSync(
         join(consumer, 'consumer.ts'),
         `
         import { createJobsParticipant, type CompletionCoordinator, type ExecutionAdapter,
           type JobStore, type ResultSink, type FinalResultReceipt, type JobOwnerPort,
           type JobsPiHost, type JobObservation, createJobLifecycle, resolveJobsLifecycleSettings,
-          waitForJobs, type JobsClock, type JobsWaitResult, type JobLifecycle } from '${manifest.name}';
+          waitForJobs, type JobsClock, type JobsWaitResult, type JobLifecycle,
+          createSessionJobStore, createJobsFileOutput, type JobsSessionPort, type SessionJobStore,
+          type JobsCapturedOutput, type JobsOutputArtifacts } from '${manifest.name}';
         import { createJobsTestBus, createUnknownJobFixture, createJobsTestAdapter } from '${manifest.name}/testing';
         const clock: JobsClock = {now:()=>0,schedule:()=>()=>undefined};
         const fake = createJobsTestAdapter(clock);
@@ -206,6 +229,11 @@ it.each(['npm', 'pnpm'] as const)(
           authorize:r=>r.authority===authority,clock,startedAtMs:0,settings:resolveJobsLifecycleSettings()});
         export const waited = waitForJobs({requestId:'W',selection:{mode:'one',jobs:[{runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'unknown'}]},timeoutMs:0},lifecycle.inspect,{clock});
         export type Waited = JobsWaitResult;
+        const session: JobsSessionPort = {sessionId:'S',persistent:false,appendEntry:()=>undefined,getEntries:()=>[]};
+        const output: JobsOutputArtifacts = createJobsFileOutput('/isolated/consumer/output');
+        export const store: SessionJobStore = createSessionJobStore({session,output,maxBytes:100});
+        export type Captured = JobsCapturedOutput;
+        export const captured = store.capture({runtimeId:'R',ownerId:'O',sessionId:'S',jobId:'J',producerId:'opaque'}, {stream:'stdout',bytes:new Uint8Array(1)});
         const events = createJobsTestBus();
         const owner = createJobsParticipant({events}, {runtimeId:'R', participantId:'O', role:'owner'});
         export const job: JobObservation = createUnknownJobFixture({runtimeId:'R', ownerId:'O', sessionId:'S', jobId:'J', producerId:'unknown'});
@@ -231,7 +259,7 @@ it.each(['npm', 'pnpm'] as const)(
         consumer,
       );
       console.log(
-        `${manager} consumer passed: ${smoke.trim()}; TypeScript ${typescriptVersion}; archive sha256 ${createHash('sha256').update(readFileSync(tarball)).digest('hex')}`,
+        `${manager} consumer passed: ${smoke.trim()}; storage ${storageSmoke.trim()}; TypeScript ${typescriptVersion}; archive sha256 ${createHash('sha256').update(readFileSync(tarball)).digest('hex')}`,
       );
     } finally {
       rmSync(root, { recursive: true, force: true });

@@ -9,6 +9,12 @@
     "dist/lifecycle.js",
     "dist/lifecycle.d.ts",
     "dist/lifecycle.d.ts.map",
+    "dist/storage.js",
+    "dist/storage.d.ts",
+    "dist/storage.d.ts.map",
+    "dist/storage-files.js",
+    "dist/storage-files.d.ts",
+    "dist/storage-files.d.ts.map",
     "dist/testing.js",
     "dist/testing.d.ts",
     "dist/testing.d.ts.map"
