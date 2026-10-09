@@ -10,7 +10,6 @@ import {
   FAST_FLAG,
   FAST_STATE_CUSTOM_TYPE,
   FAST_STATUS_KEY,
-  applyFastModeHeaders,
   createFastModeState,
   createFastStateEntryData,
   getFastPayload,
@@ -130,13 +129,6 @@ export default function fastMode(pi: ExtensionAPI) {
     const state = restoreSessionState(ctx, pi.getFlag(FAST_FLAG) === true);
     syncFeatureState(toFastContext(ctx), state);
     updateStatus(pi, ctx);
-  });
-
-  pi.on('before_provider_headers', (event, ctx) => {
-    const state = getSessionState(ctx);
-    const fastContext = toFastContext(ctx);
-    const modelStatus = getCurrentModelStatus(fastContext);
-    applyFastModeHeaders(event.headers, fastContext, state, modelStatus);
   });
 
   pi.on('before_provider_request', (event, ctx) => {

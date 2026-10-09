@@ -10,7 +10,7 @@ The current model's API and ID determine what gets injected. Any provider that s
 
 - **Claude Opus 4.6 / 4.8 / 5 / 5.5** (`anthropic-messages`)
   - Adds `speed: "fast"`
-  - Adds required header `anthropic-beta: fast-mode-2026-02-01`
+  - Appends the required beta `fast-mode-2026-02-01` to the request's `betas`, keeping betas Pi already selected
 - **GPT-5.4 / GPT-5.5 / GPT-5.6 Luna, Sol, and Terra / GPT-6 Astra, Sol, and Luna**
   - Adds `service_tier: "priority"`
   - `openai-codex-responses` requires ChatGPT/OAuth auth (API-key models are skipped)

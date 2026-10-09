@@ -11,7 +11,6 @@ export const FAST_UNSUPPORTED_TEXT = 'no fast';
 
 const FAST_SPEED = 'fast';
 const FAST_BETA = 'fast-mode-2026-02-01';
-const CLAUDE_CODE_OAUTH_BETAS = ['claude-code-20250219', 'oauth-2025-04-20'];
 const FAST_SERVICE_TIER = 'priority';
 
 // Features match on the model's wire API, so proxies such as LiteLLM that speak
@@ -60,6 +59,8 @@ export type FastFeature = {
   supportedModels: Set<string>;
   injectionKey: string;
   injectionValue: string;
+  /** Appended to the payload's `betas` so the provider's computed betas are preserved. */
+  beta?: string;
   unsupportedModelMessage: string;
   isEligible?: (ctx: FastContext) => string | undefined;
 };
@@ -225,28 +226,6 @@ export function syncFeatureState(ctx: FastContext, state: FastModeState): Curren
   return getCurrentModelStatus(ctx);
 }
 
-export function applyFastModeHeaders(
-  headers: Record<string, string | null>,
-  ctx: FastContext,
-  state: FastModeState,
-  modelStatus = getCurrentModelStatus(ctx),
-): void {
-  const model = ctx.model;
-  const shouldEnable =
-    model?.api === CLAUDE_API &&
-    state.enabled &&
-    modelStatus.isSupported &&
-    modelStatus.feature?.api === CLAUDE_API;
-  if (!shouldEnable || !model) return;
-
-  const headerKey =
-    Object.keys(headers).find((key) => key.toLowerCase() === 'anthropic-beta') ?? 'anthropic-beta';
-  const existingValue = headers[headerKey];
-  const existing = splitBetaHeader(typeof existingValue === 'string' ? existingValue : '');
-  const requiredBase = ctx.modelRegistry.isUsingOAuth(model) ? CLAUDE_CODE_OAUTH_BETAS : [];
-  headers[headerKey] = Array.from(new Set([...existing, ...requiredBase, FAST_BETA])).join(',');
-}
-
 export function getFastPayload(
   payload: unknown,
   ctx: FastContext,
@@ -257,12 +236,17 @@ export function getFastPayload(
   if (!modelStatus.isSupported || !modelStatus.feature) return undefined;
   if (!isPayloadRecord(payload)) return undefined;
   if (payload.model !== ctx.model?.id) return undefined;
-  if (modelStatus.feature.injectionKey in payload) return undefined;
+  const { injectionKey, injectionValue, beta } = modelStatus.feature;
+  if (injectionKey in payload) return undefined;
 
-  return {
-    ...payload,
-    [modelStatus.feature.injectionKey]: modelStatus.feature.injectionValue,
-  };
+  const fastPayload: Record<string, unknown> = { ...payload, [injectionKey]: injectionValue };
+  if (beta) {
+    // An explicit anthropic-beta header would replace pi's computed betas (OAuth,
+    // mid-conversation output_config, inline tools), so extend the payload list instead.
+    const betas = Array.isArray(payload.betas) ? payload.betas : [];
+    fastPayload.betas = Array.from(new Set([...betas, beta]));
+  }
+  return fastPayload;
 }
 
 const FAST_FEATURES: readonly FastFeature[] = [
@@ -271,6 +255,7 @@ const FAST_FEATURES: readonly FastFeature[] = [
     supportedModels: CLAUDE_FAST_MODELS,
     injectionKey: 'speed',
     injectionValue: FAST_SPEED,
+    beta: FAST_BETA,
     unsupportedModelMessage: CLAUDE_UNSUPPORTED_MESSAGE,
   },
   {
@@ -292,12 +277,5 @@ const FAST_FEATURES: readonly FastFeature[] = [
         : 'ChatGPT OAuth auth is required; API-key auth is intentionally not used',
   },
 ];
-
-function splitBetaHeader(value: string): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((current) => current.trim())
-    .filter(Boolean);
-}
 
 export const FEATURES = FAST_FEATURES;

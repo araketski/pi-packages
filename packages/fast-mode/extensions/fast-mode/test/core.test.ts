@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
 import {
-  applyFastModeHeaders,
   createFastModeState,
   getCurrentModelStatus,
   getFastPayload,
@@ -79,31 +78,21 @@ test('status is muted when off and accent when enabled for a supported model', (
   });
 });
 
-test('Claude fast mode injects speed and adds its beta only to outgoing headers', () => {
-  const model: FastModel = {
-    provider: 'anthropic',
-    api: 'anthropic-messages',
-    id: 'claude-opus-4-6',
-    headers: { 'anthropic-beta': 'user-beta' },
-  };
-  const ctx = context(model);
+test('Claude fast mode appends its beta to the provider-computed betas', () => {
+  const ctx = context({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-5-5' });
   const state = createFastModeState(true);
   const modelStatus = syncFeatureState(ctx, state);
-  const payload = getFastPayload(
-    { model: 'claude-opus-4-6', messages: [] },
-    ctx,
-    state,
-    modelStatus,
-  );
-  const outgoingHeaders: Record<string, string | null> = {
-    'anthropic-beta': 'user-beta',
-  };
-  applyFastModeHeaders(outgoingHeaders, ctx, state, modelStatus);
+  const betas = ['mid-conversation-output-config-2026-07-01', 'fast-mode-2026-02-01'];
 
-  expect(modelStatus.isSupported).toBe(true);
-  expect(payload?.speed).toBe('fast');
-  expect(outgoingHeaders['anthropic-beta']).toBe('user-beta,fast-mode-2026-02-01');
-  expect(model.headers).toEqual({ 'anthropic-beta': 'user-beta' });
+  expect(getFastPayload({ model: 'claude-opus-5-5', betas }, ctx, state, modelStatus)).toEqual({
+    model: 'claude-opus-5-5',
+    speed: 'fast',
+    betas: ['mid-conversation-output-config-2026-07-01', 'fast-mode-2026-02-01'],
+  });
+  expect(
+    getFastPayload({ model: 'claude-opus-5-5', betas: betas.slice(0, 1) }, ctx, state, modelStatus)
+      ?.betas,
+  ).toEqual(betas);
 });
 
 test('Claude fast mode preserves existing speed and does not replace payload', () => {
@@ -114,45 +103,6 @@ test('Claude fast mode preserves existing speed and does not replace payload', (
   expect(
     getFastPayload({ model: 'claude-opus-4-6', speed: 'standard' }, ctx, state, modelStatus),
   ).toBe(undefined);
-});
-
-test('disabled fast mode preserves a pre-existing fast beta token', () => {
-  const model: FastModel = {
-    provider: 'anthropic',
-    api: 'anthropic-messages',
-    id: 'claude-opus-4-6',
-    headers: { 'anthropic-beta': 'existing,fast-mode-2026-02-01' },
-  };
-  const ctx = context(model);
-  const state = createFastModeState(false);
-  const outgoingHeaders: Record<string, string | null> = {
-    'anthropic-beta': 'existing,fast-mode-2026-02-01',
-  };
-
-  const modelStatus = syncFeatureState(ctx, state);
-  applyFastModeHeaders(outgoingHeaders, ctx, state, modelStatus);
-
-  expect(model.headers?.['anthropic-beta']).toBe('existing,fast-mode-2026-02-01');
-  expect(outgoingHeaders['anthropic-beta']).toBe('existing,fast-mode-2026-02-01');
-});
-
-test('Claude fast mode preserves mixed-case headers and adds OAuth betas once', () => {
-  const model: FastModel = {
-    provider: 'anthropic',
-    api: 'anthropic-messages',
-    id: 'claude-opus-4-6',
-  };
-  const ctx = context(model, true);
-  const state = createFastModeState(true);
-  const headers: Record<string, string | null> = { 'Anthropic-Beta': 'user-beta' };
-
-  applyFastModeHeaders(headers, ctx, state);
-  applyFastModeHeaders(headers, ctx, state);
-
-  expect(headers).toEqual({
-    'Anthropic-Beta': 'user-beta,claude-code-20250219,oauth-2025-04-20,fast-mode-2026-02-01',
-  });
-  expect(model.headers).toBeUndefined();
 });
 
 test.each(['gpt-5.4', 'gpt-5.5', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra'])(
@@ -231,19 +181,17 @@ test.each([
   ['anthropic', 'claude-opus-5-5'],
   ['anthropic', 'claude-opus-5'],
   ['litellm', 'anthropic/claude-opus-5-5'],
-])('Claude fast mode supports %s/%s with speed and beta header', (provider, modelId) => {
+])('Claude fast mode supports %s/%s with speed and beta', (provider, modelId) => {
   const ctx = context({ provider, api: 'anthropic-messages', id: modelId });
   const state = createFastModeState(true);
   const modelStatus = syncFeatureState(ctx, state);
-  const headers: Record<string, string | null> = {};
-  applyFastModeHeaders(headers, ctx, state, modelStatus);
 
   expect(modelStatus.isSupported).toBe(true);
   expect(getFastPayload({ model: modelId }, ctx, state, modelStatus)).toEqual({
     model: modelId,
     speed: 'fast',
+    betas: ['fast-mode-2026-02-01'],
   });
-  expect(headers).toEqual({ 'anthropic-beta': 'fast-mode-2026-02-01' });
 });
 
 test('LiteLLM Claude model without upstream fast mode stays unsupported', () => {
@@ -254,11 +202,11 @@ test('LiteLLM Claude model without upstream fast mode stays unsupported', () => 
   });
   const state = createFastModeState(true);
   const modelStatus = syncFeatureState(ctx, state);
-  const headers: Record<string, string | null> = {};
-  applyFastModeHeaders(headers, ctx, state, modelStatus);
 
   expect(modelStatus.isSupported).toBe(false);
-  expect(headers).toEqual({});
+  expect(getFastPayload({ model: 'anthropic/claude-sonnet-5' }, ctx, state, modelStatus)).toBe(
+    undefined,
+  );
 });
 
 test.each(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna'])(
@@ -299,10 +247,7 @@ test('Claude Opus 4.7 stays unsupported because the API rejects fast mode', () =
   const ctx = context({ provider: 'anthropic', api: 'anthropic-messages', id: 'claude-opus-4-7' });
   const state = createFastModeState(true);
   const modelStatus = syncFeatureState(ctx, state);
-  const headers: Record<string, string | null> = {};
-  applyFastModeHeaders(headers, ctx, state, modelStatus);
 
   expect(modelStatus.isSupported).toBe(false);
   expect(getFastPayload({ model: 'claude-opus-4-7' }, ctx, state, modelStatus)).toBe(undefined);
-  expect(headers).toEqual({});
 });
